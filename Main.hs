@@ -70,11 +70,18 @@ computeModuleGraph = fmap rulesToGraph . entriesToRules . entries
     depToTarget (Dependency name) = Target name
 
 prettyModuleGraph :: ModuleGraph -> Text
-prettyModuleGraph = mconcat
-                    . map ((<> "\n") . prettyModuleEdge)
-                    . Map.toList
-                    . Lens.view moduleGraph
+prettyModuleGraph = \mg -> mconcat
+                           [ "digraph {\n"
+                           , prettyModuleEdges mg
+                           , "}\n"
+                           ]
   where
+    prettyModuleEdges :: ModuleGraph -> Text
+    prettyModuleEdges = mconcat
+                        . map ((\x -> "  " <> x <> "\n") . prettyModuleEdge)
+                        . Map.toList
+                        . Lens.view moduleGraph
+
     prettyModuleEdge :: (Module, Set Module) -> Text
     prettyModuleEdge (mod, deps)
       = mconcat [prettyModule mod, " -> ", prettyModuleSet deps, ";"]
@@ -105,13 +112,53 @@ prettyModuleGraph = mconcat
 printModuleGraph :: ModuleGraph -> IO ()
 printModuleGraph = T.putStrLn . prettyModuleGraph
 
+newtype Path
+  = MkPath Text
+  deriving (Eq, Ord, Show)
+
 newtype BuildGraph
   = MkBuildGraph
-    { fromBuildGraph :: Map Target (Set Target, [Command])
+    { fromBuildGraph :: Map Path (Set Path, [Command])
     }
 
 computeBuildGraph :: ModuleGraph -> BuildGraph
-computeBuildGraph = _ -- FIXME
+computeBuildGraph = \mg -> makeBuildGraph
+                           $ map (convertNode mg)
+                           $ Map.toList (mg ^. moduleGraph)
+  where
+    makeBuildGraph :: [(Path, (Set Path, [Command]))] -> BuildGraph
+    makeBuildGraph = MkBuildGraph . Map.fromList
+
+    convertNode :: ModuleGraph
+                -> (Module, Set Module)
+                -> (Path, (Set Path, [Command]))
+    convertNode mg (mod, deps) = ( modToPath mod
+                                 , ( generateDependencies mg mod deps
+                                   , generateCommands     mg mod deps )
+                                 )
+
+    modToPath :: Module -> Path
+    modToPath (MkModule name) = MkPath name
+
+    generateDependencies :: ModuleGraph -> Module -> Set Module -> Set Path
+    generateDependencies mg mod deps = Set.union (Set.map modToPath deps)
+                                       $ if isObjectFile mod
+                                         then objectFileDependencies mg mod deps
+                                         else Set.empty
+
+    generateCommands :: ModuleGraph -> Module -> Set Module -> [Command]
+    generateCommands mg mod deps = if isObjectFile mod
+                                   then objectFileCommands mg mod deps
+                                   else []
+
+    isObjectFile :: Module -> Bool
+    isObjectFile (MkModule m) = (T.takeEnd 2 m == ".o")
+
+    objectFileCommands :: ModuleGraph -> Module -> Set Module -> [Command]
+    objectFileCommands mg mod deps = [""] -- FIXME
+
+    objectFileDependencies :: ModuleGraph -> Module -> Set Module -> Set Path
+    objectFileDependencies = _
 
 testMakefile :: IO Makefile
 testMakefile = Makefile.parseAsMakefile "./profunctors/src/Makefile"
