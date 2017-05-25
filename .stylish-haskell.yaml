@@ -1,0 +1,31 @@
+steps:
+# Align imports
+  - imports:
+      align: global
+      list_padding: 17
+      long_list_align: new_line
+
+# Align and remove redundant language pragmas
+  - language_pragmas:
+      style: vertical
+      align: true
+      remove_redundant: true
+
+# Align records
+  - simple_align:
+      cases: false
+      top_level_patterns: false
+      records: true
+
+# Replace each tab by two spaces
+  - tabs:
+      spaces: 2
+
+# Remove trailing whitespace
+  - trailing_whitespace: {}
+
+# Max number of columns per line
+columns: 80
+
+# Replace CR-LF by LF
+newline: lf
