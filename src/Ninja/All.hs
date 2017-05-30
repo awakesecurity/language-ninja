@@ -36,6 +36,7 @@
 -- | FIXME: doc
 module Ninja.All (runNinja) where
 
+import           Data.Bifunctor
 import           Data.Monoid
 
 import qualified Data.ByteString            as BS8
@@ -51,7 +52,6 @@ import           Control.Monad
 import           Data.Char
 import           Data.List.Extra
 import           Data.Maybe
-import           Data.Tuple.Extra
 import           Prelude
 import           System.Directory
 import           System.Info.Extra
@@ -99,7 +99,7 @@ orderOnlyBS = orderOnly . map BS.unpack
 runNinja :: FilePath -> [String] -> Maybe String -> IO (Maybe (Rules ()))
 runNinja file args (Just "compdb") = do
   dir <- getCurrentDirectory
-  (MkNinja {..}) <- parse file =<< newEnv
+  (MkNinja {..}) <- newEnv >>= parse file
   rules <- pure $ HM.fromList [r | r <- rules, BS.unpack (fst r) `elem` args]
   -- the build items are generated in reverse order, hence the reverse
   let xs = [ (a, b, file, rule)
@@ -159,8 +159,7 @@ resolvePhony mp = f $ Left 100
     f (Right xs) x | x `elem` xs = error $ "Recursive phony involving " ++ BS.unpack x
     f a x = case HM.lookup x mp of
               Nothing -> [x]
-              Just xs -> concatMap (f $ either (Left . subtract 1) (Right . (x:)) a) xs
-
+              Just xs -> concatMap (f $ bimap (subtract 1) (x:) a) xs
 
 quote :: Str -> Str
 quote x
@@ -188,10 +187,10 @@ build needDeps phonys rules pools out (build@(MkBuild {..})) = do
       env <- liftIO $ scopeEnv env
       liftIO $ do
         -- the order of adding new environment variables matters
-        addEnv env (BS.pack "out") (BS.unwords $ map quote out)
-        addEnv env (BS.pack "in") (BS.unwords $ map quote depsNormal)
-        addEnv env (BS.pack "in_newline") (BS.unlines depsNormal)
-        forM_ buildBind $ \(a,b) -> addEnv env a b
+        addEnv env "out"        $ BS.unwords $ map quote out
+        addEnv env "in"         $ BS.unwords $ map quote depsNormal
+        addEnv env "in_newline" $ BS.unlines depsNormal
+        forM_ buildBind (uncurry (addEnv env))
         addBinds env ruleBind
 
       applyRspfile env $ do
@@ -237,11 +236,12 @@ needDeps :: Ninja -> Build -> [Str] -> Action ()
 needDeps (MkNinja {..}) = \build xs -> do
   -- eta reduced so 'builds' is shared
   opts <- getShakeOptions
-  if isNothing $ shakeLint opts then needBS xs else do
+  let dontLint = isNothing $ shakeLint opts
+  if dontLint then needBS xs else do
     neededBS xs
     -- now try and statically validate needed will never fail
     -- first find which dependencies are generated files
-    xs <- pure $ filter (`HM.member` builds) xs
+    xs <- pure $ filter (\b -> HM.member b builds) xs
     -- now try and find them as dependencies
     let bad = xs `difference` allDependencies build
     case bad of
@@ -254,19 +254,19 @@ needDeps (MkNinja {..}) = \build xs -> do
     builds :: HashMap FileStr Build
     builds = HM.fromList $ singles ++ [(x,y) | (xs,y) <- multiples, x <- xs]
 
-    -- do list difference, assuming a small initial set, most of which occurs early in the list
+    -- do list difference, assuming a small initial set, most of which occurs
+    -- early in the list
     difference :: [Str] -> [Str] -> [Str]
     difference [] ys = []
     difference xs ys = f (HS.fromList xs) ys
       where
-        f xs []                        = HS.toList xs
-        f xs (y:ys) | y `HS.member` xs = let xs2 = HS.delete y xs
-                                         in if HS.null xs2
-                                            then []
-                                            else f xs2 ys
-        f xs (y:ys)                    = f xs ys
+        f xs []              = HS.toList xs
+        f xs (y:ys) | y ∈ xs = let xs2 = HS.delete y xs
+                               in (if HS.null xs2 then [] else f xs2 ys)
+        f xs (y:ys)          = f xs ys
 
-    -- find all dependencies of a rule, no duplicates, with all dependencies of this rule listed first
+    -- find all dependencies of a rule, no duplicates, with all dependencies of
+    -- this rule listed first
     allDependencies :: Build -> [FileStr]
     allDependencies rule = f HS.empty [] [rule]
       where
@@ -285,8 +285,8 @@ needDeps (MkNinja {..}) = \build xs -> do
                                                        $ HM.lookup x builds
                                            in x : f seen' xs rest'
 
-        (∈) :: (Eq a, Hashable a) => a -> HashSet a -> Bool
-        (∈) = HS.member
+    (∈) :: (Eq a, Hashable a) => a -> HashSet a -> Bool
+    (∈) = HS.member
 
 applyRspfile :: Env Str Str -> Action a -> Action a
 applyRspfile env act = do
@@ -338,7 +338,6 @@ printCompDB xs = unlines $ ["["] ++ concat (zipWith f [1..] xs) ++ ["]"]
                           , "  }" <> (if i == n then "" else ",") ]
     g = show
 
-
 toCommand :: String -> ([CmdOption], String, [String])
 toCommand s
   -- On POSIX, Ninja does a /bin/sh -c, and so does Haskell in Shell mode.
@@ -367,9 +366,9 @@ toCommand s
 
 
 data State
-    = Gap  -- ^ Current in the gap between words
-    | Word -- ^ Currently inside a space-separated argument
-    | Quot -- ^ Currently inside a quote-surrounded argument
+  = Gap  -- ^ Current in the gap between words
+  | Word -- ^ Currently inside a space-separated argument
+  | Quot -- ^ Currently inside a quote-surrounded argument
 
 -- | The process package contains a translate function, reproduced below.
 --   The aim is that after command line parsing we should get out mostly
