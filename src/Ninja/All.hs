@@ -124,7 +124,7 @@ runNinja file args (Just x)
 
 runNinja file args tool = do
   addTiming "Ninja parse"
-  (ninja@(MkNinja{..})) <- parse file =<< newEnv
+  (ninja@(MkNinja{..})) <- newEnv >>= parse file
   pure $ Just $ do
     needDeps  <- pure $ needDeps ninja -- partial application
     phonys    <- pure $ HM.fromList phonys
@@ -166,7 +166,6 @@ quote x
   | BS.any isSpace x = let q = BS.singleton '\"' in BS.concat [q, x, q]
   | otherwise        = x
 
-
 build :: (Build -> [Str] -> Action ())
       -> HashMap Str [Str]
       -> HashMap Str Rule
@@ -203,14 +202,15 @@ build needDeps phonys rules pools out (build@(MkBuild {..})) = do
         description <- askVarStr "description"
         pool        <- BS.pack <$> askVarStr "pool"
 
-        let withPool act = case HM.lookup pool pools of
-                             _ | BS.null pool -> act
-                             Nothing -> liftIO $ errorIO $ mconcat
-                                        [ "Ninja pool named "
-                                        , BS.unpack pool
-                                        , " not found, required to build "
-                                        , BS.unpack (BS.unwords out) ]
-                             (Just r) -> withResource r 1 act
+        let withPool act = if BS.null pool
+                           then act
+                           else case HM.lookup pool pools of
+                                  Nothing -> liftIO $ errorIO $ mconcat
+                                             [ "Ninja pool named "
+                                             , BS.unpack pool
+                                             , " not found, required to build "
+                                             , BS.unpack (BS.unwords out) ]
+                                  (Just r) -> withResource r 1 act
 
         when (description /= "") $ putNormal description
         let (cmdOpts, cmdProg, cmdArgs) = toCommand commandline
@@ -252,7 +252,7 @@ needDeps (MkNinja {..}) = \build xs -> do
                ]
   where
     builds :: HashMap FileStr Build
-    builds = HM.fromList $ singles ++ [(x,y) | (xs,y) <- multiples, x <- xs]
+    builds = HM.fromList $ singles ++ [(x, y) | (xs, y) <- multiples, x <- xs]
 
     -- do list difference, assuming a small initial set, most of which occurs
     -- early in the list
@@ -280,8 +280,7 @@ needDeps (MkNinja {..}) = \build xs -> do
                                            in f seen paths xs
         f seen (x:xs) rest   | x ∈ seen  = f seen xs rest
                              | otherwise = let seen' = HS.insert x seen
-                                               rest' = (++ rest)
-                                                       $ maybeToList
+                                               rest' = maybe rest (: rest)
                                                        $ HM.lookup x builds
                                            in x : f seen' xs rest'
 
