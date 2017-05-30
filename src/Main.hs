@@ -24,6 +24,13 @@ import qualified Data.Map.Strict     as Map
 import           Data.Set            (Set)
 import qualified Data.Set            as Set
 
+import qualified Ninja.All           as Ninja
+import qualified Ninja.Env           as Ninja
+import qualified Ninja.Lexer         as Ninja
+import qualified Ninja.Parse         as Ninja
+import qualified Ninja.Pretty        as Ninja
+import qualified Ninja.Type          as Ninja
+
 newtype Module
   = MkModule Text
   deriving (Eq, Ord, Show)
@@ -158,7 +165,7 @@ computeBuildGraph = \mg -> makeBuildGraph
     objectFileCommands mg mod deps = [""] -- FIXME
 
     objectFileDependencies :: ModuleGraph -> Module -> Set Module -> Set Path
-    objectFileDependencies = _
+    objectFileDependencies = undefined -- FIXME
 
 testMakefile :: IO Makefile
 testMakefile = Makefile.parseAsMakefile "./profunctors/src/Makefile"

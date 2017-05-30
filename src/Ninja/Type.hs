@@ -40,9 +40,10 @@ module Ninja.Type
   ) where
 
 import           Control.Applicative
-import qualified Data.ByteString.Char8 as BS
+import           Control.Monad.IO.Class
+
+import qualified Data.ByteString.Char8  as BS
 import           Data.Maybe
-import           Prelude
 
 import           Ninja.Env
 
@@ -63,21 +64,21 @@ data Expr
   deriving (Eq, Show)
 
 -- | FIXME: doc
-askExpr :: Env Str Str -> Expr -> IO Str
+askExpr :: (MonadIO m) => Env Str Str -> Expr -> m Str
 askExpr e (Exprs xs) = BS.concat <$> mapM (askExpr e) xs
 askExpr _ (Lit x)    = pure x
 askExpr e (Var x)    = askVar e x
 
 -- | FIXME: doc
-askVar :: Env Str Str -> Str -> IO Str
+askVar :: (MonadIO m) => Env Str Str -> Str -> m Str
 askVar e x = fromMaybe BS.empty <$> askEnv e x
 
 -- | FIXME: doc
-addBind :: Env Str Str -> Str -> Expr -> IO ()
+addBind :: (MonadIO m) => Env Str Str -> Str -> Expr -> m ()
 addBind e k v = askExpr e v >>= addEnv e k
 
 -- | FIXME: doc
-addBinds :: Env Str Str -> [(Str, Expr)] -> IO ()
+addBinds :: (MonadIO m) => Env Str Str -> [(Str, Expr)] -> m ()
 addBinds e bs = mapM (\(a, b) -> (a,) <$> askExpr e b) bs
                 >>= mapM_ (uncurry (addEnv e))
 
@@ -97,7 +98,7 @@ data Ninja
     , pools     :: [(Str, Int)]
       -- ^ FIXME: doc
     }
-  deriving Show
+  deriving (Show)
 
 -- | FIXME: doc
 newNinja :: Ninja
@@ -119,7 +120,7 @@ data Build
     , buildBind     :: [(Str, Str)]
       -- ^ FIXME: doc
     }
-  deriving Show
+  deriving (Show)
 
 -- | FIXME: doc
 newtype Rule
@@ -127,4 +128,4 @@ newtype Rule
     { ruleBind :: [(Str, Expr)]
       -- ^ FIXME: doc
     }
-  deriving Show
+  deriving (Show)

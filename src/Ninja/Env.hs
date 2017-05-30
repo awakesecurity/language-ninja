@@ -34,8 +34,10 @@ module Ninja.Env
   ( Env, newEnv, scopeEnv, addEnv, askEnv, fromEnv
   ) where
 
+import           Control.Monad.IO.Class
+
 import           Data.Hashable
-import qualified Data.HashMap.Strict as Map
+import qualified Data.HashMap.Strict    as Map
 import           Data.IORef
 
 -- FIXME: it seems unlikely to me that this module actually needs to be
@@ -50,25 +52,25 @@ instance Show (Env k v) where
   show _ = "Env"
 
 -- | FIXME: doc
-newEnv :: IO (Env k v)
+newEnv :: (MonadIO m) => m (Env k v)
 newEnv = do
-  ref <- newIORef Map.empty
+  ref <- liftIO $ newIORef Map.empty
   pure $ MkEnv ref Nothing
 
 -- | FIXME: doc
-scopeEnv :: Env k v -> IO (Env k v)
+scopeEnv :: (MonadIO m) => Env k v -> m (Env k v)
 scopeEnv e = do
-  ref <- newIORef Map.empty
+  ref <- liftIO $ newIORef Map.empty
   pure $ MkEnv ref $ Just e
 
 -- | FIXME: doc
-addEnv :: (Eq k, Hashable k) => Env k v -> k -> v -> IO ()
-addEnv (MkEnv ref _) k v = modifyIORef ref $ Map.insert k v
+addEnv :: (Eq k, Hashable k, MonadIO m) => Env k v -> k -> v -> m ()
+addEnv (MkEnv ref _) k v = liftIO $ modifyIORef ref $ Map.insert k v
 
 -- | FIXME: doc
-askEnv :: (Eq k, Hashable k) => Env k v -> k -> IO (Maybe v)
+askEnv :: (Eq k, Hashable k, MonadIO m) => Env k v -> k -> m (Maybe v)
 askEnv (MkEnv ref e) k = do
-  mp <- readIORef ref
+  mp <- liftIO $ readIORef ref
   case Map.lookup k mp
     of Just v  -> pure (Just v)
        Nothing -> case e
@@ -76,5 +78,5 @@ askEnv (MkEnv ref e) k = do
                      Nothing -> pure Nothing
 
 -- | FIXME: doc
-fromEnv :: Env k v -> IO (Map.HashMap k v)
-fromEnv (MkEnv ref _) = readIORef ref
+fromEnv :: (MonadIO m) => Env k v -> m (Map.HashMap k v)
+fromEnv (MkEnv ref _) = liftIO $ readIORef ref
