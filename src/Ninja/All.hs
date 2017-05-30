@@ -32,7 +32,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE ViewPatterns      #-}
 
 -- | FIXME: doc
 module Ninja.All (runNinja) where
@@ -56,6 +55,8 @@ import           Data.Tuple.Extra
 import           Prelude
 import           System.Directory
 import           System.Info.Extra
+
+import           Data.Hashable              (Hashable)
 
 import           Data.HashMap.Strict        (HashMap)
 import qualified Data.HashMap.Strict        as HM
@@ -269,41 +270,47 @@ needDeps (MkNinja {..}) = \build xs -> do
     allDependencies :: Build -> [FileStr]
     allDependencies rule = f HS.empty [] [rule]
       where
-        f seen []     []                          = []
-        f seen []     (x:xs)                      = let paths = mconcat
-                                                                [ depsNormal x
-                                                                , depsImplicit x
-                                                                , depsOrderOnly x
-                                                                ]
-                                                        normPaths = map filepathNormalise paths
-                                                    in f seen normPaths xs
-        f seen (x:xs) rest   | x `HS.member` seen = f seen xs rest
-                             | otherwise          = let seen' = HS.insert x seen
-                                                        rest' = maybeToList (HM.lookup x builds) ++ rest
-                                                    in x : f seen' xs rest'
+        f _    []     []                 = []
+        f seen []     (x:xs)             = let paths = map filepathNormalise
+                                                       $ mconcat
+                                                       [ depsNormal x
+                                                       , depsImplicit x
+                                                       , depsOrderOnly x
+                                                       ]
+                                           in f seen paths xs
+        f seen (x:xs) rest   | x ∈ seen  = f seen xs rest
+                             | otherwise = let seen' = HS.insert x seen
+                                               rest' = (++ rest)
+                                                       $ maybeToList
+                                                       $ HM.lookup x builds
+                                           in x : f seen' xs rest'
+
+        (∈) :: (Eq a, Hashable a) => a -> HashSet a -> Bool
+        (∈) = HS.member
 
 applyRspfile :: Env Str Str -> Action a -> Action a
 applyRspfile env act = do
-    rspfile <- liftIO $ fmap BS.unpack $ askVar env $ BS.pack "rspfile"
-    rspfile_content <- liftIO $ askVar env $ BS.pack "rspfile_content"
-    if rspfile == "" then
-        act
-     else
-        flip actionFinally (ignore $ removeFile rspfile) $ do
-            liftIO $ BS.writeFile rspfile rspfile_content
-            act
-
+  rspfile <- liftIO (BS.unpack <$> askVar env "rspfile")
+  rspfile_content <- liftIO (askVar env "rspfile_content")
+  if rspfile == ""
+    then act
+    else (liftIO (BS.writeFile rspfile rspfile_content) >> act)
+         `actionFinally`
+         ignore (removeFile rspfile)
 
 parseShowIncludes :: Str -> Str -> [FileStr]
-parseShowIncludes prefix out =
-    [y | x <- BS.lines out, prefix `BS.isPrefixOf` x
-       , let y = BS.dropWhile isSpace $ BS.drop (BS.length prefix) x
-       , not $ isSystemInclude y]
+parseShowIncludes prefix out = do
+  x <- BS.lines out
+  guard (prefix `BS.isPrefixOf` x)
+  let y = BS.dropWhile isSpace $ BS.drop (BS.length prefix) x
+  guard (not (isSystemInclude y))
+  pure y
 
 -- Dodgy, but ported over from the original Ninja
 isSystemInclude :: FileStr -> Bool
-isSystemInclude x = bsProgFiles `BS.isInfixOf` tx
-                    || bsVisStudio `BS.isInfixOf` tx
+isSystemInclude x = (    BS.isInfixOf bsProgFiles tx
+                      || BS.isInfixOf bsVisStudio tx
+                    )
   where
     tx = BS8.map (\c -> if c >= 97 then c - 32 else c) x
     -- optimised toUpper that only cares about letters and spaces
@@ -325,33 +332,38 @@ printCompDB xs = unlines $ ["["] ++ concat (zipWith f [1..] xs) ++ ["]"]
   where
     n = length xs
     f i (MkCompDB {..}) = [ "  {"
-                          , "    \"directory\": " ++ g cdbDirectory ++ ","
-                          , "    \"command\": " ++ g cdbCommand ++ ","
-                          , "    \"file\": " ++ g cdbFile
-                          , "  }" ++ (if i == n then "" else ",") ]
+                          , "    \"directory\": " <> g cdbDirectory ++ ","
+                          , "    \"command\": " <> g cdbCommand ++ ","
+                          , "    \"file\": " <> g cdbFile
+                          , "  }" <> (if i == n then "" else ",") ]
     g = show
 
 
 toCommand :: String -> ([CmdOption], String, [String])
 toCommand s
-    -- On POSIX, Ninja does a /bin/sh -c, and so does Haskell in Shell mode (easy).
-    | not isWindows = ([Shell], s, [])
-    -- On Windows, Ninja passes the string directly to CreateProcess,
-    -- but Haskell applies some escaping first.
-    -- We try and get back as close to the original as we can, but it's very hacky
-    | length s < 8000 =
-        -- Using the "cmd" program adds overhead (I measure 7ms), and a limit of 8191 characters,
-        -- but is the most robust, requiring no additional escaping.
-        ([Shell], s, [])
-    | (cmd,s) <- word1 s, map toUpper cmd `elem` ["CMD","CMD.EXE"], ("/c",s) <- word1 s =
-        -- Given "cmd.exe /c <something>" we translate to Shell, which adds cmd.exe
-        -- (looked up on the current path) and /c to the front. CMake uses this rule a lot.
-        -- Adding quotes around pieces are /c goes very wrong.
-        ([Shell], s, [])
-    | otherwise =
-        -- It's a long command line which doesn't call "cmd /c". We reverse the escaping
-        -- Haskell applies, but each argument will still gain quotes around it.
-        let xs = splitArgs s in ([], head $ xs ++ [""], drop 1 xs)
+  -- On POSIX, Ninja does a /bin/sh -c, and so does Haskell in Shell mode.
+  | not isWindows
+  = ([Shell], s, [])
+  -- On Windows, Ninja passes the string directly to CreateProcess,
+  -- but Haskell applies some escaping first. We try and get back as close to
+  -- the original as we can, but it's very hacky
+  | length s < 8000
+  -- Using the "cmd" program adds overhead (I measure 7ms), and a limit of
+  -- 8191 characters, but is the most robust, requiring no additional escaping.
+  = ([Shell], s, [])
+  | (cmd, s) <- word1 s
+  , map toUpper cmd `elem` ["CMD","CMD.EXE"]
+  , ("/c", s) <- word1 s
+  -- Given "cmd.exe /c <something>" we translate to Shell, which adds cmd.exe
+  -- (looked up on the current path) and /c to the front.
+  -- CMake uses this rule a lot.
+  -- Adding quotes around pieces are /c goes very wrong.
+  = ([Shell], s, [])
+  | otherwise
+  -- It's a long command line which doesn't call "cmd /c".
+  -- We reverse the escaping Haskell applies, but each argument will still gain
+  -- quotes around it.
+  = let xs = splitArgs s in ([], head $ xs ++ [""], drop 1 xs)
 
 
 data State
@@ -359,32 +371,27 @@ data State
     | Word -- ^ Currently inside a space-separated argument
     | Quot -- ^ Currently inside a quote-surrounded argument
 
--- | The process package contains a translate function, reproduced below. The aim is that after command line
---   parsing we should get out mostly the same answer.
+-- | The process package contains a translate function, reproduced below.
+--   The aim is that after command line parsing we should get out mostly
+--   the same answer.
 splitArgs :: String -> [String]
 splitArgs = f Gap
-    where
-        f Gap (x:xs) | isSpace x = f Gap xs
-        f Gap ('\"':xs) = f Quot xs
-        f Gap [] = []
-        f Gap xs = f Word xs
-        f Word (x:xs) | isSpace x = [] : f Gap xs
-        f Quot ('\"':xs) = [] : f Gap xs
-        f s ('\\':xs) | (length -> a, b) <- span (== '\\') xs = case b of
-            '\"':xs | even a -> add (replicate (a `div` 2) '\\' ++ "\"") $ f s xs
-                    | otherwise -> add (replicate ((a+1) `div` 2) '\\') $ f s ('\"':xs)
-            xs -> add (replicate (a+1) '\\') $ f s xs
-        f s (x:xs) = add [x] $ f s xs
-        f s [] = [[]]
+  where
+    f Gap  (x:xs)    | isSpace x                   = f Gap xs
+    f Gap  ('\"':xs)                               = f Quot xs
+    f Gap  []                                      = []
+    f Gap  xs                                      = f Word xs
+    f Word (x:xs)    | isSpace x                   = [] : f Gap xs
+    f Quot ('\"':xs)                               = [] : f Gap xs
+    f s    ('\\':xs) | (a, b) <- span (== '\\') xs = g s (length a) b
+    f s    (x:xs)                                  = add [x] $ f s xs
+    f _    []                                      = [[]]
 
-        add a (b:c) = (a++b):c
-        add a []    = [a]
+    g s a ('\"':xs) | even a = add (escape (a `div` 2) ++ "\"") (f s xs)
+    g s a ('\"':xs)          = add (escape ((a + 1) `div` 2))   (f s ('\"':xs))
+    g s a xs                 = add (escape (a + 1))             (f s xs)
 
-{-
-translate (cmd,args) = unwords $ f cmd : map f args
-    where
-        f x = '"' : snd (foldr escape (True,"\"") xs)
-        escape '"'  (_,     str) = (True,  '\\' : '"'  : str)
-        escape '\\' (True,  str) = (True,  '\\' : '\\' : str)
-        escape c    (_,     str) = (False, c : str)
--}
+    escape n = replicate n '\\'
+
+    add a (b:c) = (a ++ b):c
+    add a []    = [a]
