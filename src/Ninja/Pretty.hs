@@ -18,25 +18,25 @@ import qualified Data.Text.Encoding    as T
 prettyNinja :: Ninja -> ByteString
 prettyNinja ninja
   = BS.unlines $ map mconcat
-    [
+    [ -- FIXME: finish implementing
     ]
 
 prettyRule :: (Str, Rule) -> ByteString
 prettyRule (name, (MkRule {..}))
   = BS.unlines $ map mconcat
-    [
+    [ -- FIXME: finish implementing
     ]
 
 prettySingle :: (FileStr, Build) -> ByteString
 prettySingle (file, (MkBuild {..}))
   = BS.unlines $ map mconcat
-    [
+    [ -- FIXME: finish implementing
     ]
 
 prettyMultiple :: ([FileStr], Build) -> ByteString
 prettyMultiple (files, (MkBuild {..}))
   = BS.unlines $ map mconcat
-    [
+    [ -- FIXME: finish implementing
     ]
 
 prettyPhony :: (Str, [FileStr]) -> ByteString
