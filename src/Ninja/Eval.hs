@@ -1,6 +1,8 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
 
 -- | FIXME: doc
 module Ninja.Eval
@@ -21,19 +23,23 @@ import qualified Data.Text.Encoding    as T
 import           Data.HashMap.Strict   (HashMap)
 import qualified Data.HashMap.Strict   as HM
 
-import           Data.Aeson
+import           Data.Aeson            as Aeson
+import qualified Data.Aeson.Types      as Aeson
 
 -- | FIXME: doc
 newtype Pool
-  = MkPool ByteString
+  = MkPool Text
+  deriving (Eq, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 -- | FIXME: doc
 newtype Target
-  = MkTarget ByteString
+  = MkTarget Text
+  deriving (Eq, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 -- | FIXME: doc
 newtype RuleName
   = MkRuleName Text
+  deriving (Eq, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 -- | This type represents a command with arguments.
 data Command
@@ -46,24 +52,66 @@ data Command
     , _commandArgs :: [Text]
       -- ^ The arguments for the command.
     }
+  deriving (Eq)
 
 -- | FIXME: doc
 data ENinja
   = MkENinja
-    { _ninjaRules     :: !(HashMap RuleName ERule)
+    { _ninjaRules    :: !(HashMap RuleName ERule)
       -- ^ FIXME: doc
-    , _ninjaSingles   :: !(HashMap Target EBuild)
+    , _ninjaBuilds   :: !(HashMap [Target] EBuild)
       -- ^ FIXME: doc
-    , _ninjaMultiples :: !(HashMap [Target] EBuild)
+    , _ninjaPhonys   :: !(HashMap Target [Target])
       -- ^ FIXME: doc
-    , _ninjaPhonys    :: !(HashMap Target [Target])
+    , _ninjaDefaults :: ![Target]
       -- ^ FIXME: doc
-    , _ninjaDefaults  :: ![Target]
-      -- ^ FIXME: doc
-    , _ninjaPools     :: !(HashMap Pool Int)
+    , _ninjaPools    :: !(HashMap Pool Int)
       -- ^ FIXME: doc
     }
   deriving ()
+
+instance ToJSON ENinja where
+  toJSON (MkENinja {..}) = object
+                           [ "rules"    .= rules
+                           , "builds"   .= builds
+                           , "phonys"   .= phonys
+                           , "defaults" .= defaults
+                           , "pools"    .= pools
+                           ]
+    where
+      rules, builds, phonys, defaults, pools :: Value
+      rules    = toJSON _ninjaRules
+      builds   = toJSON $ map buildPair $ HM.toList _ninjaBuilds
+      phonys   = toJSON _ninjaPhonys
+      defaults = toJSON _ninjaDefaults
+      pools    = toJSON _ninjaPools
+
+      buildPair :: ([Target], EBuild) -> Value
+      buildPair (outs, build) = object ["outputs" .= outs, "build" .= build]
+
+instance FromJSON ENinja where
+  parseJSON = withObject "ENinja" $ \o -> MkENinja
+                                          <$> (o .: "rules"    >>= rulesP)
+                                          <*> (o .: "builds"   >>= buildsP)
+                                          <*> (o .: "phonys"   >>= phonysP)
+                                          <*> (o .: "defaults" >>= defaultsP)
+                                          <*> (o .: "pools"    >>= poolsP)
+    where
+      rulesP    :: Value -> Aeson.Parser (HashMap RuleName ERule)
+      rulesP    = parseJSON
+      buildsP   :: Value -> Aeson.Parser (HashMap [Target] EBuild)
+      buildsP   = let seqMap f = sequenceA . map f
+                  in \v -> HM.fromList <$> (parseJSON v >>= seqMap buildPairP)
+      phonysP   :: Value -> Aeson.Parser (HashMap Target [Target])
+      phonysP   = parseJSON
+      defaultsP :: Value -> Aeson.Parser [Target]
+      defaultsP = parseJSON
+      poolsP    :: Value -> Aeson.Parser (HashMap Pool Int)
+      poolsP    = parseJSON
+
+      buildPairP :: Value -> Aeson.Parser ([Target], EBuild)
+      buildPairP = withObject "ENinja"
+                   $ \o -> (,) <$> (o .: "outputs") <*> (o .: "build")
 
 -- | FIXME: doc
 data ERule
@@ -96,7 +144,7 @@ data ERule
       --   This is particularly useful on Windows OS, where the maximal length
       --   of a command line is limited and response files must be used instead.
     }
-  deriving ()
+  deriving (Eq)
 
 -- | FIXME: doc
 makeRule :: Str
@@ -126,7 +174,7 @@ data Deps
       --   @/showIncludes@ output. Only needed if the version of Visual Studio
       --   being used is not English.
     }
-  deriving ()
+  deriving (Eq)
 
 depsGCC :: Deps
 depsGCC = DepsGCC
