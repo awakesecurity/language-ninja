@@ -20,6 +20,8 @@ import           Data.Text             (Text)
 import qualified Data.Text             as T
 import qualified Data.Text.Encoding    as T
 
+import           Data.Hashable         (Hashable)
+
 import           Data.HashMap.Strict   (HashMap)
 import qualified Data.HashMap.Strict   as HM
 
@@ -27,19 +29,19 @@ import           Data.Aeson            as Aeson
 import qualified Data.Aeson.Types      as Aeson
 
 -- | FIXME: doc
-newtype Pool
-  = MkPool Text
-  deriving (Eq, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+newtype PoolName
+  = MkPoolName Text
+  deriving (Eq, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 -- | FIXME: doc
 newtype Target
   = MkTarget Text
-  deriving (Eq, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+  deriving (Eq, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 -- | FIXME: doc
 newtype RuleName
   = MkRuleName Text
-  deriving (Eq, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+  deriving (Eq, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 -- | This type represents a command with arguments.
 data Command
@@ -65,7 +67,7 @@ data ENinja
       -- ^ FIXME: doc
     , _ninjaDefaults :: ![Target]
       -- ^ FIXME: doc
-    , _ninjaPools    :: !(HashMap Pool Int)
+    , _ninjaPools    :: !(HashMap PoolName Int)
       -- ^ FIXME: doc
     }
   deriving ()
@@ -106,7 +108,7 @@ instance FromJSON ENinja where
       phonysP   = parseJSON
       defaultsP :: Value -> Aeson.Parser [Target]
       defaultsP = parseJSON
-      poolsP    :: Value -> Aeson.Parser (HashMap Pool Int)
+      poolsP    :: Value -> Aeson.Parser (HashMap PoolName Int)
       poolsP    = parseJSON
 
       buildPairP :: Value -> Aeson.Parser ([Target], EBuild)
@@ -146,8 +148,14 @@ data ERule
     }
   deriving (Eq)
 
+instance ToJSON ERule where
+  toJSON = undefined -- FIXME
+
+instance FromJSON ERule where
+  parseJSON = undefined -- FIXME
+
 -- | FIXME: doc
-makeRule :: Str
+makeRule :: Command
          -- ^ The command to run.
          -> ERule
          -- ^ A rule that runs this command.
@@ -169,12 +177,26 @@ data Deps
     -- ^ Special dependency processing for GCC.
   | DepsMSVC
     -- ^ Special dependency processing for MSVC.
-    { _depsMSVCPrefix :: !(Maybe Str)
+    { _depsMSVCPrefix :: !(Maybe Text)
       -- ^ This defines the string which should be stripped from @msvc@'s
       --   @/showIncludes@ output. Only needed if the version of Visual Studio
       --   being used is not English.
     }
   deriving (Eq)
+
+instance ToJSON Deps where
+  toJSON = go
+    where
+      go DepsGCC             = object ["deps" .= gcc]
+      go (DepsMSVC Nothing)  = object ["deps" .= msvc]
+      go (DepsMSVC (Just p)) = object ["deps" .= msvc, "prefix" .= p]
+
+      gcc, msvc :: Value
+      gcc = "gcc"
+      msvc = "msvc"
+
+instance FromJSON Deps where
+  parseJSON = undefined -- FIXME
 
 depsGCC :: Deps
 depsGCC = DepsGCC
@@ -187,3 +209,9 @@ data EBuild
     {
     }
   deriving ()
+
+instance ToJSON EBuild where
+  toJSON = undefined -- FIXME
+
+instance FromJSON EBuild where
+  parseJSON = undefined -- FIXME
