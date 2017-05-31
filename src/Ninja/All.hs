@@ -153,7 +153,7 @@ runNinja file args tool = do
       build needDeps phonys rules pools [out2] $ singles HM.! out2
 
 resolvePhony :: HashMap Str [Str] -> Str -> [Str]
-resolvePhony mp = f $ Left 100
+resolvePhony mp = f (Left 100)
   where
     f (Left 0) x = f (Right []) x
     f (Right xs) x | x `elem` xs = error $ "Recursive phony involving " ++ BS.unpack x
