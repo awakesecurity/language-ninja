@@ -36,36 +36,40 @@ import qualified Data.Aeson.Types      as Aeson
 -- | FIXME: doc
 newtype PoolName
   = MkPoolName Text
-  deriving (Eq, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+  deriving (Eq, Show, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 --------------------------------------------------------------------------------
 
 -- | FIXME: doc
 newtype Target
   = MkTarget Text
-  deriving (Eq, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+  deriving (Eq, Show, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 --------------------------------------------------------------------------------
 
 -- | FIXME: doc
 newtype RuleName
   = MkRuleName Text
-  deriving (Eq, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+  deriving (Eq, Show, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 --------------------------------------------------------------------------------
 
--- | This type represents a command with arguments.
-data Command
-  = MkCommand
-    { _commandExec :: Text
-      -- ^ The command to run.
-      --   If this is an absolute path to an executable file, the file will be
-      --   executed. Otherwise, it will be treated as a command name that will
-      --   be searched for in the @PATH@ environment variable.
-    , _commandArgs :: [Text]
-      -- ^ The arguments for the command.
-    }
-  deriving (Eq)
+newtype Command
+  = MkCommand Text
+  deriving (Eq, Show, Hashable, ToJSON, FromJSON)
+
+-- -- | This type represents a command with arguments.
+-- data Command
+--   = MkCommand
+--     { _commandExec :: Text
+--       -- ^ The command to run.
+--       --   If this is an absolute path to an executable file, the file will be
+--       --   executed. Otherwise, it will be treated as a command name that will
+--       --   be searched for in the @PATH@ environment variable.
+--     , _commandArgs :: [Text]
+--       -- ^ The arguments for the command.
+--     }
+--   deriving (Eq, Show)
 
 --------------------------------------------------------------------------------
 
@@ -138,7 +142,7 @@ data ERule
       -- ^ If set, this should be a path to an optional Makefile that contains
       --   extra implicit dependencies. This is used to support C/C++ header
       --   dependencies.
-    , _ruleDeps         :: !(Maybe Deps)
+    , _ruleDeps         :: !(Maybe SpecialDeps)
       -- ^ If set, enables special dependency processing used in C/C++ header
       --   dependencies. For more information, read the Ninja documentation
       --   <https://ninja-build.org/manual.html#ref_headers here>.
