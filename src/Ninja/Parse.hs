@@ -33,7 +33,7 @@
 {-# LANGUAGE TupleSections   #-}
 
 module Ninja.Parse
-  ( parse
+  ( parse, parseWithEnv
   ) where
 
 import           Control.Applicative
@@ -45,9 +45,11 @@ import           Ninja.Env
 import           Ninja.Lexer
 import           Ninja.Type
 
-parse :: FilePath -> Env Str Str -> IO Ninja
-parse file env = parseFile file env newNinja
+parse :: FilePath -> IO Ninja
+parse file = newEnv >>= parseWithEnv file
 
+parseWithEnv :: FilePath -> Env Str Str -> IO Ninja
+parseWithEnv file env = parseFile file env newNinja
 
 parseFile :: FilePath -> Env Str Str -> Ninja -> IO Ninja
 parseFile file env ninja = do
@@ -61,7 +63,6 @@ withBinds (x:xs) = (x,a) : withBinds b
         (a,b) = f xs
         f (LexBind a b : rest) = let (as,bs) = f rest in ((a,b):as, bs)
         f xs                   = ([], xs)
-
 
 applyStmt :: Env Str Str -> Ninja -> (Lexeme, [(Str,Expr)]) -> IO Ninja
 applyStmt env (ninja@(MkNinja {..})) (key, binds) = case key of

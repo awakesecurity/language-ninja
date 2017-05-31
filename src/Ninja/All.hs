@@ -99,7 +99,7 @@ orderOnlyBS = orderOnly . map BS.unpack
 runNinja :: FilePath -> [String] -> Maybe String -> IO (Maybe (Rules ()))
 runNinja file args (Just "compdb") = do
   dir <- getCurrentDirectory
-  (MkNinja {..}) <- newEnv >>= parse file
+  (MkNinja {..}) <- parse file
   rules <- pure $ HM.fromList [r | r <- rules, BS.unpack (fst r) `elem` args]
   -- the build items are generated in reverse order, hence the reverse
   let xs = [ (a, b, file, rule)
@@ -124,7 +124,7 @@ runNinja file args (Just x)
 
 runNinja file args tool = do
   addTiming "Ninja parse"
-  (ninja@(MkNinja{..})) <- newEnv >>= parse file
+  (ninja@(MkNinja{..})) <- parse file
   pure $ Just $ do
     needDeps  <- pure $ needDeps ninja -- partial application
     phonys    <- pure $ HM.fromList phonys
