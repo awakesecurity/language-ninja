@@ -25,23 +25,34 @@ import           Data.Hashable         (Hashable)
 import           Data.HashMap.Strict   (HashMap)
 import qualified Data.HashMap.Strict   as HM
 
+import           Data.HashSet          (HashSet)
+import qualified Data.HashSet          as HS
+
 import           Data.Aeson            as Aeson
 import qualified Data.Aeson.Types      as Aeson
+
+--------------------------------------------------------------------------------
 
 -- | FIXME: doc
 newtype PoolName
   = MkPoolName Text
   deriving (Eq, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
+--------------------------------------------------------------------------------
+
 -- | FIXME: doc
 newtype Target
   = MkTarget Text
   deriving (Eq, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
+--------------------------------------------------------------------------------
+
 -- | FIXME: doc
 newtype RuleName
   = MkRuleName Text
   deriving (Eq, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+
+--------------------------------------------------------------------------------
 
 -- | This type represents a command with arguments.
 data Command
@@ -55,6 +66,8 @@ data Command
       -- ^ The arguments for the command.
     }
   deriving (Eq)
+
+--------------------------------------------------------------------------------
 
 -- | FIXME: doc
 data ENinja
@@ -102,8 +115,7 @@ instance FromJSON ENinja where
       rulesP    :: Value -> Aeson.Parser (HashMap RuleName ERule)
       rulesP    = parseJSON
       buildsP   :: Value -> Aeson.Parser (HashMap [Target] EBuild)
-      buildsP   = let seqMap f = sequenceA . map f
-                  in \v -> HM.fromList <$> (parseJSON v >>= seqMap buildPairP)
+      buildsP   = \v -> HM.fromList <$> (parseJSON v >>= traverse buildPairP)
       phonysP   :: Value -> Aeson.Parser (HashMap Target [Target])
       phonysP   = parseJSON
       defaultsP :: Value -> Aeson.Parser [Target]
@@ -114,6 +126,8 @@ instance FromJSON ENinja where
       buildPairP :: Value -> Aeson.Parser ([Target], EBuild)
       buildPairP = withObject "ENinja"
                    $ \o -> (,) <$> (o .: "outputs") <*> (o .: "build")
+
+--------------------------------------------------------------------------------
 
 -- | FIXME: doc
 data ERule
@@ -168,14 +182,16 @@ makeRule cmd = MkERule
                , _ruleResponseFile = Nothing
                }
 
+--------------------------------------------------------------------------------
+
 -- | FIXME: doc
 --
 --   More information is available
 --   <https://ninja-build.org/manual.html#ref_headers here>.
-data Deps
-  = DepsGCC
+data SpecialDeps
+  = SpecialDepsGCC
     -- ^ Special dependency processing for GCC.
-  | DepsMSVC
+  | SpecialDepsMSVC
     -- ^ Special dependency processing for MSVC.
     { _depsMSVCPrefix :: !(Maybe Text)
       -- ^ This defines the string which should be stripped from @msvc@'s
@@ -184,29 +200,35 @@ data Deps
     }
   deriving (Eq)
 
-instance ToJSON Deps where
+instance ToJSON SpecialDeps where
   toJSON = go
     where
-      go DepsGCC             = object ["deps" .= gcc]
-      go (DepsMSVC Nothing)  = object ["deps" .= msvc]
-      go (DepsMSVC (Just p)) = object ["deps" .= msvc, "prefix" .= p]
+      go SpecialDepsGCC             = object ["deps" .= gcc]
+      go (SpecialDepsMSVC Nothing)  = object ["deps" .= msvc]
+      go (SpecialDepsMSVC (Just p)) = object ["deps" .= msvc, "prefix" .= p]
 
       gcc, msvc :: Value
       gcc = "gcc"
       msvc = "msvc"
 
-instance FromJSON Deps where
+instance FromJSON SpecialDeps where
   parseJSON = undefined -- FIXME
 
-depsGCC :: Deps
-depsGCC = DepsGCC
+specialDepsGCC :: SpecialDeps
+specialDepsGCC = SpecialDepsGCC
 
-depsMSVC :: Deps
-depsMSVC = DepsMSVC Nothing
+specialDepsMSVC :: SpecialDeps
+specialDepsMSVC = SpecialDepsMSVC Nothing
 
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
 data EBuild
   = MkEBuild
-    {
+    { _buildRule :: !RuleName
+      -- ^ FIXME: doc
+    , _buildDeps :: !(HashSet Dependency)
+      -- ^ FIXME: doc
     }
   deriving ()
 
@@ -215,3 +237,28 @@ instance ToJSON EBuild where
 
 instance FromJSON EBuild where
   parseJSON = undefined -- FIXME
+
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
+data Dependency
+  = MkDependency
+    { _dependencyTarget :: !Target
+      -- ^ FIXME: doc
+    , _dependencyType   :: !DependencyType
+      -- ^ FIXME: doc
+    }
+
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
+data DependencyType
+  = NormalDependency
+    -- ^ FIXME: doc
+  | ImplicitDependency
+    -- ^ FIXME: doc
+  | OrderOnlyDependency
+    -- ^ FIXME: doc
+  deriving ()
+
+--------------------------------------------------------------------------------
