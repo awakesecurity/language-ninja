@@ -36,27 +36,27 @@ import qualified Data.Aeson.Types      as Aeson
 -- | FIXME: doc
 newtype PoolName
   = MkPoolName Text
-  deriving (Eq, Show, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+  deriving (Eq, Ord, Show, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 --------------------------------------------------------------------------------
 
 -- | FIXME: doc
 newtype Target
   = MkTarget Text
-  deriving (Eq, Show, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+  deriving (Eq, Ord, Show, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 --------------------------------------------------------------------------------
 
 -- | FIXME: doc
 newtype RuleName
   = MkRuleName Text
-  deriving (Eq, Show, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+  deriving (Eq, Ord, Show, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 --------------------------------------------------------------------------------
 
 newtype Command
   = MkCommand Text
-  deriving (Eq, Show, Hashable, ToJSON, FromJSON)
+  deriving (Eq, Ord, Show, Hashable, ToJSON, FromJSON)
 
 -- -- | This type represents a command with arguments.
 -- data Command
