@@ -5,12 +5,12 @@
 {-# LANGUAGE RecordWildCards            #-}
 
 -- | FIXME: doc
-module Ninja.Eval
-  ( module Ninja.Eval -- FIXME: specific export list
+module Language.Ninja.Eval
+  ( module Language.Ninja.Eval -- FIXME: specific export list
   ) where
 
-import           Ninja.Type            (FileStr, Str)
-import qualified Ninja.Type            as Ninja
+import           Language.Ninja.Types  (FileStr, Str)
+import qualified Language.Ninja.Types  as Ninja
 
 import           Data.ByteString       (ByteString)
 import qualified Data.ByteString       as BS

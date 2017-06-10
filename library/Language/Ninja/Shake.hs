@@ -34,7 +34,7 @@
 {-# LANGUAGE TupleSections     #-}
 
 -- | FIXME: doc
-module Ninja.All (runNinja) where
+module Language.Ninja.Shake (runNinja) where
 
 import           Data.Bifunctor
 import           Data.Monoid
@@ -42,9 +42,9 @@ import           Data.Monoid
 import qualified Data.ByteString            as BS8
 import qualified Data.ByteString.Char8      as BS
 import           Development.Shake          hiding (addEnv)
-import           Ninja.Env
-import           Ninja.Parse
-import           Ninja.Type
+import           Language.Ninja.Env
+import           Language.Ninja.Parse
+import           Language.Ninja.Types
 
 import           Control.Applicative
 import           Control.Exception.Extra

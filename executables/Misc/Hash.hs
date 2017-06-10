@@ -1,6 +1,6 @@
 {-# LANGUAGE PackageImports #-}
 
-module Hash
+module Misc.Hash
   ( sha256
   , module Exported
   ) where

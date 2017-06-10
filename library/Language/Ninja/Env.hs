@@ -30,7 +30,7 @@
 -- OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 -- | A Ninja-style environment, basically a linked-list of mutable hash tables.
-module Ninja.Env
+module Language.Ninja.Env
   ( Env, newEnv, scopeEnv, addEnv, askEnv, fromEnv, getEnvStack
   ) where
 

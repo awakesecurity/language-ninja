@@ -32,7 +32,7 @@
 {-# LANGUAGE PatternGuards #-}
 
 -- | Lexing is a slow point, the code below is optimised
-module Ninja.Lexer
+module Language.Ninja.Lexer
   ( Lexeme (..), lexerFile, lexer
   ) where
 
@@ -49,7 +49,7 @@ import           GHC.Exts
 import           Prelude
 import           System.IO.Unsafe
 
-import           Ninja.Type
+import           Language.Ninja.Types
 
 ---------------------------------------------------------------------
 -- LIBRARY BITS

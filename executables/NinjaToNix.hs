@@ -43,14 +43,14 @@ import qualified Data.HashMap.Strict        as HM
 import           Data.HashSet               (HashSet)
 import qualified Data.HashSet               as HS
 
-import qualified Ninja.All                  as Ninja
-import qualified Ninja.Env                  as Ninja
-import qualified Ninja.Lexer                as Ninja
-import qualified Ninja.Parse                as Ninja
-import qualified Ninja.Pretty               as Ninja
-import qualified Ninja.Type                 as Ninja
+import qualified Language.Ninja.Env         as Ninja
+import qualified Language.Ninja.Lexer       as Ninja
+import qualified Language.Ninja.Parse       as Ninja
+import qualified Language.Ninja.Pretty      as Ninja
+import qualified Language.Ninja.Shake       as Ninja
+import qualified Language.Ninja.Types       as Ninja
 
-import           Ninja.Eval
+import           Language.Ninja.Eval
                  (Command (..), RuleName (..), Target (..))
 
 import           Data.Aeson                 as Aeson
@@ -58,7 +58,7 @@ import           Data.Aeson.Encode.Pretty   as Aeson
 
 import           Flow
 
-import           Hash
+import           Misc.Hash
 
 --------------------------------------------------------------------------------
 

@@ -33,7 +33,7 @@
 
 -- | The IO in this module is only to evaluate an environment variable,
 --   the 'Env' itself is passed around purely.
-module Ninja.Type
+module Language.Ninja.Types
   ( Str, FileStr
   , Expr (..), Env, newEnv, askVar, askExpr, addEnv, addBind, addBinds
   , Ninja (..), newNinja, Build (..), Rule (..)
@@ -45,7 +45,7 @@ import           Control.Monad.IO.Class
 import qualified Data.ByteString.Char8  as BS
 import           Data.Maybe
 
-import           Ninja.Env
+import           Language.Ninja.Env
 
 -- | FIXME: doc
 type Str = BS.ByteString

@@ -32,7 +32,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections   #-}
 
-module Ninja.Parse
+module Language.Ninja.Parse
   ( parse, parseWithEnv
   ) where
 
@@ -41,9 +41,9 @@ import           Control.Monad
 import qualified Data.ByteString.Char8 as BS
 import           Prelude
 
-import           Ninja.Env
-import           Ninja.Lexer
-import           Ninja.Type
+import           Language.Ninja.Env
+import           Language.Ninja.Lexer
+import           Language.Ninja.Types
 
 parse :: FilePath -> IO Ninja
 parse file = newEnv >>= parseWithEnv file

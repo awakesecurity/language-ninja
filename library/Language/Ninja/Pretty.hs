@@ -2,11 +2,11 @@
 {-# LANGUAGE RecordWildCards   #-}
 
 -- | FIXME: doc
-module Ninja.Pretty
-  ( module Ninja.Pretty -- FIXME: specific export list
+module Language.Ninja.Pretty
+  ( module Language.Ninja.Pretty -- FIXME: specific export list
   ) where
 
-import           Ninja.Type
+import           Language.Ninja.Types
 
 import           Data.ByteString       (ByteString)
 import qualified Data.ByteString       as BS
