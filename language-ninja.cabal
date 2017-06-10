@@ -1,0 +1,91 @@
+name:                     language-ninja
+version:                  0.0.1
+stability:                Experimental
+build-type:               Simple
+cabal-version:            >= 1.10
+category:                 Language
+copyright:                2017 Awake Networks <opensource@awakenetworks.com>
+author:                   Awake Networks
+maintainer:               opensource@awakenetworks.com
+license:                  Apache-2.0
+license-file:             LICENSE.md
+homepage:                 https://github.com/awakenetworks/language-ninja
+bug-reports:              https://github.com/awakenetworks/language-ninja/issues
+category:                 Build, Language
+synopsis:                 A Haskell library for parsing, pretty-printing, and
+                          evaluating the Ninja build language.
+description:              A Haskell library for parsing, pretty-printing, and
+                          evaluating the Ninja build language.
+
+source-repository head
+    type:                 git
+    branch:               master
+    location:             https://github.com/awakenetworks/haskell-ninja.git
+
+library
+    hs-source-dirs:       library
+    build-depends:        base                  >= 4.8.0   && < 5.0.0
+                        , aeson                 >= 1.0.0.0 && < 1.3.0.0
+                        , aeson-pretty          >= 0.8.2   && < 0.9.0
+                        , bytestring            >= 0.10.8  && < 0.11
+                        , containers            >= 0.5.7   && < 0.6.0
+                        , directory             >= 1.3.0   && < 1.4.0
+                        , extra                 >= 1.5.2   && < 1.6.0
+                        , flow                  >= 1.0.7   && < 1.1.0
+                        , hashable              >= 1.2.6   && < 1.3.0
+                        , makefile              >= 1.0.0   && < 1.1.0
+                        , lens                  >= 4.15.1  && < 4.16.0
+                        , shake                 >= 0.15.11 && < 0.16.0
+                        , text                  >= 1.2.2   && < 1.3
+                        , transformers          >= 0.5.2   && < 0.6
+                        , unordered-containers  >= 0.2.8   && < 0.3
+                          -- FIXME: remove unneeded dependencies
+    exposed-modules:      Language.Ninja
+                        , Language.Ninja.Env
+                        , Language.Ninja.Eval
+                        , Language.Ninja.Lexer
+                        , Language.Ninja.Parse
+                        , Language.Ninja.Pretty
+                        , Language.Ninja.Shake
+                        , Language.Ninja.Types
+    default-language:     Haskell2010
+    other-extensions:     OverloadedStrings
+                          -- FIXME: add the rest of the extensions used
+    ghc-options:          -Wall -g
+                          -fno-warn-type-defaults
+                          -fno-warn-unused-do-bind
+                          -- FIXME: remove all unused imports
+                          -fno-warn-unused-imports
+
+test-suite tests
+    type:                 exitcode-stdio-1.0
+    hs-source-dirs:       tests
+    main-is:              Main.hs
+    build-depends:        language-ninja
+                        , base                  >= 4.8.0.0 && < 5.0.0.0
+                        , hspec                 -any
+    default-language:     Haskell2010
+    other-extensions:     OverloadedStrings
+                          -- FIXME: add the rest of the extensions used
+    ghc-options:          -fhpc -Wall
+
+executable ninja2nix
+    hs-source-dirs:       executables
+    main-is:              NinjaToNix.hs
+    other-modules:        Misc.Hash
+    build-depends:        language-ninja
+                        , base                  >= 4.8.0.0 && < 5.0.0.0
+                        , aeson                 -any 
+                        , aeson-pretty          -any 
+                        , bytestring            -any 
+                        , containers            -any 
+                        , cryptonite            >= 0.21    && < 0.22
+                        , flow                  -any 
+                        , lens                  -any 
+                        , makefile              -any 
+                        , text                  -any 
+                        , unordered-containers  -any 
+    default-language:     Haskell2010
+    other-extensions:     OverloadedStrings
+                          -- FIXME: add the rest of the extensions used
+    ghc-options:          -threaded -Wall
