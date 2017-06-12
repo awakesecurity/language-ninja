@@ -144,7 +144,7 @@ lexerFile file = lexer <$> maybe BS.getContents BS.readFile file
 
 -- | FIXME: doc
 lexer :: Str -> [Lexeme]
-lexer x = lexerLoop $ Str0 $ x `BS.append` BS.pack "\n\n\0"
+lexer x = lexerLoop (Str0 (BS.append x "\n\n\0"))
 
 lexerLoop :: Str0 -> [Lexeme]
 lexerLoop c_x | (c, x) <- list0 c_x
