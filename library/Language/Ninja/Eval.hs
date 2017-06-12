@@ -61,6 +61,8 @@ import qualified Data.Aeson.Types      as Aeson
 import           Data.Hashable         (Hashable)
 import           GHC.Generics          (Generic)
 
+import           Flow
+
 --------------------------------------------------------------------------------
 
 -- | FIXME: doc
@@ -98,9 +100,27 @@ printPoolName (PoolNameCustom t) = t
 
 instance Hashable PoolName
 
--- newtype PoolName
---   = MkPoolName Text
---   deriving (Eq, Ord, Show, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+instance ToJSON PoolName where
+  toJSON = printPoolName .> String
+
+instance FromJSON PoolName where
+  parseJSON = withText "PoolName" (parsePoolName .> pure)
+
+instance ToJSONKey PoolName where
+  toJSONKey = Aeson.toJSONKeyText printPoolName
+
+instance FromJSONKey PoolName where
+  fromJSONKey = Aeson.mapFromJSONKeyFunction parsePoolName fromJSONKey
+
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
+data PoolDepth
+  = -- | FIXME: doc
+    PoolInfinite
+  | -- | FIXME: doc
+    PoolDepth !Int
+  deriving (Eq, Show, Ord)
 
 --------------------------------------------------------------------------------
 
@@ -157,30 +177,30 @@ data DependencyType
 -- | FIXME: doc
 data ENinja
   = MkENinja
-    { _ninjaRules    :: !(HashMap RuleName ERule)
+    { _ninjaBuildDir   :: !Text
       -- ^ FIXME: doc
-    , _ninjaBuilds   :: !(HashMap [Target] EBuild)
+    , _ninjaReqVersion :: !Text
       -- ^ FIXME: doc
-    , _ninjaPhonys   :: !(HashMap Target [Target])
+    , _ninjaBuilds     :: !(HashSet EBuild)
       -- ^ FIXME: doc
-    , _ninjaDefaults :: !(HashSet Target)
+    , _ninjaPhonys     :: !(HashMap Target [Target])
       -- ^ FIXME: doc
-    , _ninjaPools    :: !(HashMap PoolName Int)
+    , _ninjaDefaults   :: !(HashSet Target)
+      -- ^ FIXME: doc
+    , _ninjaPools      :: !(HashSet EPool)
       -- ^ FIXME: doc
     }
   deriving ()
 
 instance ToJSON ENinja where
   toJSON (MkENinja {..}) = object
-                           [ "rules"    .= rules
-                           , "builds"   .= builds
+                           [ "builds"   .= builds
                            , "phonys"   .= phonys
                            , "defaults" .= defaults
                            , "pools"    .= pools
                            ]
     where
-      rules, builds, phonys, defaults, pools :: Value
-      rules    = toJSON _ninjaRules
+      builds, phonys, defaults, pools :: Value
       builds   = toJSON $ map buildPair $ HM.toList _ninjaBuilds
       phonys   = toJSON _ninjaPhonys
       defaults = toJSON _ninjaDefaults
@@ -191,14 +211,11 @@ instance ToJSON ENinja where
 
 instance FromJSON ENinja where
   parseJSON = withObject "ENinja" $ \o -> MkENinja
-                                          <$> (o .: "rules"    >>= rulesP)
-                                          <*> (o .: "builds"   >>= buildsP)
+                                          <$> (o .: "builds"   >>= buildsP)
                                           <*> (o .: "phonys"   >>= phonysP)
                                           <*> (o .: "defaults" >>= defaultsP)
                                           <*> (o .: "pools"    >>= poolsP)
     where
-      rulesP    :: Value -> Aeson.Parser (HashMap RuleName ERule)
-      rulesP    = parseJSON
       buildsP   :: Value -> Aeson.Parser (HashMap [Target] EBuild)
       buildsP   = \v -> HM.fromList <$> (parseJSON v >>= traverse buildPairP)
       phonysP   :: Value -> Aeson.Parser (HashMap Target [Target])
@@ -219,11 +236,11 @@ data ERule
   = MkERule
     { _ruleCommand      :: !Command
       -- ^ The command that this rule will run.
-    , _ruleDepfile      :: !(Maybe FileStr)
+    , _ruleDepfile      :: !(Maybe FP.FilePath)
       -- ^ If set, this should be a path to an optional Makefile that contains
       --   extra implicit dependencies. This is used to support C/C++ header
       --   dependencies.
-    , _ruleDeps         :: !(Maybe SpecialDeps)
+    , _ruleSpecialDeps  :: !(Maybe SpecialDeps)
       -- ^ If set, enables special dependency processing used in C/C++ header
       --   dependencies. For more information, read the Ninja documentation
       --   <https://ninja-build.org/manual.html#ref_headers here>.
@@ -237,6 +254,12 @@ data ERule
       --   generator program. Files built using generator rules are treated
       --   specially in two ways: firstly, they will not be rebuilt if the
       --   command line changes; and secondly, they are not cleaned by default.
+    , _ruleRestat       :: !Bool
+      -- ^ If present, causes Ninja to re-stat the command's outputs after
+      --   execution of the command. Each output whose modification time the
+      --   command did not change will be treated as though it had never needed
+      --   to be built. This may cause the output's reverse dependencies to be
+      --   removed from the list of pending build actions.
     , _ruleResponseFile :: !(Maybe (FileStr, Str))
       -- ^ If present, Ninja will use a response file for the given command,
       --   i.e. write the selected string to the given file before calling the
@@ -275,18 +298,32 @@ makeRule cmd = MkERule
 -- | FIXME: doc
 data EBuild
   = MkEBuild
-    { _buildRule :: !RuleName
+    { _buildRule :: !ERule
+      -- ^ FIXME: doc
+    , _buildOuts :: !(HashSet Output)
       -- ^ FIXME: doc
     , _buildDeps :: !(HashSet Dependency)
       -- ^ FIXME: doc
     }
-  deriving ()
+  deriving (Eq, Show, Ord)
 
 instance ToJSON EBuild where
   toJSON = undefined -- FIXME
 
 instance FromJSON EBuild where
   parseJSON = undefined -- FIXME
+
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
+data EPool
+  = MkEBuild
+    { _poolName  :: !PoolName
+      -- ^ FIXME: doc
+    , _poolDepth :: !PoolDepth
+      -- ^ FIXME: doc
+    }
+  deriving (Eq, Show, Ord)
 
 --------------------------------------------------------------------------------
 
