@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main (main) where
 
 import           Data.Monoid
@@ -13,6 +15,14 @@ import           Control.Monad.Trans.Except
 import qualified Language.Ninja             as Ninja
 
 import qualified Test.Hspec                 as H
+import qualified Test.HUnit                 as H
+
+import           Filesystem.Path.CurrentOS  ((</>))
+import qualified Filesystem.Path.CurrentOS  as FP
+
+import qualified Turtle
+
+import qualified Data.Text.Encoding         as T
 
 dataPrefix :: String
 dataPrefix = "" -- "tests/data/"
@@ -29,10 +39,21 @@ roundtrip file = H.shouldReturn (runExceptT go) (Right ())
     go = do
       let inputPath = dataPrefix <> file <> ".ninja"
       let expectedPath = dataPrefix <> file <> ".expected"
-      input <- liftE (Ninja.parse inputPath)
-      actual <- liftE (Ninja.prettyNinja input)
-      expected <- liftE (BS.readFile expectedPath)
-      unless (actual == expected) $ do
+
+      let withTempDir = Turtle.with (Turtle.mktempdir "." "test")
+
+      (expected, actual) <- liftE $ withTempDir $ \tmpdir -> do
+        input  <- Ninja.parse inputPath
+        prettyInput <- Ninja.prettyNinja input
+        let tmpfile = tmpdir </> "generated.ninja"
+        Turtle.writeTextFile tmpfile (T.decodeUtf8 prettyInput)
+        output <- Ninja.parse (FP.encodeString tmpfile)
+        -- prettyOutput <- Ninja.prettyNinja output
+        pure (input, output)
+
+      eq <- lift $ Ninja.ninjaEqual expected actual
+
+      unless eq $ do
         throwE "output was not equal"
 
 generateExpectedRoundtrip :: IO ()

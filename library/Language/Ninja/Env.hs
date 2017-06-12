@@ -49,7 +49,7 @@
 --
 --   A Ninja-style environment, basically a linked-list of mutable hash tables.
 module Language.Ninja.Env
-  ( Env, newEnv, scopeEnv, addEnv, askEnv, fromEnv, getEnvStack
+  ( Env, newEnv, scopeEnv, addEnv, askEnv, fromEnv, getEnvStack, envEqual
   ) where
 
 import           Control.Monad.IO.Class
@@ -109,3 +109,10 @@ getEnvStack = liftIO . go
     go :: Env k v -> IO [HashMap k v]
     go (MkEnv ref Nothing)     = (: []) <$> readIORef ref
     go (MkEnv ref (Just rest)) = (:) <$> readIORef ref <*> go rest
+
+-- | FIXME: doc
+envEqual :: (Eq k, Eq v) => Env k v -> Env k v -> IO Bool
+envEqual eX eY = do
+  stackX <- getEnvStack eX
+  stackY <- getEnvStack eY
+  pure (stackX == stackY)

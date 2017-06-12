@@ -37,7 +37,8 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK show-extensions #-}
 
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections   #-}
 
 -- |
 --   Module      : Language.Ninja.Types
@@ -51,16 +52,21 @@
 module Language.Ninja.Types
   ( Str, FileStr
   , Expr (..), Env, newEnv, askVar, askExpr, addEnv, addBind, addBinds
-  , Ninja (..), newNinja, Build (..), Rule (..)
+  , Ninja (..), newNinja, ninjaEqual
+  , Build (..), buildEqual
+  , Rule (..)
   ) where
 
 import           Control.Applicative
+import           Control.Arrow
 import           Control.Monad.IO.Class
 
 import qualified Data.ByteString.Char8  as BS
 import           Data.Maybe
 
 import           Language.Ninja.Env
+
+import           Flow
 
 -- | FIXME: doc
 type Str = BS.ByteString
@@ -120,6 +126,23 @@ newNinja :: Ninja
 newNinja = MkNinja [] [] [] [] [] []
 
 -- | FIXME: doc
+ninjaEqual :: Ninja -> Ninja -> IO Bool
+ninjaEqual nX nY = do
+  let filterNinja (MkNinja {..}) = (rules, phonys, defaults, pools)
+
+  let pairEq :: ([FileStr], Build) -> ([FileStr], Build) -> IO Bool
+      pairEq (oX, bX) (oY, bY) = (&&) <$> pure (oX == oY) <*> buildEqual bX bY
+
+  let listEq :: [([FileStr], Build)] -> [([FileStr], Build)] -> IO Bool
+      listEq lX lY = zipWith pairEq lX lY |> sequence |> fmap and
+
+  resultR <- pure (filterNinja nX == filterNinja nY)
+  resultS <- listEq (first pure <$> singles nX) (first pure <$> singles nY)
+  resultM <- listEq (multiples nX) (multiples nY)
+
+  pure (resultR && resultS && resultM)
+
+-- | FIXME: doc
 data Build
   = MkBuild
     { ruleName      :: Str
@@ -137,10 +160,17 @@ data Build
     }
   deriving (Show)
 
+buildEqual :: Build -> Build -> IO Bool
+buildEqual bX bY = do
+  let filterBuild (MkBuild {..})
+        = (ruleName, depsNormal, depsImplicit, depsOrderOnly, buildBind)
+  e <- envEqual (env bX) (env bY)
+  pure (e && (filterBuild bX == filterBuild bY))
+
 -- | FIXME: doc
 newtype Rule
   = MkRule
     { ruleBind :: [(Str, Expr)]
       -- ^ FIXME: doc
     }
-  deriving (Show)
+  deriving (Eq, Show)

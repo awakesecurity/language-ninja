@@ -49,8 +49,6 @@ import           Data.Text             (Text)
 import qualified Data.Text             as T
 import qualified Data.Text.Encoding    as T
 
-import           Data.Hashable         (Hashable)
-
 import           Data.HashMap.Strict   (HashMap)
 import qualified Data.HashMap.Strict   as HM
 
@@ -60,12 +58,8 @@ import qualified Data.HashSet          as HS
 import           Data.Aeson            as Aeson
 import qualified Data.Aeson.Types      as Aeson
 
---------------------------------------------------------------------------------
-
--- | FIXME: doc
-newtype PoolName
-  = MkPoolName Text
-  deriving (Eq, Ord, Show, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+import           Data.Hashable         (Hashable)
+import           GHC.Generics          (Generic)
 
 --------------------------------------------------------------------------------
 
@@ -83,9 +77,80 @@ newtype RuleName
 
 --------------------------------------------------------------------------------
 
+-- | FIXME: doc
+data PoolName
+  = PoolNameDefault
+  | PoolNameConsole
+  | PoolNameCustom !Text
+  deriving (Eq, Ord, Show, Generic)
+
+-- | FIXME: doc
+parsePoolName :: Text -> PoolName
+parsePoolName ""        = PoolNameDefault
+parsePoolName "console" = PoolNameConsole
+parsePoolName t         = PoolNameCustom t
+
+-- | FIXME: doc
+printPoolName :: PoolName -> Text
+printPoolName PoolNameDefault    = ""
+printPoolName PoolNameConsole    = "console"
+printPoolName (PoolNameCustom t) = t
+
+instance Hashable PoolName
+
+-- newtype PoolName
+--   = MkPoolName Text
+--   deriving (Eq, Ord, Show, Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
 newtype Command
   = MkCommand Text
   deriving (Eq, Ord, Show, Hashable, ToJSON, FromJSON)
+
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
+data Output
+  = MkOutput
+    { _outputTarget :: !Target
+    , _outputType   :: !OutputType
+    }
+  deriving (Eq, Ord, Show)
+
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
+data OutputType
+  = ExplicitOutput
+    -- ^ FIXME: doc
+  | ImplicitOutput
+    -- ^ FIXME: doc
+  deriving (Eq, Ord, Show)
+
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
+data Dependency
+  = MkDependency
+    { _dependencyTarget :: !Target
+      -- ^ FIXME: doc
+    , _dependencyType   :: !DependencyType
+      -- ^ FIXME: doc
+    }
+
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
+data DependencyType
+  = NormalDependency
+    -- ^ FIXME: doc
+  | ImplicitDependency
+    -- ^ FIXME: doc
+  | OrderOnlyDependency
+    -- ^ FIXME: doc
+  deriving ()
 
 --------------------------------------------------------------------------------
 
@@ -179,6 +244,8 @@ data ERule
       --
       --   This is particularly useful on Windows OS, where the maximal length
       --   of a command line is limited and response files must be used instead.
+    , _rulePool         :: !PoolName
+      -- ^ The process pool in which this rule will be executed.
     }
   deriving (Eq)
 
@@ -200,7 +267,26 @@ makeRule cmd = MkERule
                , _ruleDescription  = Nothing
                , _ruleGenerator    = False
                , _ruleResponseFile = Nothing
+               , _rulePool         = PoolNameDefault
                }
+
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
+data EBuild
+  = MkEBuild
+    { _buildRule :: !RuleName
+      -- ^ FIXME: doc
+    , _buildDeps :: !(HashSet Dependency)
+      -- ^ FIXME: doc
+    }
+  deriving ()
+
+instance ToJSON EBuild where
+  toJSON = undefined -- FIXME
+
+instance FromJSON EBuild where
+  parseJSON = undefined -- FIXME
 
 --------------------------------------------------------------------------------
 
@@ -239,46 +325,5 @@ specialDepsGCC = SpecialDepsGCC
 
 specialDepsMSVC :: SpecialDeps
 specialDepsMSVC = SpecialDepsMSVC Nothing
-
---------------------------------------------------------------------------------
-
--- | FIXME: doc
-data EBuild
-  = MkEBuild
-    { _buildRule :: !RuleName
-      -- ^ FIXME: doc
-    , _buildDeps :: !(HashSet Dependency)
-      -- ^ FIXME: doc
-    }
-  deriving ()
-
-instance ToJSON EBuild where
-  toJSON = undefined -- FIXME
-
-instance FromJSON EBuild where
-  parseJSON = undefined -- FIXME
-
---------------------------------------------------------------------------------
-
--- | FIXME: doc
-data Dependency
-  = MkDependency
-    { _dependencyTarget :: !Target
-      -- ^ FIXME: doc
-    , _dependencyType   :: !DependencyType
-      -- ^ FIXME: doc
-    }
-
---------------------------------------------------------------------------------
-
--- | FIXME: doc
-data DependencyType
-  = NormalDependency
-    -- ^ FIXME: doc
-  | ImplicitDependency
-    -- ^ FIXME: doc
-  | OrderOnlyDependency
-    -- ^ FIXME: doc
-  deriving ()
 
 --------------------------------------------------------------------------------
