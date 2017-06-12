@@ -22,7 +22,7 @@ scratchpad.hs
 *~
 [#]*[#]
 .\#*
-data/
+/data/
 result
 guest
 *.qcow2
