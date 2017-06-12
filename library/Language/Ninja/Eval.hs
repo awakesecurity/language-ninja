@@ -58,19 +58,6 @@ newtype Command
   = MkCommand Text
   deriving (Eq, Ord, Show, Hashable, ToJSON, FromJSON)
 
--- -- | This type represents a command with arguments.
--- data Command
---   = MkCommand
---     { _commandExec :: Text
---       -- ^ The command to run.
---       --   If this is an absolute path to an executable file, the file will be
---       --   executed. Otherwise, it will be treated as a command name that will
---       --   be searched for in the @PATH@ environment variable.
---     , _commandArgs :: [Text]
---       -- ^ The arguments for the command.
---     }
---   deriving (Eq, Show)
-
 --------------------------------------------------------------------------------
 
 -- | FIXME: doc
@@ -82,7 +69,7 @@ data ENinja
       -- ^ FIXME: doc
     , _ninjaPhonys   :: !(HashMap Target [Target])
       -- ^ FIXME: doc
-    , _ninjaDefaults :: ![Target]
+    , _ninjaDefaults :: !(HashSet Target)
       -- ^ FIXME: doc
     , _ninjaPools    :: !(HashMap PoolName Int)
       -- ^ FIXME: doc
@@ -122,7 +109,7 @@ instance FromJSON ENinja where
       buildsP   = \v -> HM.fromList <$> (parseJSON v >>= traverse buildPairP)
       phonysP   :: Value -> Aeson.Parser (HashMap Target [Target])
       phonysP   = parseJSON
-      defaultsP :: Value -> Aeson.Parser [Target]
+      defaultsP :: Value -> Aeson.Parser (HashSet Target)
       defaultsP = parseJSON
       poolsP    :: Value -> Aeson.Parser (HashMap PoolName Int)
       poolsP    = parseJSON
