@@ -35,58 +35,91 @@ module Language.Ninja.Pretty
   ( module Language.Ninja.Pretty -- FIXME: specific export list
   ) where
 
+import qualified Control.Arrow         as Arr
+
 import           Language.Ninja.Types  (Build, FileStr, Ninja, Rule, Str)
+
+import qualified Language.Ninja.Env    as Ninja
 import qualified Language.Ninja.Types  as Ninja
 
 import           Data.ByteString       (ByteString)
 import qualified Data.ByteString       as BS
-import qualified Data.ByteString.Char8 as BS (unlines, unwords)
+import qualified Data.ByteString.Char8 as BSC8
 
 import qualified Data.Text             as T
 import qualified Data.Text.Encoding    as T
 
-prettyNinja :: Ninja -> ByteString
-prettyNinja ninja
-  = BS.unlines $ map mconcat
-    [ -- FIXME: finish implementing
+import qualified Data.HashMap.Strict   as HM
+
+import           Data.Char
+import           Data.Monoid
+
+import           Flow
+
+prettyNinja :: Ninja -> IO ByteString
+prettyNinja (Ninja.MkNinja {..})
+  = [ mapM prettyRule     rules
+    , mapM prettySingle   singles
+    , mapM prettyMultiple multiples
+    , mapM prettyPhony    phonys
+    , mapM prettyDefault  defaults
+    , mapM prettyPool     pools
+    ] |> sequenceA |> fmap (mconcat .> mconcat)
+
+prettyRule :: (Str, Rule) -> IO ByteString
+prettyRule (name, (Ninja.MkRule {..})) = do
+  let binds = mconcat $ map (prettyBind . Arr.second prettyExpr) ruleBind
+  pure $ mconcat ["rule ", name, "\n", binds]
+
+prettyExpr :: Ninja.Expr -> ByteString
+prettyExpr = go .> mconcat
+  where
+    go (Ninja.Exprs es) = map prettyExpr es
+    go (Ninja.Lit  str) = [str]
+    go (Ninja.Var name) = ["${", name, "}"]
+
+prettySingle :: (FileStr, Build) -> IO ByteString
+prettySingle (output, build) = prettyMultiple ([output], build)
+
+prettyMultiple :: ([FileStr], Build) -> IO ByteString
+prettyMultiple (outputs, (Ninja.MkBuild {..})) = do
+  stack <- Ninja.getEnvStack env
+
+  let prefixIfThere :: Str -> Str -> Str
+      prefixIfThere pfx rest = if BSC8.all isSpace rest then "" else pfx <> rest
+
+  let normal = BSC8.unwords depsNormal
+  let implicit = BSC8.unwords depsImplicit
+  let orderOnly = BSC8.unwords depsOrderOnly
+  let binds = mconcat (map prettyBind buildBind)
+
+  pure $ mconcat
+    [ "build ", BSC8.unwords outputs, ": "
+    , ruleName, " ", normal
+    , prefixIfThere " | "  implicit
+    , prefixIfThere " || " orderOnly, "\n"
+    , "    # environment: ", bshow (map HM.toList stack), "\n"
+    , binds
     ]
 
-prettyRule :: (Str, Rule) -> ByteString
-prettyRule (name, (Ninja.MkRule {..}))
-  = BS.unlines $ map mconcat
-    [ -- FIXME: finish implementing
-    ]
+prettyPhony :: (Str, [FileStr]) -> IO ByteString
+prettyPhony (name, inputs)
+  = [ ["build ", name, ": phony ", BSC8.unwords inputs]
+    ] |> map mconcat |> BSC8.unlines |> pure
 
-prettySingle :: (FileStr, Build) -> ByteString
-prettySingle (file, (Ninja.MkBuild {..}))
-  = BS.unlines $ map mconcat
-    [ -- FIXME: finish implementing
-    ]
+prettyDefault :: FileStr -> IO ByteString
+prettyDefault target
+  = [ ["default ", target]
+    ] |> map mconcat |> BSC8.unlines |> pure
 
-prettyMultiple :: ([FileStr], Build) -> ByteString
-prettyMultiple (files, (Ninja.MkBuild {..}))
-  = BS.unlines $ map mconcat
-    [ -- FIXME: finish implementing
-    ]
-
-prettyPhony :: (Str, [FileStr]) -> ByteString
-prettyPhony (name, files)
-  = BS.unlines $ map mconcat
-    [ ["build ", name, ": phony ", BS.unwords files]
-    ]
-
-prettyDefault :: FileStr -> ByteString
-prettyDefault def
-  = BS.unlines $ map mconcat
-    [ ["default ", def]
-    ]
-
-prettyPool :: (Str, Int) -> ByteString
+prettyPool :: (Str, Int) -> IO ByteString
 prettyPool (name, depth)
-  = BS.unlines $ map mconcat
-    [ ["pool ", name]
-    , [" depth = ", bshow depth]
-    ]
+  = [ ["pool ", name]
+    , ["    depth = ", bshow depth]
+    ] |> map mconcat |> BSC8.unlines |> pure
+
+prettyBind :: (Str, Str) -> Str
+prettyBind (name, value) = mconcat ["    ", name, " = ", value, "\n"]
 
 bshow :: (Show s) => s -> Str
 bshow = T.encodeUtf8 . T.pack . show
