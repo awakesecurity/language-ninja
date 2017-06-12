@@ -29,9 +29,11 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 -- OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 -- | FIXME: doc
 module Language.Ninja.Shake (runNinja) where
@@ -39,12 +41,17 @@ module Language.Ninja.Shake (runNinja) where
 import           Data.Bifunctor
 import           Data.Monoid
 
-import qualified Data.ByteString            as BS8
-import qualified Data.ByteString.Char8      as BS
-import           Development.Shake          hiding (addEnv)
-import           Language.Ninja.Env
-import           Language.Ninja.Parse
-import           Language.Ninja.Types
+import qualified Data.ByteString            as BS
+import qualified Data.ByteString.Char8      as BSC8
+
+import           Development.Shake          ((&?>), (?>))
+import           Development.Shake          as Shake
+import           Development.Shake.FilePath as Shake (normaliseEx, toStandard)
+import           Development.Shake.Util     as Shake (parseMakefile)
+
+import           Language.Ninja.Env         as Ninja
+import           Language.Ninja.Parse       as Ninja
+import           Language.Ninja.Types       as Ninja
 
 import           Control.Applicative
 import           Control.Exception.Extra
@@ -64,17 +71,6 @@ import qualified Data.HashMap.Strict        as HM
 import           Data.HashSet               (HashSet)
 import qualified Data.HashSet               as HS
 
--- Internal imports
--- import           Development.Shake.Internal.Errors          (errorStructured)
--- import           Development.Shake.Internal.FileName        (filepathNormalise)
--- import           Development.Shake.Internal.Rules.File      (needBS, neededBS)
--- import           Development.Shake.Internal.Rules.OrderOnly (orderOnlyBS)
--- import           General.Makefile                           (parseMakefile)
--- import           General.Timing                             (addTiming)
-
-import           Development.Shake.FilePath (normaliseEx, toStandard)
-import           Development.Shake.Util     (parseMakefile)
-
 --------------------------------------------------------------------------------
 -- STUBS
 
@@ -82,84 +78,126 @@ addTiming :: String -> IO ()
 addTiming _ = pure ()
 
 filepathNormalise :: Str -> Str
-filepathNormalise = BS.pack . toStandard . normaliseEx . BS.unpack
+filepathNormalise = BSC8.pack . toStandard . normaliseEx . BSC8.unpack
 
 needBS :: [Str] -> Action ()
-needBS = need . map BS.unpack
+needBS = need . map BSC8.unpack
 
 neededBS :: [Str] -> Action ()
-neededBS = needed . map BS.unpack
+neededBS = needed . map BSC8.unpack
 
 orderOnlyBS :: [Str] -> Action ()
-orderOnlyBS = orderOnly . map BS.unpack
+orderOnlyBS = orderOnly . map BSC8.unpack
 
 --------------------------------------------------------------------------------
 
 -- | FIXME: doc
-runNinja :: FilePath -> [String] -> Maybe String -> IO (Maybe (Rules ()))
-runNinja file args (Just "compdb") = do
+runNinja :: FilePath
+         -> [String]
+         -> Maybe String
+         -> IO (Maybe (Rules ()))
+runNinja file args tool = let options = parseNinjaOptions file args tool
+                          in ninjaDispatch options
+
+data NinjaOptions
+  = NinjaOptionsBuild   !Ninja ![Str]
+  | NinjaOptionsCompDB  !Ninja ![Str]
+  | NinjaOptionsUnknown !Text
+
+parseNinjaOptions :: FilePath -> [String] -> Maybe String -> IO NinjaOptions
+parseNinjaOptions file (map BSC8.pack -> args) = \case
+  Nothing         -> Ninja.parse file >>= \n -> NinjaOptionsBuild  n args
+  (Just "compdb") -> Ninja.parse file >>= \n -> NinjaOptionsCompDB n args
+  (Just    owise) -> NinjaOptionsUnknown (T.pack owise)
+
+ninjaDispatch :: NinjaOptions -> IO (Maybe (Rules ()))
+ninjaDispatch (NinjaOptionsBuild  n args) = ninjaBuild  n args
+ninjaDispatch (NinjaOptionsCompDB n args) = ninjaCompDB n args
+ninjaDispatch (NinjaOptionsUnknown tool)  = [ "Unknown tool: ", tool
+                                            ] |> mconcat |> T.unpack |> errorIO
+
+ninjaCompDB :: Ninja -> [Str] -> IO (Maybe (Rules ()))
+ninjaCompDB ninja args = do
   dir <- getCurrentDirectory
-  (MkNinja {..}) <- parse file
-  rules <- pure $ HM.fromList [r | r <- rules, BS.unpack (fst r) `elem` args]
+  let (Ninja.MkNinja {..}) = ninja
+
+  -- Compute the set of rules
+  let argumentSet = HS.fromList (map BSC8.pack args)
+  let inArgs rule = HS.member (fst rule) argumentSet
+  let rules       = HM.fromList [r | r <- rules, inArgs r]
+
   -- the build items are generated in reverse order, hence the reverse
-  let xs = [ (a, b, file, rule)
-           | (a, (b@(MkBuild {..}))) <- reverse (multiples <> map (first pure) singles)
-           , Just rule <- [HM.lookup ruleName rules], file:_ <- [depsNormal]
-           ]
-  xs <- forM xs $ \(out, (MkBuild {..}), file, (MkRule {..})) -> do
+  let itemsToBuild :: [_]
+      itemsToBuild = do
+        (out, build) <- reverse (multiples <> map (first pure) singles)
+        (Just rule) <- [HM.lookup (Ninja.ruleName build) rules]
+        (file:_) <- [Ninja.depsNormal build]
+        pure (out, build, file, rule)
+
+  compDB <- forM itemsToBuild $ \(out, build, file, rule) -> do
+    let (Ninja.MkBuild {..}) = build
+    let (Ninja.MkRule {..})  = rule
     -- the order of adding new environment variables matters
     env <- scopeEnv env
-    addEnv env (BS.pack "out") (BS.unwords $ map quote out)
-    addEnv env (BS.pack "in") (BS.unwords $ map quote depsNormal)
-    addEnv env (BS.pack "in_newline") (BS.unlines depsNormal)
+    addEnv env "out"        $ BSC8.unwords $ map quote out
+    addEnv env "in"         $ BSC8.unwords $ map quote depsNormal
+    addEnv env "in_newline" $ BSC8.unlines depsNormal
     forM_ buildBind $ \(a, b) -> addEnv env a b
     addBinds env ruleBind
-    commandline <- fmap BS.unpack $ askVar env $ BS.pack "command"
-    pure $ MkCompDB dir commandline $ BS.unpack $ head depsNormal
-  putStr $ printCompDB xs
-  pure Nothing
+    commandline <- fmap BSC8.unpack $ askVar env "command"
+    pure $ MkCompDB dir commandline $ BSC8.unpack $ head depsNormal
 
-runNinja file args (Just x)
-  = errorIO $ "Unknown tool argument, expected 'compdb', got " <> x
+  putStr $ printCompDB compDB
 
-runNinja file args tool = do
-  addTiming "Ninja parse"
-  (ninja@(MkNinja{..})) <- parse file
+ninjaBuild :: Ninja -> [Str] -> IO (Maybe (Rules ()))
+ninjaBuild ninja args = do
+  let (MkNinja {..}) = ninja
   pure $ Just $ do
-    needDeps  <- pure $ needDeps ninja -- partial application
+    let normalisedMultiples = first (map filepathNormalise) <$> multiples
     phonys    <- pure $ HM.fromList phonys
     singles   <- pure $ HM.fromList (first filepathNormalise <$> singles)
     multiples <- pure $ HM.fromList
-                 [ (x, (xs, b))
-                 | (xs, b) <- first (map filepathNormalise) <$> multiples
-                 , x <- xs ]
+                 [(x, (xs, b)) | (xs, b) <- normalisedMultiples, x <- xs]
     rules     <- pure $ HM.fromList rules
     pools     <- fmap HM.fromList
-                 $ forM ((BS.pack "console", 1) : pools)
+                 $ forM (("console", 1) : pools)
                  $ \(name, depth) ->
-                     (name,) <$> newResource (BS.unpack name) depth
+                     (name,) <$> newResource (BSC8.unpack name) depth
 
-    action $ needBS $ concatMap (resolvePhony phonys) $
-      if      not $ null args     then map BS.pack args
-      else if not $ null defaults then defaults
-      else                             HM.keys singles <> HM.keys multiples
+    let targets :: _
+        targets | not (null args)     = args
+        targets | not (null defaults) = defaults
+        targets | otherwise           = HM.keys singles <> HM.keys multiples
 
-    (\x -> (map BS.unpack . fst) <$> HM.lookup (BS.pack x) multiples) &?> \out -> do
-      let out2 = map BS.pack out
-      build needDeps phonys rules pools out2 $ snd $ multiples HM.! head out2
+    action $ needBS $ concatMap (resolvePhony phonys) targets
 
-    (flip HM.member singles . BS.pack) ?> \out -> do
-      let out2 = BS.pack out
-      build needDeps phonys rules pools [out2] $ singles HM.! out2
+    let relatedOutputs :: Str -> [Str]
+        relatedOutputs = BSC8.pack .> \output -> do
+          HM.lookup output multiples
+            |> fmap fst
+            |> fromMaybe (if HM.member output singles then [output] else [])
+
+    relatedOutputs &?> \(map BSC8.pack -> out) -> do
+      let out2 = map BSC8.pack out
+      build (needDeps ninja) phonys rules pools out2
+        $ snd $ multiples HM.! head out2
+
+    (flip HM.member singles . BSC8.pack) ?> \out -> do
+      let out2 = BSC8.pack out
+      build needD phonys rules pools [out2] $ singles HM.! out2
 
 resolvePhony :: HashMap Str [Str] -> Str -> [Str]
 resolvePhony mp = f (Left 100)
   where
-    f (Left 0) x = f (Right []) x
-    f (Right xs) x | x `elem` xs = error $ "Recursive phony involving " ++ BS.unpack x
-    f a x = case HM.lookup x mp of
-              Nothing -> [x]
-              Just xs -> concatMap (f $ bimap (subtract 1) (x:) a) xs
+    -- FIXME: use HashSet or Vector here?
+    f (Left 0)   x               = f (Right []) x
+    f (Right xs) x | x `elem` xs = [ "Recursive phony involving "
+                                   , BSC8.unpack x
+                                   ] |> mconcat |> error
+    f a          x               = case HM.lookup x mp of
+                                     Nothing -> [x]
+                                     Just xs -> bimap (subtract 1) (x:) a
+                                                |> \a' -> concatMap (f a') xs
 
 quote :: Str -> Str
 quote x
@@ -173,7 +211,7 @@ build :: (Build -> [Str] -> Action ())
       -> [Str]
       -> Build
       -> Action ()
-build needDeps phonys rules pools out (build@(MkBuild {..})) = do
+build needD phonys rules pools out (build@(MkBuild {..})) = do
   needBS $ concatMap (resolvePhony phonys) $ depsNormal ++ depsImplicit
   orderOnlyBS $ concatMap (resolvePhony phonys) depsOrderOnly
   case HM.lookup ruleName rules of
@@ -218,12 +256,12 @@ build needDeps phonys rules pools out (build@(MkBuild {..})) = do
           then do Stdout stdout <- withPool $ command cmdOpts cmdProg cmdArgs
                   prefix <- liftIO $ fmap (fromMaybe "Note: including file: ")
                             $ askEnv env $ BS.pack "msvc_deps_prefix"
-                  needDeps build $ parseShowIncludes prefix $ BS.pack stdout
+                  needD build $ parseShowIncludes prefix $ BS.pack stdout
           else withPool $ command_ cmdOpts cmdProg cmdArgs
         when (depfile /= "") $ do
           when (deps /= "gcc") $ need [depfile]
           depsrc <- liftIO $ BS.readFile depfile
-          needDeps build
+          needD build
             $ map BS.pack
             $ concatMap snd
             $ parseMakefile
