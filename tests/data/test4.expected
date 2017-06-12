@@ -1,0 +1,7 @@
+rule run
+    command = touch ${out}
+build dir/../out2.txt: run 
+    # environment: [[]]
+build ./out.txt: run 
+    # environment: [[]]
+build out: phony ./out.txt out2.txt

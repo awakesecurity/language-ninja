@@ -1,0 +1,10 @@
+rule copy
+    command = cp ${from} ${out}
+rule create
+    command = touch ${out}
+build foo.txt: create 
+    # environment: [[]]
+build bar.txt: copy  || Foo2
+    # environment: [[]]
+    from = foo.txt
+build Foo2: phony foo.txt

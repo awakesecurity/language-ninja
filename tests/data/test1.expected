@@ -1,0 +1,4 @@
+rule run
+    command = touch ${out}
+build out1.txt: run 
+    # environment: [[]]

@@ -1,0 +1,28 @@
+rule doxygen_mainpage
+    command = ${doxygen_mainpage_generator} ${in} > ${out}
+    description = DOXYGEN_MAINPAGE ${out}
+rule doxygen
+    command = doxygen ${in}
+    description = DOXYGEN ${in}
+rule link
+    command = ${cxx} ${ldflags} -o ${out} ${in} ${libs}
+    description = LINK ${out}
+rule ar
+    command = cmd /c ${ar} cqs ${out}.tmp ${in} && move /Y ${out}.tmp ${out}
+    description = AR ${out}
+rule cxx
+    command = ${cxx} -MMD -MT ${out} -MF ${out}.d ${cflags} -c ${in} -o ${out}
+    description = CXX ${out}
+    depfile = ${out}.d
+    deps = gcc
+build doxygen: doxygen doc\doxygen.config | build\doxygen_mainpage
+    # environment: [[("builddir","build"),("doxygen_mainpage_generator","src\\gen_doxygen_mainpage.sh"),("ninja_required_version","1.3"),("ar","ar"),("ldflags","-Lbuild -static"),("cxx","g++"),("cflags","-g -Wall -Wextra -Wno-deprecated -Wno-unused-parameter -fno-rtti -fno-exceptions -pipe -Wno-missing-field-initializers -DNINJA_PYTHON=\"python.exe\" -O2 -DNDEBUG -D_WIN32_WINNT=0x0501")]]
+build build\doxygen_mainpage: doxygen_mainpage README COPYING | src\gen_doxygen_mainpage.sh
+    # environment: [[("builddir","build"),("doxygen_mainpage_generator","src\\gen_doxygen_mainpage.sh"),("ninja_required_version","1.3"),("ar","ar"),("ldflags","-Lbuild -static"),("cxx","g++"),("cflags","-g -Wall -Wextra -Wno-deprecated -Wno-unused-parameter -fno-rtti -fno-exceptions -pipe -Wno-missing-field-initializers -DNINJA_PYTHON=\"python.exe\" -O2 -DNDEBUG -D_WIN32_WINNT=0x0501")]]
+build build\clean.o: cxx src\clean.cc
+    # environment: [[("builddir","build"),("doxygen_mainpage_generator","src\\gen_doxygen_mainpage.sh"),("ninja_required_version","1.3"),("ar","ar"),("ldflags","-Lbuild -static"),("cxx","g++"),("cflags","-g -Wall -Wextra -Wno-deprecated -Wno-unused-parameter -fno-rtti -fno-exceptions -pipe -Wno-missing-field-initializers -DNINJA_PYTHON=\"python.exe\" -O2 -DNDEBUG -D_WIN32_WINNT=0x0501")]]
+build build\build_log.o: cxx src\build_log.cc
+    # environment: [[("builddir","build"),("doxygen_mainpage_generator","src\\gen_doxygen_mainpage.sh"),("ninja_required_version","1.3"),("ar","ar"),("ldflags","-Lbuild -static"),("cxx","g++"),("cflags","-g -Wall -Wextra -Wno-deprecated -Wno-unused-parameter -fno-rtti -fno-exceptions -pipe -Wno-missing-field-initializers -DNINJA_PYTHON=\"python.exe\" -O2 -DNDEBUG -D_WIN32_WINNT=0x0501")]]
+build build\build.o: cxx src\build.cc
+    # environment: [[("builddir","build"),("doxygen_mainpage_generator","src\\gen_doxygen_mainpage.sh"),("ninja_required_version","1.3"),("ar","ar"),("ldflags","-Lbuild -static"),("cxx","g++"),("cflags","-g -Wall -Wextra -Wno-deprecated -Wno-unused-parameter -fno-rtti -fno-exceptions -pipe -Wno-missing-field-initializers -DNINJA_PYTHON=\"python.exe\" -O2 -DNDEBUG -D_WIN32_WINNT=0x0501")]]
+default ninja.exe

@@ -1,0 +1,8 @@
+rule record
+    command = hello
+    command = echo ${vBar} ${command} > ${out}
+build buildseparate.txt: record 
+    # environment: [[]]
+    vFoo = foo
+    vBar = bar
+    vBar = XX
