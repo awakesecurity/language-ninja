@@ -50,8 +50,8 @@ import qualified Language.Ninja.Pretty      as Ninja
 import qualified Language.Ninja.Shake       as Ninja
 import qualified Language.Ninja.Types       as Ninja
 
-import           Language.Ninja.Eval
-                 (Command (..), RuleName (..), Target (..))
+import           Language.Ninja.Eval        (Interned, internText, uninternText)
+import           Language.Ninja.Eval        (Command (..), Target (..))
 
 import           Data.Aeson                 as Aeson
 import           Data.Aeson.Encode.Pretty   as Aeson
@@ -74,13 +74,10 @@ debugSNinja = compileNinja <$> debugNinja
 --------------------------------------------------------------------------------
 
 targetFromBS :: ByteString -> Target
-targetFromBS = MkTarget . T.decodeUtf8
-
-ruleNameFromBS :: ByteString -> RuleName
-ruleNameFromBS = MkRuleName . T.decodeUtf8
+targetFromBS = T.decodeUtf8 .> internText .> MkTarget
 
 commandFromBS :: ByteString -> Command
-commandFromBS = MkCommand . T.decodeUtf8
+commandFromBS = T.decodeUtf8 .> MkCommand
 
 -- | A simplified build graph.
 data SNinja
@@ -157,7 +154,7 @@ compileNinja (Ninja.MkNinja {..}) = MkSNinja simpleBuilds simpleDefaults
                [depsNormal, depsImplicit, depsOrderOnly]
 
         rule = fromMaybe (error ("rule not found: " <> show ruleName))
-               $ HM.lookup (ruleNameFromBS ruleName) ruleMap
+               $ HM.lookup (targetFromBS ruleName) ruleMap
 
     simplifyPhony :: (ByteString, [ByteString]) -> (HashSet Target, SBuild)
     simplifyPhony (name, files) = ( HS.singleton (targetFromBS name)
@@ -165,8 +162,8 @@ compileNinja (Ninja.MkNinja {..}) = MkSNinja simpleBuilds simpleDefaults
       where
         filesT = map targetFromBS files
 
-    ruleMap :: HashMap RuleName Command
-    ruleMap = HM.fromList $ map (ruleNameFromBS *** computeCommand) rules
+    ruleMap :: HashMap Target Command
+    ruleMap = HM.fromList $ map (targetFromBS *** computeCommand) rules
 
     computeCommand :: Ninja.Rule -> Command
     computeCommand (Ninja.MkRule {..})
