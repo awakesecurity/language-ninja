@@ -76,15 +76,15 @@ newtype Target
 makeTarget :: Text -> Target
 makeTarget = view itext .> MkTarget
 
--- | Get and set the underlying 'IText' directly.
-targetIText :: Lens' Target IText
-targetIText = lens _targetIText (const MkTarget)
+-- | An isomorphism between a 'Target' and its underlying 'IText'.
+targetIText :: Iso' Target IText
+targetIText = iso _targetIText MkTarget
 
--- | A lens that gives access to a 'Text'-typed view of a 'Target', even though
---   the underlying data has type 'IText'.
+-- | An isomorphism that gives access to a 'Text'-typed view of a 'Target',
+--   even though the underlying data has type 'IText'.
 --
 --   This is equivalent to @targetIText . from itext@.
-targetText :: Lens' Target Text
+targetText :: Iso' Target Text
 targetText = targetIText . from itext
 
 --------------------------------------------------------------------------------
