@@ -70,7 +70,7 @@ prettyNinja ninja
 
 prettyRule :: (Str, PRule) -> IO ByteString
 prettyRule (name, rule) = do
-  let binds = rule ^. pruleBindings
+  let binds = rule ^. pruleBind
               |> map (prettyBind . Arr.second prettyExpr)
               |> mconcat
   pure $ mconcat ["rule ", name, "\n", binds]

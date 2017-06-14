@@ -201,7 +201,7 @@ compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
 
     computeCommand :: Ninja.PRule -> Command
     computeCommand rule
-      = case lookup "command" (rule ^. pruleBindings)
+      = case lookup "command" (rule ^. pruleBind)
         of Just (Ninja.PLit x) -> commandFromBS x
            Just _              -> error "rule uses variables"
            Nothing             -> error "\"command\" not found"

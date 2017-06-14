@@ -69,7 +69,7 @@ module Language.Ninja.Types
 
     -- * @PRule@
   , PRule, makePRule
-  , pruleBindings
+  , pruleBind
 
     -- * @PExpr@
   , PExpr (..), askVar, askExpr, addBind, addBinds
@@ -272,18 +272,18 @@ pdepsOrderOnly = lens _pdepsOrderOnly
 -- | A parsed Ninja @rule@ declaration.
 newtype PRule
   = MkPRule
-    { _pruleBindings :: [(Str, PExpr)]
+    { _pruleBind :: [(Str, PExpr)]
     }
   deriving (Eq, Show)
 
 -- | Construct a 'PRule' with all default values
 makePRule :: PRule
 makePRule = MkPRule
-            { _pruleBindings = mempty
+            { _pruleBind = mempty
             }
 
 -- | The set of bindings in scope during the execution of this rule.
-pruleBindings :: Lens' PRule [(Str, PExpr)]
-pruleBindings = lens _pruleBindings (const MkPRule)
+pruleBind :: Lens' PRule [(Str, PExpr)]
+pruleBind = lens _pruleBind (const MkPRule)
 
 --------------------------------------------------------------------------------

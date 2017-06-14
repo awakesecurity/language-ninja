@@ -157,7 +157,7 @@ computeRuleEnv out b r = liftIO $ do
   Ninja.addEnv env "in"         $ BSC8.unwords $ map quote deps
   Ninja.addEnv env "in_newline" $ BSC8.unlines deps
   forM_ (b ^. pbuildBind) $ \(a, b) -> Ninja.addEnv env a b
-  Ninja.addBinds env (r ^. pruleBindings)
+  Ninja.addBinds env (r ^. pruleBind)
   pure env
 
 ninjaCompDB :: PNinja -> [Str] -> IO (Maybe (Rules ()))

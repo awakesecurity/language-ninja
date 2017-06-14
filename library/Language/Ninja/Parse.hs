@@ -110,7 +110,7 @@ applyStmt env ninja (key, binds) = case key of
            else if length outputs == 1 then ninja & pninjaSingles   %~ addS
            else                             ninja & pninjaMultiples %~ addM
   (LexRule name) -> do
-    let rule = makePRule & pruleBindings .~ binds
+    let rule = makePRule & pruleBind .~ binds
     pure (ninja & pninjaRules %~ ((name, rule) :))
   (LexDefault xs) -> do
     xs <- mapM (askExpr env) xs
