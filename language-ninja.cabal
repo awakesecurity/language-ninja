@@ -48,6 +48,7 @@ library
     exposed-modules:      Language.Ninja
                         , Language.Ninja.Env
                         , Language.Ninja.Eval
+                        , Language.Ninja.Eval.Pool
                         , Language.Ninja.Lexer
                         , Language.Ninja.Parse
                         , Language.Ninja.Pretty

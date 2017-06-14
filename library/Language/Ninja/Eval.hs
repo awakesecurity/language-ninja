@@ -42,6 +42,7 @@ module Language.Ninja.Eval
 
 import           Control.Arrow
 
+import           Language.Ninja.Eval.Pool
 import           Language.Ninja.Misc.IText
 
 import           Language.Ninja.Types      (FileStr, Str)
@@ -78,7 +79,6 @@ import           Flow
 --------------------------------------------------------------------------------
 
 -- TODO: Split this module up
--- TODO: PoolDepth/PoolName is not correct by construction
 
 --------------------------------------------------------------------------------
 
@@ -112,113 +112,6 @@ newtype Target
     }
   deriving ( Eq, Ord, Show, Read, Generic, Hashable
            , ToJSON, FromJSON, ToJSONKey, FromJSONKey )
-
---------------------------------------------------------------------------------
-
--- | The name of a Ninja pool.
---
---   More information is available
---   <https://ninja-build.org/manual.html#ref_pool here>.
-data PoolName
-  = PoolNameDefault
-  | PoolNameConsole
-  | PoolNameCustom !Text
-  deriving (Eq, Ord, Show, Read, Generic)
-
--- | Create a 'PoolName' corresponding to the built-in default pool, i.e.: the
---   pool that is selected if the @pool@ attribute is set to the empty string.
-poolNameDefault :: PoolName
-poolNameDefault = PoolNameDefault
-
--- | Create a 'PoolName' corresponding to the built-in @console@ pool.
-poolNameConsole :: PoolName
-poolNameConsole = PoolNameConsole
-
--- | Create a 'PoolName' corresponding to a custom pool.
-poolNameCustom :: Text -> PoolName
-poolNameCustom ""        = error "Invalid pool name: \"\""
-poolNameCustom "console" = error "Invalid pool name: \"console\""
-poolNameCustom text      = PoolNameCustom text
-
--- | Convert a 'PoolName' to the string that, if the @pool@ attribute is set to
---   it, will cause the given 'PoolName' to be parsed.
---
---   >>> printPoolName poolNameDefault
---   ""
---
---   >>> printPoolName poolNameConsole
---   "console"
---
---   >>> printPoolName (poolNameCustom "foobar")
---   "foobar"
-printPoolName :: PoolName -> Text
-printPoolName PoolNameDefault    = ""
-printPoolName PoolNameConsole    = "console"
-printPoolName (PoolNameCustom t) = t
-
--- | Inverse of 'printPoolName'.
---
---   >>> parsePoolName ""
---   PoolNameDefault
---
---   >>> parsePoolName "console"
---   PoolNameConsole
---
---   >>> parsePoolName "foobar"
---   PoolNameCustom "foobar"
-parsePoolName :: Text -> PoolName
-parsePoolName ""        = poolNameDefault
-parsePoolName "console" = poolNameConsole
-parsePoolName t         = poolNameCustom t
-
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable PoolName
-
--- | Converts to JSON string via 'printPoolName'.
-instance ToJSON PoolName where
-  toJSON = printPoolName .> String
-
--- | Inverse of the 'ToJSON' instance.
-instance FromJSON PoolName where
-  parseJSON = withText "PoolName" (parsePoolName .> pure)
-
--- | Converts to JSON string via 'printPoolName'.
-instance ToJSONKey PoolName where
-  toJSONKey = Aeson.toJSONKeyText printPoolName
-
--- | Inverse of the 'ToJSONKey' instance.
-instance FromJSONKey PoolName where
-  fromJSONKey = Aeson.mapFromJSONKeyFunction parsePoolName fromJSONKey
-
---------------------------------------------------------------------------------
-
--- | The depth of a Ninja pool.
---
---   More information is available
---   <https://ninja-build.org/manual.html#ref_pool here>.
-data PoolDepth
-  = -- | Construct a normal pool with the given depth, which should be a
-    --   natural number.
-    PoolDepth !Int
-  | -- | This constructor is needed for the default pool (@pool = ""@), which
-    --   has an infinite depth.
-    PoolInfinite
-  deriving (Eq, Ord, Show, Read, Generic)
-
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable PoolDepth
-
--- | Converts 'PoolInfinite' to @"infinite"@ and 'PoolDepth' to the
---   corresponding JSON number.
-instance ToJSON PoolDepth where
-  toJSON (PoolDepth i) = toJSON i
-  toJSON PoolInfinite  = "infinite"
-
--- | Inverse of the 'ToJSON' instance.
-instance FromJSON PoolDepth where
-  parseJSON (v@(Number _))      = PoolDepth <$> parseJSON v
-  parseJSON (String "infinite") = pure PoolInfinite
-  parseJSON owise               = Aeson.typeMismatch "PoolDepth" owise
 
 --------------------------------------------------------------------------------
 
@@ -365,7 +258,7 @@ data ENinja
     , _ninjaDefaults :: !(HashSet Target)
       -- ^ The set of default targets, as documented
       --   <https://ninja-build.org/manual.html#_default_target_statements here>.
-    , _ninjaPools    :: !(HashSet EPool)
+    , _ninjaPools    :: !(HashSet Pool)
       -- ^ The set of pools for this
     }
   deriving (Eq, Show, Generic)
@@ -492,7 +385,7 @@ makeRule name cmd = MkERule
                     { _ruleName         = name
                     , _ruleCommand      = cmd
                     , _ruleDescription  = Nothing
-                    , _rulePool         = PoolNameDefault
+                    , _rulePool         = poolNameDefault
                     , _ruleDepfile      = Nothing
                     , _ruleSpecialDeps  = Nothing
                     , _ruleGenerator    = False
@@ -533,36 +426,6 @@ instance FromJSON EBuild where
                   _buildOuts <- (o .: "outputs")      >>= pure
                   _buildDeps <- (o .: "dependencies") >>= pure
                   pure (MkEBuild {..}))
-
---------------------------------------------------------------------------------
-
--- | A Ninja @pool@ declaration, as documented
---   <https://ninja-build.org/manual.html#ref_pool here>.
-data EPool
-  = MkEPool
-    { _poolName  :: !PoolName
-      -- ^ The name of the pool.
-    , _poolDepth :: !PoolDepth
-      -- ^ The depth of the pool.
-    }
-  deriving (Eq, Ord, Show, Read, Generic)
-
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable EPool
-
--- | Converts to @{name: …, depth: …}@.
-instance ToJSON EPool where
-  toJSON (MkEPool {..})
-    = [ "name"  .= _poolName
-      , "depth" .= _poolDepth
-      ] |> object
-
--- | Inverse of the 'ToJSON' instance.
-instance FromJSON EPool where
-  parseJSON = (withObject "EPool" $ \o -> do
-                  _poolName  <- (o .: "name")  >>= pure
-                  _poolDepth <- (o .: "depth") >>= pure
-                  pure (MkEPool {..}))
 
 --------------------------------------------------------------------------------
 
