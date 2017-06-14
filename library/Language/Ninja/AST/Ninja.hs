@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/Eval/Ninja.hs
+-- File: library/Language/Ninja/AST/Ninja.hs
 --
 -- License:
 --     Copyright 2017 Awake Networks
@@ -25,23 +25,23 @@
 {-# LANGUAGE RecordWildCards   #-}
 
 -- |
---   Module      : Language.Ninja.Eval.Ninja
+--   Module      : Language.Ninja.AST.Ninja
 --   Copyright   : Copyright 2017 Awake Networks
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakenetworks.com
 --   Stability   : experimental
 --
 --   A datatype for the Ninja build system AST.
-module Language.Ninja.Eval.Ninja
+module Language.Ninja.AST.Ninja
   ( -- * @Ninja@
     Ninja, makeNinja
   , ninjaMeta, ninjaBuilds, ninjaPhonys, ninjaDefaults, ninjaPools
   ) where
 
-import           Language.Ninja.Eval.Build
-import           Language.Ninja.Eval.Meta
-import           Language.Ninja.Eval.Pool
-import           Language.Ninja.Eval.Target
+import           Language.Ninja.AST.Build
+import           Language.Ninja.AST.Meta
+import           Language.Ninja.AST.Pool
+import           Language.Ninja.AST.Target
 
 import           Data.HashMap.Strict        (HashMap)
 import qualified Data.HashMap.Strict        as HM

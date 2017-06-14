@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/Eval.hs
+-- File: library/Language/Ninja/AST.hs
 --
 -- License:
 --     Copyright 2017 Awake Networks
@@ -25,22 +25,22 @@
 {-# LANGUAGE RecordWildCards   #-}
 
 -- |
---   Module      : Language.Ninja.Eval
+--   Module      : Language.Ninja.AST
 --   Copyright   : Copyright 2017 Awake Networks
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakenetworks.com
 --   Stability   : experimental
 --
---   Evaluator for the Ninja build language.
-module Language.Ninja.Eval
-  ( module Language.Ninja.Eval -- FIXME: specific export list
+--   The Ninja build language AST after normalization.
+module Language.Ninja.AST
+  ( module Language.Ninja.AST -- FIXME: specific export list
   ) where
 
-import           Language.Ninja.Eval.Build
-import           Language.Ninja.Eval.Meta
-import           Language.Ninja.Eval.Pool
-import           Language.Ninja.Eval.Rule
-import           Language.Ninja.Eval.Target
+import           Language.Ninja.AST.Build
+import           Language.Ninja.AST.Meta
+import           Language.Ninja.AST.Pool
+import           Language.Ninja.AST.Rule
+import           Language.Ninja.AST.Target
 import           Language.Ninja.Misc.Command
 import           Language.Ninja.Misc.IText
 import           Language.Ninja.Misc.Path

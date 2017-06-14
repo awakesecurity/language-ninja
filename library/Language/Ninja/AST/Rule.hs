@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/Eval/Rule.hs
+-- File: library/Language/Ninja/AST/Rule.hs
 --
 -- License:
 --     Copyright 2017 Awake Networks
@@ -26,14 +26,14 @@
 {-# LANGUAGE RecordWildCards   #-}
 
 -- |
---   Module      : Language.Ninja.Eval.Rule
+--   Module      : Language.Ninja.AST.Rule
 --   Copyright   : Copyright 2017 Awake Networks
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakenetworks.com
 --   Stability   : experimental
 --
 --   A datatype for Ninja @rule@ declarations.
-module Language.Ninja.Eval.Rule
+module Language.Ninja.AST.Rule
   ( -- * @Rule@
     Rule, makeRule
   , ruleName, ruleCommand, ruleDescription, rulePool, ruleDepfile
@@ -47,7 +47,7 @@ module Language.Ninja.Eval.Rule
   , ResponseFile, makeResponseFile, responseFilePath, responseFileContent
   ) where
 
-import           Language.Ninja.Eval.Pool
+import           Language.Ninja.AST.Pool
 import           Language.Ninja.Misc.Command
 import           Language.Ninja.Misc.Path
 

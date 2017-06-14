@@ -47,13 +47,13 @@ library
                           -- FIXME: remove unneeded dependencies
     exposed-modules:      Language.Ninja
                         , Language.Ninja.Env
-                        , Language.Ninja.Eval
-                        , Language.Ninja.Eval.Build
-                        , Language.Ninja.Eval.Meta
-                        , Language.Ninja.Eval.Ninja
-                        , Language.Ninja.Eval.Pool
-                        , Language.Ninja.Eval.Rule
-                        , Language.Ninja.Eval.Target
+                        , Language.Ninja.AST
+                        , Language.Ninja.AST.Build
+                        , Language.Ninja.AST.Meta
+                        , Language.Ninja.AST.Ninja
+                        , Language.Ninja.AST.Pool
+                        , Language.Ninja.AST.Rule
+                        , Language.Ninja.AST.Target
                         , Language.Ninja.Lexer
                         , Language.Ninja.Parse
                         , Language.Ninja.Pretty

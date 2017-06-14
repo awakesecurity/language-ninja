@@ -78,7 +78,7 @@ import qualified Language.Ninja.Pretty       as Ninja
 import qualified Language.Ninja.Shake        as Ninja
 import qualified Language.Ninja.Types        as Ninja
 
-import           Language.Ninja.Eval.Target
+import           Language.Ninja.AST.Target
 import           Language.Ninja.Misc.Command
 import           Language.Ninja.Misc.IText   (IText, internText, uninternText)
 

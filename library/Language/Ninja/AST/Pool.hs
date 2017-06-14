@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/Eval/Pool.hs
+-- File: library/Language/Ninja/AST/Pool.hs
 --
 -- License:
 --     Copyright 2017 Awake Networks
@@ -26,14 +26,14 @@
 {-# LANGUAGE RecordWildCards            #-}
 
 -- |
---   Module      : Language.Ninja.Eval.Pool
+--   Module      : Language.Ninja.AST.Pool
 --   Copyright   : Copyright 2017 Awake Networks
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakenetworks.com
 --   Stability   : experimental
 --
 --   Types relating to Ninja @pool@s.
-module Language.Ninja.Eval.Pool
+module Language.Ninja.AST.Pool
   ( -- * @Pool@
     Pool, poolDefault, poolConsole, poolCustom
   , poolName, poolDepth

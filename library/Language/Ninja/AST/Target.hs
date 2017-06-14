@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/Eval/Target.hs
+-- File: library/Language/Ninja/AST/Target.hs
 --
 -- License:
 --     Copyright 2017 Awake Networks
@@ -27,14 +27,14 @@
 {-# LANGUAGE RecordWildCards            #-}
 
 -- |
---   Module      : Language.Ninja.Eval.Target
+--   Module      : Language.Ninja.AST.Target
 --   Copyright   : Copyright 2017 Awake Networks
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakenetworks.com
 --   Stability   : experimental
 --
 --   Types relating to Ninja build targets, outputs, and dependencies.
-module Language.Ninja.Eval.Target
+module Language.Ninja.AST.Target
   ( -- * @Target@
     Target, makeTarget, targetIText, targetText
     -- * @Output@

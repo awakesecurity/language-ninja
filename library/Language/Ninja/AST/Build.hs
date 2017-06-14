@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/Eval/Build.hs
+-- File: library/Language/Ninja/AST/Build.hs
 --
 -- License:
 --     Copyright 2017 Awake Networks
@@ -25,14 +25,14 @@
 {-# LANGUAGE RecordWildCards   #-}
 
 -- |
---   Module      : Language.Ninja.Eval.Build
+--   Module      : Language.Ninja.AST.Build
 --   Copyright   : Copyright 2017 Awake Networks
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakenetworks.com
 --   Stability   : experimental
 --
 --   A datatype for Ninja @build@ declarations.
-module Language.Ninja.Eval.Build
+module Language.Ninja.AST.Build
   ( -- * @Build@
     Build, makeBuild, buildRule, buildOuts, buildDeps
   ) where
@@ -45,8 +45,8 @@ import qualified Data.HashSet               as HS
 import           Data.Hashable              (Hashable (..))
 import           GHC.Generics               (Generic)
 
-import           Language.Ninja.Eval.Rule
-import           Language.Ninja.Eval.Target
+import           Language.Ninja.AST.Rule
+import           Language.Ninja.AST.Target
 
 import           Control.Lens.Lens
 

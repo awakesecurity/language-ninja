@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/Eval/Meta.hs
+-- File: library/Language/Ninja/AST/Meta.hs
 --
 -- License:
 --     Copyright 2017 Awake Networks
@@ -25,14 +25,14 @@
 {-# LANGUAGE RecordWildCards   #-}
 
 -- |
---   Module      : Language.Ninja.Eval.Meta
+--   Module      : Language.Ninja.AST.Meta
 --   Copyright   : Copyright 2017 Awake Networks
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakenetworks.com
 --   Stability   : experimental
 --
 --   A datatype for Ninja top-level variables and other metadata.
-module Language.Ninja.Eval.Meta
+module Language.Ninja.AST.Meta
   ( -- * @Meta@
     Meta, makeMeta, metaReqVersion, metaBuildDir
   ) where
