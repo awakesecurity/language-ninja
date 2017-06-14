@@ -106,8 +106,8 @@ newtype Command
 --------------------------------------------------------------------------------
 
 -- | A parsed and normalized Ninja file.
-data ENinja
-  = MkENinja
+data Ninja
+  = MkNinja
     { _ninjaMeta     :: !Meta
       -- ^ Metadata, which includes top-level variables like @builddir@.
     , _ninjaBuilds   :: !(HashSet EBuild)
@@ -124,11 +124,11 @@ data ENinja
   deriving (Eq, Show, Generic)
 
 -- | Default 'Hashable' instance via 'Generic'.
-instance Hashable ENinja
+instance Hashable Ninja
 
 -- | Converts to @{meta: …, builds: …, phonys: …, defaults: …, pools: …}@.
-instance ToJSON ENinja where
-  toJSON (MkENinja {..})
+instance ToJSON Ninja where
+  toJSON (MkNinja {..})
     = [ "meta"     .= _ninjaMeta
       , "builds"   .= _ninjaBuilds
       , "phonys"   .= _ninjaPhonys
@@ -137,14 +137,14 @@ instance ToJSON ENinja where
       ] |> object
 
 -- | Inverse of the 'ToJSON' instance.
-instance FromJSON ENinja where
-  parseJSON = (withObject "ENinja" $ \o -> do
+instance FromJSON Ninja where
+  parseJSON = (withObject "Ninja" $ \o -> do
                   _ninjaMeta     <- (o .: "meta")     >>= pure
                   _ninjaBuilds   <- (o .: "builds")   >>= pure
                   _ninjaPhonys   <- (o .: "phonys")   >>= pure
                   _ninjaDefaults <- (o .: "defaults") >>= pure
                   _ninjaPools    <- (o .: "pools")    >>= pure
-                  pure (MkENinja {..}))
+                  pure (MkNinja {..}))
 
 --------------------------------------------------------------------------------
 
