@@ -33,25 +33,28 @@
 --
 --   An interned text type.
 module Language.Ninja.Misc.IText
-  ( IText, uninternText, internText
+  ( IText, uninternText, internText, itext
   ) where
 
-import           Data.Text          (Text)
-import qualified Data.Text          as T
-import qualified Data.Text.Encoding as T
+import           Data.Text           (Text)
+import qualified Data.Text           as T
+import qualified Data.Text.Encoding  as T
 
-import           Data.Aeson         as Aeson
-import qualified Data.Aeson.Types   as Aeson
+import           Data.Aeson          as Aeson
+import qualified Data.Aeson.Types    as Aeson
 
-import qualified Data.Interned      as Interned
-import qualified Data.Interned.Text as Interned (InternedText)
+import qualified Data.Interned       as Interned
+import qualified Data.Interned.Text  as Interned (InternedText)
 
-import           Data.Data          (Data)
-import           Data.Hashable      (Hashable (..))
-import           Data.String        (IsString (..))
-import           GHC.Generics       (Generic)
+import           Data.Data           (Data)
+import           Data.Hashable       (Hashable (..))
+import           Data.String         (IsString (..))
+import           GHC.Generics        (Generic)
 
-import           Control.Arrow      (first)
+import           Control.Lens.Getter
+import           Control.Lens.Iso
+
+import           Control.Arrow       (first)
 import           Flow
 
 --------------------------------------------------------------------------------
@@ -62,15 +65,31 @@ newtype IText
   = MkIText Interned.InternedText
   deriving (Eq, Ord, IsString, Generic)
 
--- | Get the 'Text' corresponding to the given 'Interned' value.
+-- | Get the 'Text' corresponding to the given 'IText' value.
+--
+--   >>> uninternText ("foobar" :: IText)
+--   "foobar"
 uninternText :: IText -> Text
 uninternText (MkIText i) = Interned.unintern i
 
--- | Intern a 'Text' value, resulting in an 'Interned' value.
+-- | Intern a 'Text' value, resulting in an 'IText' value.
+--
+--   >>> internText ("foobar" :: Text)
+--   "foobar"
 internText :: Text -> IText
 internText = Interned.intern .> MkIText
 
--- | Displays an 'Interned' such that 'fromString' is inverse to 'show'.
+-- | An 'Iso' between 'Text' and 'IText'.
+--
+--   >>> (("foobar" :: Text) ^. itext) :: IText
+--   "foobar"
+--
+--   >>> (("foobar" :: IText) ^. from itext) :: Text
+--   "foobar"
+itext :: Iso' Text IText
+itext = iso internText uninternText
+
+-- | Displays an 'IText' such that 'fromString' is inverse to 'show'.
 instance Show IText where
   show (MkIText i) = show i
 
@@ -88,7 +107,7 @@ instance ToJSON IText where
 
 -- | Inverse of the 'ToJSON' instance.
 instance FromJSON IText where
-  parseJSON = withText "Interned" (internText .> pure)
+  parseJSON = withText "IText" (internText .> pure)
 
 -- | Converts to JSON string via 'uninternText'.
 instance ToJSONKey IText where
