@@ -64,10 +64,10 @@ import qualified Data.Text                  as T
 import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Char8      as BSC8
 
-import           Development.Shake          ((&?>), (?>))
-import           Development.Shake          as Shake
-import           Development.Shake.FilePath as Shake (normaliseEx, toStandard)
-import           Development.Shake.Util     as Shake (parseMakefile)
+import           Development.Shake          (Action, Rules, (&?>), (?>))
+import qualified Development.Shake          as Shake
+import qualified Development.Shake.FilePath as Shake (normaliseEx, toStandard)
+import qualified Development.Shake.Util     as Shake (parseMakefile)
 
 import           Language.Ninja.Env         (Env)
 import           Language.Ninja.Types       (FileStr, Str)
@@ -101,20 +101,20 @@ import           Flow
 --------------------------------------------------------------------------------
 -- STUBS
 
-addTiming :: String -> IO ()
-addTiming _ = pure ()
-
 filepathNormalise :: Str -> Str
-filepathNormalise = BSC8.pack . toStandard . normaliseEx . BSC8.unpack
+filepathNormalise = BSC8.unpack
+                    .> Shake.normaliseEx
+                    .> Shake.toStandard
+                    .> BSC8.pack
 
 needBS :: [Str] -> Action ()
-needBS = need . map BSC8.unpack
+needBS = Shake.need . map BSC8.unpack
 
 neededBS :: [Str] -> Action ()
-neededBS = needed . map BSC8.unpack
+neededBS = Shake.needed . map BSC8.unpack
 
 orderOnlyBS :: [Str] -> Action ()
-orderOnlyBS = orderOnly . map BSC8.unpack
+orderOnlyBS = Shake.orderOnly . map BSC8.unpack
 
 --------------------------------------------------------------------------------
 
@@ -199,17 +199,17 @@ ninjaBuild ninja args = do
     pools     <- fmap HM.fromList
                  $ forM (("console", 1) : pools)
                  $ \(name, depth) ->
-                     (name,) <$> newResource (BSC8.unpack name) depth
+                     (name,) <$> Shake.newResource (BSC8.unpack name) depth
 
-    let runBuild :: [Str] -> PBuild -> Action ()
-        runBuild = build (needDeps ninja) phonys rules pools
+    let build :: [Str] -> PBuild -> Action ()
+        build = runBuild (needDeps ninja) phonys rules pools
 
     let targets :: [Str]
         targets | not (null args)     = args
                 | not (null defaults) = defaults
                 | otherwise           = HM.keys singles <> HM.keys multiples
 
-    action $ needBS $ concatMap (resolvePhony phonys) targets
+    Shake.action $ needBS $ concatMap (resolvePhony phonys) targets
 
     let relatedOutputs :: FilePath -> Maybe [FilePath]
         relatedOutputs (BSC8.pack -> out)
@@ -220,10 +220,10 @@ ninjaBuild ninja args = do
             |> Just
 
     relatedOutputs &?> \(map BSC8.pack -> outputs) -> do
-      runBuild outputs (snd (multiples HM.! head outputs))
+      build outputs (snd (multiples HM.! head outputs))
 
     (flip HM.member singles . BSC8.pack) ?> \(BSC8.pack -> output) -> do
-      runBuild [output] (singles HM.! output)
+      build [output] (singles HM.! output)
 
 resolvePhony :: HashMap Str [Str] -> Str -> [Str]
 resolvePhony mp = f (Left 100)
@@ -243,14 +243,14 @@ quote x | BSC8.any isSpace x = let q = BSC8.singleton '\"' in mconcat [q, x, q]
 quote x                      = x
 
 
-build :: (PBuild -> [Str] -> Action ())
-      -> HashMap Str [Str]
-      -> HashMap Str PRule
-      -> HashMap Str Resource
-      -> [Str]
-      -> PBuild
-      -> Action ()
-build needD phonys rules pools out (build@(Ninja.MkPBuild {..})) = do
+runBuild :: (PBuild -> [Str] -> Action ())
+         -> HashMap Str [Str]
+         -> HashMap Str PRule
+         -> HashMap Str Shake.Resource
+         -> [Str]
+         -> PBuild
+         -> Action ()
+runBuild needD phonys rules pools out (build@(Ninja.MkPBuild {..})) = do
   let errorA :: Str -> Action a
       errorA = BSC8.unpack .> errorIO .> liftIO
   needBS $ concatMap (resolvePhony phonys) $ depsNormal <> depsImplicit
@@ -282,41 +282,41 @@ build needD phonys rules pools out (build@(Ninja.MkPBuild {..})) = do
                                          , " not found, required to build "
                                          , BSC8.unwords out
                                          ] |> mconcat |> errorA
-                              (Just r) -> withResource r 1 act
+                              (Just r) -> Shake.withResource r 1 act
 
-    when (description /= "") $ putNormal description
+    when (description /= "") $ Shake.putNormal description
 
-    let (cmdOpts, cmdProg, cmdArgs) = toCommand commandline
-
-    if deps == "msvc"
-      then do (Stdout stdout) <- withPool (command cmdOpts cmdProg cmdArgs)
-              prefix <- Ninja.askEnv env "msvc_deps_prefix"
-                        |> fmap (fromMaybe "Note: including file: ")
-                        |> liftIO
-              needD build $ parseShowIncludes prefix $ BSC8.pack stdout
-      else withPool $ command_ cmdOpts cmdProg cmdArgs
+    let (opts, prog, args) = toCommand commandline
+      in if deps == "msvc"
+         then do stdout <- withPool (Shake.command opts prog args)
+                 prefix <- Ninja.askEnv env "msvc_deps_prefix"
+                           |> fmap (fromMaybe "Note: including file: ")
+                           |> liftIO
+                 let outStr = BSC8.pack (Shake.fromStdout stdout)
+                 needD build (parseShowIncludes prefix outStr)
+         else withPool (Shake.command_ opts prog args)
 
     when (depfile /= "") $ do
-      when (deps /= "gcc") $ need [depfile]
+      when (deps /= "gcc") $ Shake.need [depfile]
 
       depsrc <- BS.readFile depfile
                 |> fmap BSC8.unpack
                 |> liftIO
 
-      let parsed = map BSC8.pack (concatMap snd (parseMakefile depsrc))
+      let parsed = map BSC8.pack (concatMap snd (Shake.parseMakefile depsrc))
 
       needD build parsed
 
       -- correct as per the Ninja spec, but breaks --skip-commands
-          -- when (deps == "gcc") $ liftIO $ removeFile depfile
+      -- when (deps == "gcc") $ liftIO $ removeFile depfile
 
 needDeps :: PNinja -> PBuild -> [Str] -> Action ()
 needDeps (Ninja.MkPNinja {..}) = \build xs -> do
   let errorA :: Str -> Action a
       errorA = BSC8.unpack .> errorIO .> liftIO
   -- eta reduced so 'builds' is shared
-  opts <- getShakeOptions
-  let dontLint = isNothing $ shakeLint opts
+  opts <- Shake.getShakeOptions
+  let dontLint = isNothing $ Shake.shakeLint opts
   if dontLint then needBS xs else do
     neededBS xs
     -- now try and statically validate needed will never fail
@@ -372,7 +372,7 @@ applyRspfile env act = do
   if rspfile == ""
     then act
     else (liftIO (BS.writeFile rspfile rspfile_content) >> act)
-         `actionFinally`
+         `Shake.actionFinally`
          ignore (removeFile rspfile)
 
 parseShowIncludes :: Str -> Str -> [Str]
@@ -385,16 +385,12 @@ parseShowIncludes prefix out = do
 
 -- Dodgy, but ported over from the original Ninja
 isSystemInclude :: Str -> Bool
-isSystemInclude x = (    BS.isInfixOf bsProgFiles tx
-                      || BS.isInfixOf bsVisStudio tx
+isSystemInclude x = (    BS.isInfixOf "PROGRAM FILES"           tx
+                      || BS.isInfixOf "MICROSOFT VISUAL STUDIO" tx
                     )
   where
     tx = BS.map (\c -> if c >= 97 then c - 32 else c) x
     -- optimised toUpper that only cares about letters and spaces
-
-bsProgFiles, bsVisStudio :: Str
-bsProgFiles = "PROGRAM FILES"
-bsVisStudio = "MICROSOFT VISUAL STUDIO"
 
 data CompDB
   = MkCompDB
@@ -415,39 +411,39 @@ printCompDB xs = unlines (["["] <> concat (zipWith f [1..] xs) <> ["]"])
                           , "  }" <> (if i == n then "" else ",") ]
     g = show
 
-toCommand :: String -> ([CmdOption], String, [String])
+toCommand :: String -> ([Shake.CmdOption], String, [String])
 toCommand s
   -- On POSIX, Ninja does a /bin/sh -c, and so does Haskell in Shell mode.
   | not isWindows
-  = ([Shell], s, [])
+  = ([Shake.Shell], s, [])
   -- On Windows, Ninja passes the string directly to CreateProcess,
   -- but Haskell applies some escaping first. We try and get back as close to
   -- the original as we can, but it's very hacky
   | length s < 8000
   -- Using the "cmd" program adds overhead (I measure 7ms), and a limit of
   -- 8191 characters, but is the most robust, requiring no additional escaping.
-  = ([Shell], s, [])
-  | (cmd, s) <- word1 s
+  = ([Shake.Shell], s, [])
+  | (cmd, s') <- word1 s
   , map toUpper cmd `elem` ["CMD","CMD.EXE"]
-  , ("/c", s) <- word1 s
+  , ("/c", s'') <- word1 s'
   -- Given "cmd.exe /c <something>" we translate to Shell, which adds cmd.exe
   -- (looked up on the current path) and /c to the front.
   -- CMake uses this rule a lot.
   -- Adding quotes around pieces are /c goes very wrong.
-  = ([Shell], s, [])
+  = ([Shake.Shell], s'', [])
   | otherwise
   -- It's a long command line which doesn't call "cmd /c".
   -- We reverse the escaping Haskell applies, but each argument will still gain
   -- quotes around it.
   = let xs = splitArgs s in ([], head (xs <> [""]), drop 1 xs)
 
--- | FIXME: doc
+-- | The state while splitting arguments.
 data State
   = Gap  -- ^ Currently in the gap between words
   | Word -- ^ Currently inside a space-separated argument
   | Quot -- ^ Currently inside a quote-surrounded argument
 
--- | The process package contains a translate function, reproduced below.
+-- | The @process@ package contains a translate function, reproduced below.
 --   The aim is that after command line parsing we should get out mostly
 --   the same answer.
 splitArgs :: String -> [String]
