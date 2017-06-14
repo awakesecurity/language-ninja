@@ -33,28 +33,23 @@
 --
 --   The Ninja build language AST after normalization.
 module Language.Ninja.AST
-  ( module Language.Ninja.AST -- FIXME: specific export list
+  ( module Language.Ninja.AST.Build
+  , module Language.Ninja.AST.Meta
+  , module Language.Ninja.AST.Ninja
+  , module Language.Ninja.AST.Pool
+  , module Language.Ninja.AST.Rule
+  , module Language.Ninja.AST.Target
+  , module Language.Ninja.Misc.Command
+  , module Language.Ninja.Misc.IText
+  , module Language.Ninja.Misc.Path
   ) where
 
 import           Language.Ninja.AST.Build
 import           Language.Ninja.AST.Meta
+import           Language.Ninja.AST.Ninja
 import           Language.Ninja.AST.Pool
 import           Language.Ninja.AST.Rule
 import           Language.Ninja.AST.Target
 import           Language.Ninja.Misc.Command
 import           Language.Ninja.Misc.IText
 import           Language.Ninja.Misc.Path
-
-import           Data.ByteString             (ByteString)
-import qualified Data.ByteString             as BS
-import qualified Data.ByteString.Char8       as BSC8
-
-import           Data.Text                   (Text)
-import qualified Data.Text                   as T
-import qualified Data.Text.Encoding          as T
-
-import           Data.HashMap.Strict         (HashMap)
-import qualified Data.HashMap.Strict         as HM
-
-import           Data.HashSet                (HashSet)
-import qualified Data.HashSet                as HS
