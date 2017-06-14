@@ -50,8 +50,8 @@ import qualified Language.Ninja.Pretty      as Ninja
 import qualified Language.Ninja.Shake       as Ninja
 import qualified Language.Ninja.Types       as Ninja
 
-import           Language.Ninja.Eval        (Interned, internText, uninternText)
 import           Language.Ninja.Eval        (Command (..), Target (..))
+import           Language.Ninja.Misc.IText  (IText, internText, uninternText)
 
 import           Data.Aeson                 as Aeson
 import           Data.Aeson.Encode.Pretty   as Aeson

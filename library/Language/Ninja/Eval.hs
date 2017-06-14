@@ -42,37 +42,36 @@ module Language.Ninja.Eval
 
 import           Control.Arrow
 
-import           Language.Ninja.Types  (FileStr, Str)
-import qualified Language.Ninja.Types  as Ninja
+import           Language.Ninja.Misc.IText
 
-import           Data.ByteString       (ByteString)
-import qualified Data.ByteString       as BS
-import qualified Data.ByteString.Char8 as BS (unlines, unwords)
+import           Language.Ninja.Types      (FileStr, Str)
+import qualified Language.Ninja.Types      as Ninja
 
-import           Data.Text             (Text)
-import qualified Data.Text             as T
-import qualified Data.Text.Encoding    as T
+import           Data.ByteString           (ByteString)
+import qualified Data.ByteString           as BS
+import qualified Data.ByteString.Char8     as BS (unlines, unwords)
 
-import           Data.HashMap.Strict   (HashMap)
-import qualified Data.HashMap.Strict   as HM
+import           Data.Text                 (Text)
+import qualified Data.Text                 as T
+import qualified Data.Text.Encoding        as T
 
-import           Data.HashSet          (HashSet)
-import qualified Data.HashSet          as HS
+import           Data.HashMap.Strict       (HashMap)
+import qualified Data.HashMap.Strict       as HM
 
-import           Data.Aeson            as Aeson
-import qualified Data.Aeson.Types      as Aeson
+import           Data.HashSet              (HashSet)
+import qualified Data.HashSet              as HS
 
-import qualified Data.Versions         as V
+import           Data.Aeson                as Aeson
+import qualified Data.Aeson.Types          as Aeson
 
-import qualified Text.Megaparsec       as Mega
+import qualified Data.Versions             as V
 
-import qualified Data.Interned         as Interned
-import qualified Data.Interned.Text    as Interned (InternedText)
+import qualified Text.Megaparsec           as Mega
 
-import           Data.Data             (Data)
-import           Data.Hashable         (Hashable (..))
-import           Data.String           (IsString (..))
-import           GHC.Generics          (Generic)
+import           Data.Data                 (Data)
+import           Data.Hashable             (Hashable (..))
+import           Data.String               (IsString (..))
+import           GHC.Generics              (Generic)
 
 import           Flow
 
@@ -83,55 +82,11 @@ import           Flow
 
 --------------------------------------------------------------------------------
 
--- | An interned (hash-consed) text type.
---   This is a newtype over 'Interned.InternedText' from the @intern@ package.
-newtype Interned
-  = MkInterned Interned.InternedText
-  deriving (Eq, Ord, IsString)
-
--- | Get the 'Text' corresponding to the given 'Interned' value.
-uninternText :: Interned -> Text
-uninternText (MkInterned i) = Interned.unintern i
-
--- | Intern a 'Text' value, resulting in an 'Interned' value.
-internText :: Text -> Interned
-internText = Interned.intern .> MkInterned
-
--- | Displays an 'Interned' such that 'fromString' is inverse to 'show'.
-instance Show Interned where
-  show (MkInterned i) = show i
-
--- | Inverse of the 'Show' instance.
-instance Read Interned where
-  readsPrec i = readsPrec i .> map (first (fromString .> MkInterned))
-
--- | Uses the 'Hashable' instance for 'Text'. Not very efficient.
-instance Hashable Interned where
-  hashWithSalt n = uninternText .> hashWithSalt n
-
--- | Converts to JSON string via 'uninternText'.
-instance ToJSON Interned where
-  toJSON = uninternText .> toJSON
-
--- | Inverse of the 'ToJSON' instance.
-instance FromJSON Interned where
-  parseJSON = withText "Interned" (internText .> pure)
-
--- | Converts to JSON string via 'uninternText'.
-instance ToJSONKey Interned where
-  toJSONKey = Aeson.toJSONKeyText uninternText
-
--- | Inverse of the 'ToJSONKey' instance.
-instance FromJSONKey Interned where
-  fromJSONKey = Aeson.mapFromJSONKeyFunction internText fromJSONKey
-
---------------------------------------------------------------------------------
-
 -- | This type represents a Unix path string.
 newtype Path
   = MkPath
-    { _pathText :: Interned
-      -- ^ The underlying 'Text'.
+    { _pathText :: IText
+      -- ^ The underlying 'IText'.
     }
   deriving ( Eq, Ord, Show, Read, Generic, Hashable
            , ToJSON, FromJSON, ToJSONKey, FromJSONKey )
@@ -152,8 +107,8 @@ newtype Command
 -- | This type represents a Ninja target name.
 newtype Target
   = MkTarget
-    { _targetText :: Interned
-      -- ^ The underlying 'Interned'.
+    { _targetText :: IText
+      -- ^ The underlying 'IText'.
     }
   deriving ( Eq, Ord, Show, Read, Generic, Hashable
            , ToJSON, FromJSON, ToJSONKey, FromJSONKey )
