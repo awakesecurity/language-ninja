@@ -136,21 +136,21 @@ take0 i (Str0 x) = BS.takeWhile (/= '\0') $ BS.take i x
 
 -- | Lex each line separately, rather than each lexeme
 data Lexeme
-  = LexBind Str Expr
+  = LexBind Str PExpr
   -- ^ @[indent]foo = bar@
-  | LexBuild [Expr] Str [Expr]
+  | LexBuild [PExpr] Str [PExpr]
   -- ^ @build foo: bar | baz || qux@ (@|@ and @||@ are represented as 'Expr')
-  | LexInclude Expr
+  | LexInclude PExpr
   -- ^ @include file@
-  | LexSubninja Expr
+  | LexSubninja PExpr
   -- ^ @include file@
   | LexRule Str
   -- ^ @rule name@
   | LexPool Str
   -- ^ @pool name@
-  | LexDefault [Expr]
+  | LexDefault [PExpr]
   -- ^ @default foo bar@
-  | LexDefine Str Expr
+  | LexDefine Str PExpr
   -- ^ @foo = bar@
   deriving Show
 
@@ -211,7 +211,7 @@ lexInclude  = lexxFile LexInclude
 lexSubninja = lexxFile LexSubninja
 lexDefine   = lexxBind LexDefine
 
-lexxBind :: (Str -> Expr -> Lexeme) -> Str0 -> [Lexeme]
+lexxBind :: (Str -> PExpr -> Lexeme) -> Str0 -> [Lexeme]
 lexxBind ctor x
   | (var, x) <- span0 isVarDot x
   , ('=', x) <- list0 $ dropSpace x
@@ -220,7 +220,7 @@ lexxBind ctor x
 lexxBind _ x
   = error $ show ("parse failed when parsing binding", take0 100 x)
 
-lexxFile :: (Expr -> Lexeme) -> Str0 -> [Lexeme]
+lexxFile :: (PExpr -> Lexeme) -> Str0 -> [Lexeme]
 lexxFile ctor x
   | (exp, rest) <- lexxExpr False False $ dropSpace x
   = ctor exp : lexerLoop rest
@@ -230,7 +230,7 @@ lexxName ctor x
   | (name, rest) <- splitLineCont x
   = ctor name : lexerLoop rest
 
-lexxExprs :: Bool -> Str0 -> ([Expr], Str0)
+lexxExprs :: Bool -> Str0 -> ([PExpr], Str0)
 lexxExprs sColon x
   = case lexxExpr sColon True x of
       (a, c_x)
@@ -244,15 +244,16 @@ lexxExprs sColon x
                '\n'          -> a $: x
                '\0'          -> a $: c_x
   where
-    Exprs [] $: x = ([], x)
-    a $: x = ([a], x)
+    ($:) :: PExpr -> Str0 -> ([PExpr], Str0)
+    (PExprs []) $: s = ([],  s)
+    a           $: s = ([a], s)
 
 {-# NOINLINE lexxExpr #-}
-lexxExpr :: Bool -> Bool -> Str0 -> (Expr, Str0) -- snd will start with one of " :\n\r" or be empty
+lexxExpr :: Bool -> Bool -> Str0 -> (PExpr, Str0) -- snd will start with one of " :\n\r" or be empty
 lexxExpr stopColon stopSpace = first exprs . f
   where
     exprs [x] = x
-    exprs xs  = Exprs xs
+    exprs xs  = PExprs xs
 
     special = case (stopColon, stopSpace) of
                 (True , True ) -> \x -> (x <= ':') && (x == ':' || x == ' ' || x == '$' || x == '\r' || x == '\n' || x == '\0')
@@ -261,7 +262,7 @@ lexxExpr stopColon stopSpace = first exprs . f
                 (False, False) -> \x -> (x <= '$') && (                        x == '$' || x == '\r' || x == '\n' || x == '\0')
 
     f x = case break00 special x of
-      (a, x) -> if BS.null a then g x else Lit a $: g x
+      (a, x) -> if BS.null a then g x else PLit a $: g x
 
     x $: (xs,y) = (x:xs,y)
 
@@ -270,18 +271,18 @@ lexxExpr stopColon stopSpace = first exprs . f
       = ([], x)
       | c_x <- tail0 x, (c, x) <- list0 c_x
       = case c of
-          '$'   -> Lit (BS.singleton '$') $: f x
-          ' '   -> Lit (BS.singleton ' ') $: f x
-          ':'   -> Lit (BS.singleton ':') $: f x
+          '$'   -> PLit (BS.singleton '$') $: f x
+          ' '   -> PLit (BS.singleton ' ') $: f x
+          ':'   -> PLit (BS.singleton ':') $: f x
           '\n'  -> f $ dropSpace x
           '\r'  -> f $ dropSpace $ dropN x
           '{' | (name, x) <- span0 isVarDot x
               , not $ BS.null name
               , ('}', x) <- list0 x
-                -> Var name $: f x
+                -> PVar name $: f x
           _   | (name, x) <- span0 isVar c_x
               , not $ BS.null name
-                -> Var name $: f x
+                -> PVar name $: f x
           _     -> error "Unexpect $ followed by unexpected stuff"
 
 

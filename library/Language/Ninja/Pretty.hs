@@ -37,7 +37,8 @@ module Language.Ninja.Pretty
 
 import qualified Control.Arrow         as Arr
 
-import           Language.Ninja.Types  (Build, FileStr, Ninja, Rule, Str)
+import           Language.Ninja.Types  (FileStr, Str)
+import           Language.Ninja.Types  (PBuild, PNinja, PRule)
 
 import qualified Language.Ninja.Env    as Ninja
 import qualified Language.Ninja.Types  as Ninja
@@ -56,8 +57,8 @@ import           Data.Monoid
 
 import           Flow
 
-prettyNinja :: Ninja -> IO ByteString
-prettyNinja (Ninja.MkNinja {..})
+prettyNinja :: PNinja -> IO ByteString
+prettyNinja (Ninja.MkPNinja {..})
   = [ mapM prettyRule     rules
     , mapM prettySingle   singles
     , mapM prettyMultiple multiples
@@ -66,23 +67,23 @@ prettyNinja (Ninja.MkNinja {..})
     , mapM prettyPool     pools
     ] |> sequenceA |> fmap (mconcat .> mconcat)
 
-prettyRule :: (Str, Rule) -> IO ByteString
-prettyRule (name, (Ninja.MkRule {..})) = do
+prettyRule :: (Str, PRule) -> IO ByteString
+prettyRule (name, (Ninja.MkPRule {..})) = do
   let binds = mconcat $ map (prettyBind . Arr.second prettyExpr) ruleBind
   pure $ mconcat ["rule ", name, "\n", binds]
 
-prettyExpr :: Ninja.Expr -> ByteString
+prettyExpr :: Ninja.PExpr -> ByteString
 prettyExpr = go .> mconcat
   where
-    go (Ninja.Exprs es) = map prettyExpr es
-    go (Ninja.Lit  str) = [str]
-    go (Ninja.Var name) = ["${", name, "}"]
+    go (Ninja.PExprs es) = map prettyExpr es
+    go (Ninja.PLit  str) = [str]
+    go (Ninja.PVar name) = ["${", name, "}"]
 
-prettySingle :: (FileStr, Build) -> IO ByteString
+prettySingle :: (FileStr, PBuild) -> IO ByteString
 prettySingle (output, build) = prettyMultiple ([output], build)
 
-prettyMultiple :: ([FileStr], Build) -> IO ByteString
-prettyMultiple (outputs, (Ninja.MkBuild {..})) = do
+prettyMultiple :: ([FileStr], PBuild) -> IO ByteString
+prettyMultiple (outputs, (Ninja.MkPBuild {..})) = do
   stack <- Ninja.getEnvStack env
 
   let prefixIfThere :: Str -> Str -> Str

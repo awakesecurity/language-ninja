@@ -69,7 +69,9 @@ import           Development.Shake          as Shake
 import           Development.Shake.FilePath as Shake (normaliseEx, toStandard)
 import           Development.Shake.Util     as Shake (parseMakefile)
 
-import           Language.Ninja.Types       (Build, Ninja, Rule, Str)
+import           Language.Ninja.Env         (Env)
+import           Language.Ninja.Types       (FileStr, Str)
+import           Language.Ninja.Types       (PBuild, PNinja, PRule)
 
 import qualified Language.Ninja.Env         as Ninja
 import qualified Language.Ninja.Parse       as Ninja
@@ -126,8 +128,8 @@ runNinja file args tool = do
   ninjaDispatch options
 
 data NinjaOptions
-  = NinjaOptionsBuild   !Ninja ![Str]
-  | NinjaOptionsCompDB  !Ninja ![Str]
+  = NinjaOptionsBuild   !PNinja ![Str]
+  | NinjaOptionsCompDB  !PNinja ![Str]
   | NinjaOptionsUnknown !Text
 
 parseNinjaOptions :: FilePath -> [String] -> Maybe String -> IO NinjaOptions
@@ -144,7 +146,7 @@ ninjaDispatch (NinjaOptionsCompDB n args) = ninjaCompDB n args
 ninjaDispatch (NinjaOptionsUnknown tool)  = [ "Unknown tool: ", tool
                                             ] |> mconcat |> T.unpack |> errorIO
 
-computeRuleEnv :: (MonadIO m) => [Str] -> Build -> Rule -> m (Ninja.Env Str Str)
+computeRuleEnv :: (MonadIO m) => [Str] -> PBuild -> PRule -> m (Env Str Str)
 computeRuleEnv out b r = liftIO $ do
   let deps = Ninja.depsNormal b
   env <- Ninja.scopeEnv (Ninja.env b)
@@ -156,8 +158,8 @@ computeRuleEnv out b r = liftIO $ do
   Ninja.addBinds env (Ninja.ruleBind r)
   pure env
 
-ninjaCompDB :: Ninja -> [Str] -> IO (Maybe (Rules ()))
-ninjaCompDB (Ninja.MkNinja {..}) args = do
+ninjaCompDB :: PNinja -> [Str] -> IO (Maybe (Rules ()))
+ninjaCompDB (Ninja.MkPNinja {..}) args = do
   dir <- getCurrentDirectory
 
   -- Compute the set of rules
@@ -166,7 +168,7 @@ ninjaCompDB (Ninja.MkNinja {..}) args = do
   let rules = HM.filterWithKey (curry inArgs) rules
 
   -- the build items are generated in reverse order, hence the reverse
-  let itemsToBuild :: [([Str], Ninja.Build, Str, Ninja.Rule)]
+  let itemsToBuild :: [([Str], PBuild, Str, PRule)]
       itemsToBuild = do
         (outputs, build) <- reverse (multiples <> map (first pure) singles)
         (Just rule) <- [HM.lookup (Ninja.ruleName build) rules]
@@ -174,8 +176,8 @@ ninjaCompDB (Ninja.MkNinja {..}) args = do
         pure (outputs, build, file, rule)
 
   compDB <- forM itemsToBuild $ \(out, build, file, rule) -> do
-    let (Ninja.MkBuild {..}) = build
-    let (Ninja.MkRule {..})  = rule
+    let (Ninja.MkPBuild {..}) = build
+    let (Ninja.MkPRule {..})  = rule
     env <- computeRuleEnv out build rule
     commandLine <- BSC8.unpack <$> Ninja.askVar env "command"
     pure $ MkCompDB dir commandLine $ BSC8.unpack $ head depsNormal
@@ -184,9 +186,9 @@ ninjaCompDB (Ninja.MkNinja {..}) args = do
 
   pure Nothing
 
-ninjaBuild :: Ninja -> [Str] -> IO (Maybe (Rules ()))
+ninjaBuild :: PNinja -> [Str] -> IO (Maybe (Rules ()))
 ninjaBuild ninja args = do
-  let (Ninja.MkNinja {..}) = ninja
+  let (Ninja.MkPNinja {..}) = ninja
   pure $ Just $ do
     let normalisedMultiples = first (map filepathNormalise) <$> multiples
     phonys    <- pure $ HM.fromList phonys
@@ -199,7 +201,7 @@ ninjaBuild ninja args = do
                  $ \(name, depth) ->
                      (name,) <$> newResource (BSC8.unpack name) depth
 
-    let runBuild :: [Str] -> Ninja.Build -> Action ()
+    let runBuild :: [Str] -> PBuild -> Action ()
         runBuild = build (needDeps ninja) phonys rules pools
 
     let targets :: [Str]
@@ -216,7 +218,6 @@ ninjaBuild ninja args = do
             |> fromMaybe (if HM.member out singles then [out] else [])
             |> map BSC8.unpack
             |> Just
-
 
     relatedOutputs &?> \(map BSC8.pack -> outputs) -> do
       runBuild outputs (snd (multiples HM.! head outputs))
@@ -242,14 +243,14 @@ quote x | BSC8.any isSpace x = let q = BSC8.singleton '\"' in mconcat [q, x, q]
 quote x                      = x
 
 
-build :: (Build -> [Str] -> Action ())
+build :: (PBuild -> [Str] -> Action ())
       -> HashMap Str [Str]
-      -> HashMap Str Rule
+      -> HashMap Str PRule
       -> HashMap Str Resource
       -> [Str]
-      -> Build
+      -> PBuild
       -> Action ()
-build needD phonys rules pools out (build@(Ninja.MkBuild {..})) = do
+build needD phonys rules pools out (build@(Ninja.MkPBuild {..})) = do
   let errorA :: Str -> Action a
       errorA = BSC8.unpack .> errorIO .> liftIO
   needBS $ concatMap (resolvePhony phonys) $ depsNormal <> depsImplicit
@@ -257,8 +258,8 @@ build needD phonys rules pools out (build@(Ninja.MkBuild {..})) = do
   let ruleNotFound = [ "Ninja rule named ", ruleName
                      , " is missing, required to build ", BSC8.unwords out
                      ] |> mconcat |> errorA
-  (rule@(Ninja.MkRule {..})) <- HM.lookup ruleName rules
-                                |> maybe ruleNotFound pure
+  (rule@(Ninja.MkPRule {..})) <- HM.lookup ruleName rules
+                                 |> maybe ruleNotFound pure
 
   env <- computeRuleEnv out build rule
 
@@ -309,8 +310,8 @@ build needD phonys rules pools out (build@(Ninja.MkBuild {..})) = do
       -- correct as per the Ninja spec, but breaks --skip-commands
           -- when (deps == "gcc") $ liftIO $ removeFile depfile
 
-needDeps :: Ninja -> Build -> [Str] -> Action ()
-needDeps (Ninja.MkNinja {..}) = \build xs -> do
+needDeps :: PNinja -> PBuild -> [Str] -> Action ()
+needDeps (Ninja.MkPNinja {..}) = \build xs -> do
   let errorA :: Str -> Action a
       errorA = BSC8.unpack .> errorIO .> liftIO
   -- eta reduced so 'builds' is shared
@@ -329,7 +330,7 @@ needDeps (Ninja.MkNinja {..}) = \build xs -> do
                , "file in deps is generated and not a pre-dependency"
                ] |> mconcat |> errorA
   where
-    builds :: HashMap Str Build
+    builds :: HashMap Str PBuild
     builds = HM.fromList (singles <> [(x, y) | (xs, y) <- multiples, x <- xs])
 
     -- do list difference, assuming a small initial set, most of which occurs
@@ -345,7 +346,7 @@ needDeps (Ninja.MkNinja {..}) = \build xs -> do
 
     -- find all dependencies of a rule, no duplicates, with all dependencies of
     -- this rule listed first
-    allDependencies :: Build -> [Str]
+    allDependencies :: PBuild -> [Str]
     allDependencies rule = f HS.empty [] [rule]
       where
         f _    []     []                = []
@@ -364,7 +365,7 @@ needDeps (Ninja.MkNinja {..}) = \build xs -> do
     (∈) :: (Eq a, Hashable a) => a -> HashSet a -> Bool
     (∈) = HS.member
 
-applyRspfile :: Ninja.Env Str Str -> Action a -> Action a
+applyRspfile :: Env Str Str -> Action a -> Action a
 applyRspfile env act = do
   rspfile <- liftIO (BSC8.unpack <$> Ninja.askVar env "rspfile")
   rspfile_content <- liftIO (Ninja.askVar env "rspfile_content")

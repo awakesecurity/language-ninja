@@ -66,18 +66,18 @@ import           Language.Ninja.Types
 
 import           Flow
 
-parse :: FilePath -> IO Ninja
+parse :: FilePath -> IO PNinja
 parse file = newEnv >>= parseWithEnv file
 
-parseWithEnv :: FilePath -> Env Str Str -> IO Ninja
-parseWithEnv file env = parseFile file env newNinja
+parseWithEnv :: FilePath -> Env Str Str -> IO PNinja
+parseWithEnv file env = parseFile file env newPNinja
 
-parseFile :: FilePath -> Env Str Str -> Ninja -> IO Ninja
+parseFile :: FilePath -> Env Str Str -> PNinja -> IO PNinja
 parseFile file env ninja = do
   lexes <- lexerFile $ if file == "-" then Nothing else Just file
   foldM (applyStmt env) ninja $ withBinds lexes
 
-withBinds :: [Lexeme] -> [(Lexeme, [(Str, Expr)])]
+withBinds :: [Lexeme] -> [(Lexeme, [(Str, PExpr)])]
 withBinds [] = []
 withBinds (x:xs) = (x, a) : withBinds b
   where
@@ -85,19 +85,19 @@ withBinds (x:xs) = (x, a) : withBinds b
     f ((LexBind a b) : rest) = let (as, bs) = f rest in (((a, b):as), bs)
     f xs                     = ([], xs)
 
-applyStmt :: Env Str Str -> Ninja -> (Lexeme, [(Str, Expr)]) -> IO Ninja
-applyStmt env (ninja@(MkNinja {..})) (key, binds) = case key of
+applyStmt :: Env Str Str -> PNinja -> (Lexeme, [(Str, PExpr)]) -> IO PNinja
+applyStmt env (ninja@(MkPNinja {..})) (key, binds) = case key of
   (LexBuild outputs rule deps) -> do
     outputs <- mapM (askExpr env) outputs
     deps <- mapM (askExpr env) deps
     binds <- mapM (\(a, b) -> (a,) <$> askExpr env b) binds
     let (normal, implicit, orderOnly) = splitDeps deps
-    let build = MkBuild rule env normal implicit orderOnly binds
+    let build = MkPBuild rule env normal implicit orderOnly binds
     pure $ if      rule == "phony"     then ninja { phonys = [(x, normal <> implicit <> orderOnly) | x <- outputs] <> phonys }
            else if length outputs == 1 then ninja { singles = (head outputs, build) : singles }
            else                             ninja { multiples = (outputs, build) : multiples }
   (LexRule name) -> do
-    pure ninja { rules = (name, MkRule binds) : rules }
+    pure ninja { rules = (name, MkPRule binds) : rules }
   (LexDefault xs) -> do
     xs <- mapM (askExpr env) xs
     pure (ninja { defaults = xs ++ defaults })
@@ -125,7 +125,7 @@ splitDeps (x:xs) | (x == "|")  = ([],  a <> b,      c)
   where
     (a, b, c) = splitDeps xs
 
-getDepth :: Env Str Str -> [(Str, Expr)] -> IO Int
+getDepth :: Env Str Str -> [(Str, PExpr)] -> IO Int
 getDepth env xs = do
   let poolDepthError x = [ "Could not parse depth field in pool, got: ", x
                          ] |> mconcat |> BS.unpack |> error

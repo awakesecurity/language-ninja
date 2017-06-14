@@ -50,11 +50,20 @@
 --   The IO in this module is only to evaluate an environment variable,
 --   the 'Env' itself is passed around purely.
 module Language.Ninja.Types
-  ( Str, FileStr
-  , Expr (..), Env, newEnv, askVar, askExpr, addEnv, addBind, addBinds
-  , Ninja (..), newNinja, ninjaEqual
-  , Build (..), buildEqual
-  , Rule (..)
+  ( -- * @PNinja@
+    PNinja (..), newPNinja
+
+    -- * @PBuild@
+  , PBuild (..)
+
+    -- * @PRule@
+  , PRule (..)
+
+    -- * @PExpr@
+  , PExpr (..), Env, newEnv, askVar, askExpr, addEnv, addBind, addBinds
+
+    -- * Miscellaneous
+  , Str, FileStr
   ) where
 
 import           Control.Applicative
@@ -75,42 +84,42 @@ type Str = BS.ByteString
 type FileStr = Str
 
 -- | FIXME: doc
-data Expr
-  = Exprs [Expr]
+data PExpr
+  = PExprs [PExpr]
   -- ^ FIXME: doc
-  | Lit Str
+  | PLit Str
   -- ^ FIXME: doc
-  | Var Str
+  | PVar Str
   -- ^ FIXME: doc
   deriving (Eq, Show)
 
 -- | FIXME: doc
-askExpr :: (MonadIO m) => Env Str Str -> Expr -> m Str
-askExpr e (Exprs xs) = BS.concat <$> mapM (askExpr e) xs
-askExpr _ (Lit x)    = pure x
-askExpr e (Var x)    = askVar e x
+askExpr :: (MonadIO m) => Env Str Str -> PExpr -> m Str
+askExpr e (PExprs xs) = BS.concat <$> mapM (askExpr e) xs
+askExpr _ (PLit x)    = pure x
+askExpr e (PVar x)    = askVar e x
 
 -- | FIXME: doc
 askVar :: (MonadIO m) => Env Str Str -> Str -> m Str
 askVar e x = fromMaybe BS.empty <$> askEnv e x
 
 -- | FIXME: doc
-addBind :: (MonadIO m) => Env Str Str -> Str -> Expr -> m ()
+addBind :: (MonadIO m) => Env Str Str -> Str -> PExpr -> m ()
 addBind e k v = askExpr e v >>= addEnv e k
 
 -- | FIXME: doc
-addBinds :: (MonadIO m) => Env Str Str -> [(Str, Expr)] -> m ()
+addBinds :: (MonadIO m) => Env Str Str -> [(Str, PExpr)] -> m ()
 addBinds e bs = mapM (\(a, b) -> (a,) <$> askExpr e b) bs
                 >>= mapM_ (uncurry (addEnv e))
 
 -- | FIXME: doc
-data Ninja
-  = MkNinja
-    { rules     :: [(Str, Rule)]
+data PNinja
+  = MkPNinja
+    { rules     :: [(Str, PRule)]
       -- ^ FIXME: doc
-    , singles   :: [(FileStr, Build)]
+    , singles   :: [(FileStr, PBuild)]
       -- ^ FIXME: doc
-    , multiples :: [([FileStr], Build)]
+    , multiples :: [([FileStr], PBuild)]
       -- ^ FIXME: doc
     , phonys    :: [(Str, [FileStr])]
       -- ^ FIXME: doc
@@ -122,29 +131,12 @@ data Ninja
   deriving (Show)
 
 -- | FIXME: doc
-newNinja :: Ninja
-newNinja = MkNinja [] [] [] [] [] []
+newPNinja :: PNinja
+newPNinja = MkPNinja [] [] [] [] [] []
 
 -- | FIXME: doc
-ninjaEqual :: Ninja -> Ninja -> IO Bool
-ninjaEqual nX nY = do
-  let filterNinja (MkNinja {..}) = (rules, phonys, defaults, pools)
-
-  let pairEq :: ([FileStr], Build) -> ([FileStr], Build) -> IO Bool
-      pairEq (oX, bX) (oY, bY) = (&&) <$> pure (oX == oY) <*> buildEqual bX bY
-
-  let listEq :: [([FileStr], Build)] -> [([FileStr], Build)] -> IO Bool
-      listEq lX lY = zipWith pairEq lX lY |> sequence |> fmap and
-
-  resultR <- pure (filterNinja nX == filterNinja nY)
-  resultS <- listEq (first pure <$> singles nX) (first pure <$> singles nY)
-  resultM <- listEq (multiples nX) (multiples nY)
-
-  pure (resultR && resultS && resultM)
-
--- | FIXME: doc
-data Build
-  = MkBuild
+data PBuild
+  = MkPBuild
     { ruleName      :: Str
       -- ^ FIXME: doc
     , env           :: Env Str Str
@@ -160,17 +152,10 @@ data Build
     }
   deriving (Show)
 
-buildEqual :: Build -> Build -> IO Bool
-buildEqual bX bY = do
-  let filterBuild (MkBuild {..})
-        = (ruleName, depsNormal, depsImplicit, depsOrderOnly, buildBind)
-  e <- envEqual (env bX) (env bY)
-  pure (e && (filterBuild bX == filterBuild bY))
-
 -- | FIXME: doc
-newtype Rule
-  = MkRule
-    { ruleBind :: [(Str, Expr)]
+newtype PRule
+  = MkPRule
+    { ruleBind :: [(Str, PExpr)]
       -- ^ FIXME: doc
     }
   deriving (Eq, Show)
