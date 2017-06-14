@@ -18,7 +18,7 @@
 --     limitations under the License.
 
 {-# OPTIONS_GHC #-}
-{-# OPTIONS_HADDOCK show-extensions #-}
+{-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE LambdaCase        #-}
