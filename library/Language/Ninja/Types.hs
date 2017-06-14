@@ -87,7 +87,7 @@ import           Control.Monad.IO.Class
 
 import           Control.Lens.Lens
 
-import qualified Data.ByteString.Char8  as BS
+import qualified Data.ByteString.Char8  as BSC8
 import           Data.Maybe
 
 import           Language.Ninja.Env
@@ -97,7 +97,7 @@ import           Flow
 --------------------------------------------------------------------------------
 
 -- | FIXME: doc
-type Str = BS.ByteString
+type Str = BSC8.ByteString
 
 -- | FIXME: doc
 type FileStr = Str
@@ -116,13 +116,13 @@ data PExpr
 
 -- | FIXME: doc
 askExpr :: (MonadIO m) => Env Str Str -> PExpr -> m Str
-askExpr e (PExprs xs) = BS.concat <$> mapM (askExpr e) xs
+askExpr e (PExprs xs) = BSC8.concat <$> mapM (askExpr e) xs
 askExpr _ (PLit x)    = pure x
 askExpr e (PVar x)    = askVar e x
 
 -- | FIXME: doc
 askVar :: (MonadIO m) => Env Str Str -> Str -> m Str
-askVar e x = fromMaybe BS.empty <$> askEnv e x
+askVar e x = fromMaybe BSC8.empty <$> askEnv e x
 
 -- | FIXME: doc
 addBind :: (MonadIO m) => Env Str Str -> Str -> PExpr -> m ()

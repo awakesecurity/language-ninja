@@ -54,10 +54,10 @@ import qualified Data.Text.IO                as T
 
 import           Data.ByteString             (ByteString)
 import qualified Data.ByteString             as BS
-import qualified Data.ByteString.Char8       as BS8
+import qualified Data.ByteString.Char8       as BSC8
 
 import qualified Data.ByteString.Lazy        as LBS
-import qualified Data.ByteString.Lazy.Char8  as LBS8
+import qualified Data.ByteString.Lazy.Char8  as LBSC8
 
 import           Data.Map.Strict             (Map)
 import qualified Data.Map.Strict             as Map
@@ -92,7 +92,7 @@ import           Misc.Hash
 --------------------------------------------------------------------------------
 
 pretty :: (ToJSON v) => v -> IO ()
-pretty = LBS8.putStrLn . encodePretty
+pretty = encodePretty .> LBSC8.putStrLn
 
 debugNinja :: IO Ninja.PNinja
 debugNinja = Ninja.parse "../data/build.ninja"

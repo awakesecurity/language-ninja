@@ -53,9 +53,11 @@ module Language.Ninja.Lexer
   ) where
 
 import           Control.Applicative
-import qualified Data.ByteString.Char8    as BS
-import qualified Data.ByteString.Internal as Internal
-import qualified Data.ByteString.Unsafe   as BS
+
+import qualified Data.ByteString.Char8    as BSC8
+import qualified Data.ByteString.Internal as BS.Internal
+import qualified Data.ByteString.Unsafe   as BS.Unsafe
+
 import           Data.Char
 import           Data.Tuple.Extra
 import           Data.Word
@@ -76,7 +78,7 @@ newtype Str0 = Str0 Str
 type S = Ptr Word8
 
 char :: S -> Char
-char x = Internal.w2c $ unsafePerformIO $ peek x
+char x = BS.Internal.w2c $ unsafePerformIO $ peek x
 
 next :: S -> S
 next x = x `plusPtr` 1
@@ -91,9 +93,12 @@ span0 f = break0 (not . f)
 
 {-# INLINE break0 #-}
 break0 :: (Char -> Bool) -> Str0 -> (Str, Str0)
-break0 f (Str0 bs) = (BS.unsafeTake i bs, Str0 $ BS.unsafeDrop i bs)
+break0 f (Str0 bs) = (initial, rest)
   where
-    i = unsafePerformIO $ BS.unsafeUseAsCString bs $ \ptr -> do
+    initial = BS.Unsafe.unsafeTake i bs
+    rest    = Str0 (BS.Unsafe.unsafeDrop i bs)
+
+    i = unsafePerformIO $ BS.Unsafe.unsafeUseAsCString bs $ \ptr -> do
       let start = castPtr ptr :: S
       let end = go start
       pure $! Ptr end `minusPtr` start
@@ -106,9 +111,12 @@ break0 f (Str0 bs) = (BS.unsafeTake i bs, Str0 $ BS.unsafeDrop i bs)
 {-# INLINE break00 #-}
 -- The predicate must return true for '\0'
 break00 :: (Char -> Bool) -> Str0 -> (Str, Str0)
-break00 f (Str0 bs) = (BS.unsafeTake i bs, Str0 $ BS.unsafeDrop i bs)
+break00 f (Str0 bs) = (initial, rest)
   where
-    i = unsafePerformIO $ BS.unsafeUseAsCString bs $ \ptr -> do
+    initial = BS.Unsafe.unsafeTake i bs
+    rest    = Str0 $ BS.Unsafe.unsafeDrop i bs
+
+    i = unsafePerformIO $ BS.Unsafe.unsafeUseAsCString bs $ \ptr -> do
       let start = castPtr ptr :: S
       let end = go start
       pure $! Ptr end `minusPtr` start
@@ -119,16 +127,16 @@ break00 f (Str0 bs) = (BS.unsafeTake i bs, Str0 $ BS.unsafeDrop i bs)
         c = char s
 
 head0 :: Str0 -> Char
-head0 (Str0 x) = Internal.w2c $ BS.unsafeHead x
+head0 (Str0 x) = BS.Internal.w2c $ BS.Unsafe.unsafeHead x
 
 tail0 :: Str0 -> Str0
-tail0 (Str0 x) = Str0 $ BS.unsafeTail x
+tail0 (Str0 x) = Str0 $ BS.Unsafe.unsafeTail x
 
 list0 :: Str0 -> (Char, Str0)
 list0 x = (head0 x, tail0 x)
 
 take0 :: Int -> Str0 -> Str
-take0 i (Str0 x) = BS.takeWhile (/= '\0') $ BS.take i x
+take0 i (Str0 x) = BSC8.takeWhile (/= '\0') $ BSC8.take i x
 
 
 ---------------------------------------------------------------------
@@ -156,11 +164,11 @@ data Lexeme
 
 -- | FIXME: doc
 lexerFile :: Maybe FilePath -> IO [Lexeme]
-lexerFile file = lexer <$> maybe BS.getContents BS.readFile file
+lexerFile file = lexer <$> maybe BSC8.getContents BSC8.readFile file
 
 -- | FIXME: doc
 lexer :: Str -> [Lexeme]
-lexer x = lexerLoop (Str0 (BS.append x "\n\n\0"))
+lexer x = lexerLoop (Str0 (BSC8.append x "\n\n\0"))
 
 lexerLoop :: Str0 -> [Lexeme]
 lexerLoop c_x | (c, x) <- list0 c_x
@@ -178,9 +186,9 @@ lexerLoop c_x | (c, x) <- list0 c_x
       '\0'                                -> []
       _                                   -> lexDefine c_x
   where
-    strip str (Str0 x) = let b = BS.pack str
-                         in if b `BS.isPrefixOf` x
-                            then Just $ Str0 $ BS.drop (BS.length b) x
+    strip str (Str0 x) = let b = BSC8.pack str
+                         in if b `BSC8.isPrefixOf` x
+                            then Just $ Str0 $ BSC8.drop (BSC8.length b) x
                             else Nothing
 
 lexBind :: Str0 -> [Lexeme]
@@ -262,7 +270,7 @@ lexxExpr stopColon stopSpace = first exprs . f
                 (False, False) -> \x -> (x <= '$') && (                        x == '$' || x == '\r' || x == '\n' || x == '\0')
 
     f x = case break00 special x of
-      (a, x) -> if BS.null a then g x else PLit a $: g x
+      (a, x) -> if BSC8.null a then g x else PLit a $: g x
 
     x $: (xs,y) = (x:xs,y)
 
@@ -271,34 +279,34 @@ lexxExpr stopColon stopSpace = first exprs . f
       = ([], x)
       | c_x <- tail0 x, (c, x) <- list0 c_x
       = case c of
-          '$'   -> PLit (BS.singleton '$') $: f x
-          ' '   -> PLit (BS.singleton ' ') $: f x
-          ':'   -> PLit (BS.singleton ':') $: f x
+          '$'   -> PLit (BSC8.singleton '$') $: f x
+          ' '   -> PLit (BSC8.singleton ' ') $: f x
+          ':'   -> PLit (BSC8.singleton ':') $: f x
           '\n'  -> f $ dropSpace x
           '\r'  -> f $ dropSpace $ dropN x
           '{' | (name, x) <- span0 isVarDot x
-              , not $ BS.null name
+              , not $ BSC8.null name
               , ('}', x) <- list0 x
                 -> PVar name $: f x
           _   | (name, x) <- span0 isVar c_x
-              , not $ BS.null name
+              , not $ BSC8.null name
                 -> PVar name $: f x
           _     -> error "Unexpect $ followed by unexpected stuff"
 
 
 splitLineCont :: Str0 -> (Str, Str0)
-splitLineCont = first BS.concat . f
+splitLineCont = first BSC8.concat . f
   where
     f x = if not (endsDollar a)
           then ([a], b)
           else let (c, d) = f (dropSpace b)
-               in (BS.init a : c, d)
+               in (BSC8.init a : c, d)
       where
         (a, b) = splitLineCR x
 
 splitLineCR :: Str0 -> (Str, Str0)
-splitLineCR x = if BS.isSuffixOf (BS.singleton '\r') a
-                then (BS.init a, dropN b)
+splitLineCR x = if BSC8.isSuffixOf (BSC8.singleton '\r') a
+                then (BSC8.init a, dropN b)
                 else (a, dropN b)
   where
     (a, b) = break0 (== '\n') x
@@ -315,7 +323,7 @@ isVarDot :: Char -> Bool
 isVarDot x = x == '.' || isVar x
 
 endsDollar :: Str -> Bool
-endsDollar = BS.isSuffixOf (BS.singleton '$')
+endsDollar = BSC8.isSuffixOf (BSC8.singleton '$')
 
 dropN :: Str0 -> Str0
 dropN x = if head0 x == '\n' then tail0 x else x
