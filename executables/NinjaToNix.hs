@@ -50,7 +50,8 @@ import qualified Language.Ninja.Pretty      as Ninja
 import qualified Language.Ninja.Shake       as Ninja
 import qualified Language.Ninja.Types       as Ninja
 
-import           Language.Ninja.Eval        (Command (..), Target (..))
+import           Language.Ninja.Eval        (Command (..))
+import           Language.Ninja.Eval.Target
 import           Language.Ninja.Misc.IText  (IText, internText, uninternText)
 
 import           Data.Aeson                 as Aeson
@@ -74,7 +75,7 @@ debugSNinja = compileNinja <$> debugNinja
 --------------------------------------------------------------------------------
 
 targetFromBS :: ByteString -> Target
-targetFromBS = T.decodeUtf8 .> internText .> MkTarget
+targetFromBS = T.decodeUtf8 .> makeTarget
 
 commandFromBS :: ByteString -> Command
 commandFromBS = T.decodeUtf8 .> MkCommand

@@ -43,36 +43,37 @@ module Language.Ninja.Eval
 import           Control.Arrow
 
 import           Language.Ninja.Eval.Pool
+import           Language.Ninja.Eval.Target
 import           Language.Ninja.Misc.IText
 
-import           Language.Ninja.Types      (FileStr, Str)
-import qualified Language.Ninja.Types      as Ninja
+import           Language.Ninja.Types       (FileStr, Str)
+import qualified Language.Ninja.Types       as Ninja
 
-import           Data.ByteString           (ByteString)
-import qualified Data.ByteString           as BS
-import qualified Data.ByteString.Char8     as BS (unlines, unwords)
+import           Data.ByteString            (ByteString)
+import qualified Data.ByteString            as BS
+import qualified Data.ByteString.Char8      as BS (unlines, unwords)
 
-import           Data.Text                 (Text)
-import qualified Data.Text                 as T
-import qualified Data.Text.Encoding        as T
+import           Data.Text                  (Text)
+import qualified Data.Text                  as T
+import qualified Data.Text.Encoding         as T
 
-import           Data.HashMap.Strict       (HashMap)
-import qualified Data.HashMap.Strict       as HM
+import           Data.HashMap.Strict        (HashMap)
+import qualified Data.HashMap.Strict        as HM
 
-import           Data.HashSet              (HashSet)
-import qualified Data.HashSet              as HS
+import           Data.HashSet               (HashSet)
+import qualified Data.HashSet               as HS
 
-import           Data.Aeson                as Aeson
-import qualified Data.Aeson.Types          as Aeson
+import           Data.Aeson                 as Aeson
+import qualified Data.Aeson.Types           as Aeson
 
-import qualified Data.Versions             as V
+import qualified Data.Versions              as V
 
-import qualified Text.Megaparsec           as Mega
+import qualified Text.Megaparsec            as Mega
 
-import           Data.Data                 (Data)
-import           Data.Hashable             (Hashable (..))
-import           Data.String               (IsString (..))
-import           GHC.Generics              (Generic)
+import           Data.Data                  (Data)
+import           Data.Hashable              (Hashable (..))
+import           Data.String                (IsString (..))
+import           GHC.Generics               (Generic)
 
 import           Flow
 
@@ -101,147 +102,6 @@ newtype Command
     }
   deriving ( Eq, Ord, Show, Read, Generic, Hashable
            , ToJSON, FromJSON )
-
---------------------------------------------------------------------------------
-
--- | This type represents a Ninja target name.
-newtype Target
-  = MkTarget
-    { _targetText :: IText
-      -- ^ The underlying 'IText'.
-    }
-  deriving ( Eq, Ord, Show, Read, Generic, Hashable
-           , ToJSON, FromJSON, ToJSONKey, FromJSONKey )
-
---------------------------------------------------------------------------------
-
--- | A Ninja build output.
---
---   More information is available
---   <https://ninja-build.org/manual.html#ref_outputs here>.
-data Output
-  = MkOutput
-    { _outputTarget :: !Target
-      -- ^ The underlying target.
-    , _outputType   :: !OutputType
-      -- ^ The output type (explicit or implicit).
-    }
-  deriving (Eq, Ord, Show, Read, Generic)
-
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Output
-
--- | Converts to @{target: …, type: …}@.
-instance ToJSON Output where
-  toJSON (MkOutput {..})
-    = [ "target" .= _outputTarget
-      , "type"   .= _outputType
-      ] |> object
-
--- | Inverse of the 'ToJSON' instance.
-instance FromJSON Output where
-  parseJSON = (withObject "Output" $ \o -> do
-                  _outputTarget <- (o .: "target") >>= pure
-                  _outputType   <- (o .: "type")   >>= pure
-                  pure (MkOutput {..}))
-
---------------------------------------------------------------------------------
-
--- | The type of an 'Output': explicit or implicit.
-data OutputType
-  = -- | Explicit outputs are listed in the @$out@ variable.
-    ExplicitOutput
-  | -- | Implicit outputs are _not_ listed in the @$out@ variable.
-    ImplicitOutput
-  deriving (Eq, Ord, Show, Read, Generic)
-
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable OutputType
-
--- | Converts to @"explicit"@ and @"implicit"@ respectively.
-instance ToJSON OutputType where
-  toJSON ExplicitOutput = "explicit"
-  toJSON ImplicitOutput = "implicit"
-
--- | Inverse of the 'ToJSON' instance.
-instance FromJSON OutputType where
-  parseJSON = (withText "OutputType" $ \case
-                  "explicit" -> pure ExplicitOutput
-                  "implicit" -> pure ImplicitOutput
-                  owise      -> [ "Invalid output type "
-                                , "\"", owise, "\"; should be one of "
-                                , "[\"explict\", \"implicit\"]"
-                                ] |> mconcat |> T.unpack |> fail)
-
---------------------------------------------------------------------------------
-
--- | A build dependency.
---
---   More information is available
---   <https://ninja-build.org/manual.html#ref_dependencies here>.
-data Dependency
-  = MkDependency
-    { _dependencyTarget :: !Target
-      -- ^ The underlying target.
-    , _dependencyType   :: !DependencyType
-      -- ^ The dependency type (normal, implicit, or order-only).
-    }
-  deriving (Eq, Ord, Show, Read, Generic)
-
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Dependency
-
--- | Converts to @{target: …, type: …}@.
-instance ToJSON Dependency where
-  toJSON (MkDependency {..})
-    = [ "target" .= _dependencyTarget
-      , "type"   .= _dependencyType
-      ] |> object
-
--- | Inverse of the 'ToJSON' instance.
-instance FromJSON Dependency where
-  parseJSON = (withObject "Dependency" $ \o -> do
-                  _dependencyTarget <- (o .: "target") >>= pure
-                  _dependencyType   <- (o .: "type")   >>= pure
-                  pure (MkDependency {..}))
-
---------------------------------------------------------------------------------
-
--- | The type of a 'Dependency': normal, implicit, or order-only.
-data DependencyType
-  = -- | A normal dependency. These are listed in the @$in@ variable and changes
-    --   in the relevant target result in a rule execution.
-    NormalDependency
-  | -- | An implicit dependency. These have the same semantics as normal
-    --   dependencies, except they do not show up in the @$in@ variable.
-    ImplicitDependency
-  | -- | An order-only dependency. These are listed in the @$in@ variable, but
-    --   are only rebuilt if there is at least one non-order-only dependency
-    --   that is out of date.
-    --
-    --   FIXME: double check this interpretation of the Ninja manual
-    OrderOnlyDependency
-  deriving (Eq, Ord, Show, Read, Generic)
-
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable DependencyType
-
--- | Converts to @"normal"@, @"implicit"@, and @"order-only"@ respectively.
-instance ToJSON DependencyType where
-  toJSON NormalDependency    = "normal"
-  toJSON ImplicitDependency  = "implicit"
-  toJSON OrderOnlyDependency = "order-only"
-
--- | Inverse of the 'ToJSON' instance.
-instance FromJSON DependencyType where
-  parseJSON = (withText "DependencyType" $ \case
-                  "normal"     -> pure NormalDependency
-                  "implicit"   -> pure ImplicitDependency
-                  "order-only" -> pure OrderOnlyDependency
-                  owise        -> [ "Invalid dependency type "
-                                  , "\"", owise, "\"; should be one of "
-                                  , "[\"normal\", \"implicit\", \"order-only\"]"
-                                  ] |> mconcat |> T.unpack |> fail)
 
 --------------------------------------------------------------------------------
 
