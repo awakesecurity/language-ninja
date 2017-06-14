@@ -88,16 +88,16 @@ executable ninja2nix
     other-modules:        Misc.Hash
     build-depends:        language-ninja
                         , base                  >= 4.8.0.0 && < 5.0.0.0
-                        , aeson                 -any 
-                        , aeson-pretty          -any 
-                        , bytestring            -any 
-                        , containers            -any 
+                        , aeson                 -any
+                        , aeson-pretty          -any
+                        , bytestring            -any
+                        , containers            -any
                         , cryptonite            >= 0.21    && < 0.22
-                        , flow                  -any 
-                        , lens                  -any 
-                        , makefile              -any 
-                        , text                  -any 
-                        , unordered-containers  -any 
+                        , flow                  -any
+                        , lens                  -any
+                        , makefile              -any
+                        , text                  -any
+                        , unordered-containers  -any
     default-language:     Haskell2010
     other-extensions:     OverloadedStrings
                           -- FIXME: add the rest of the extensions used
