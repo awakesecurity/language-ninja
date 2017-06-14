@@ -42,6 +42,7 @@ module Language.Ninja.Eval
 
 import           Control.Arrow
 
+import           Language.Ninja.Eval.Build
 import           Language.Ninja.Eval.Pool
 import           Language.Ninja.Eval.Rule
 import           Language.Ninja.Eval.Target
@@ -157,60 +158,6 @@ instance FromJSON Ninja where
                   _ninjaDefaults <- (o .: "defaults") >>= pure
                   _ninjaPools    <- (o .: "pools")    >>= pure
                   pure (MkNinja {..}))
-
---------------------------------------------------------------------------------
-
--- | A Ninja @build@ declaration, as documented
---   <https://ninja-build.org/manual.html#_build_statements here>.
-data Build
-  = MkBuild
-    { _buildRule :: !Rule
-    , _buildOuts :: !(HashSet Output)
-    , _buildDeps :: !(HashSet Dependency)
-    }
-  deriving (Eq, Show, Generic)
-
--- | Construct a default 'Build' from the given 'Rule'
-makeBuild :: Rule -> Build
-makeBuild rule = MkBuild
-                 { _buildRule = rule
-                 , _buildOuts = HS.empty
-                 , _buildDeps = HS.empty
-                 }
-
--- | The rule to execute when building any of the outputs.
-buildRule :: Lens' Build Rule
-buildRule = lens _buildRule
-            $ \(MkBuild {..}) x -> MkBuild { _buildRule = x, .. }
-
--- | The outputs that are built as a result of rule execution.
-buildOuts :: Lens' Build (HashSet Output)
-buildOuts = lens _buildOuts
-            $ \(MkBuild {..}) x -> MkBuild { _buildOuts = x, .. }
-
--- | The dependencies that must be satisfied before this can be built.
-buildDeps :: Lens' Build (HashSet Dependency)
-buildDeps = lens _buildDeps
-            $ \(MkBuild {..}) x -> MkBuild { _buildDeps = x, .. }
-
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Build
-
--- | Converts to @{rule: …, outputs: …, dependencies: …}@.
-instance ToJSON Build where
-  toJSON (MkBuild {..})
-    = [ "rule"         .= _buildRule
-      , "outputs"      .= _buildOuts
-      , "dependencies" .= _buildDeps
-      ] |> object
-
--- | Inverse of the 'ToJSON' instance.
-instance FromJSON Build where
-  parseJSON = (withObject "Build" $ \o -> do
-                  _buildRule <- (o .: "rule")         >>= pure
-                  _buildOuts <- (o .: "outputs")      >>= pure
-                  _buildDeps <- (o .: "dependencies") >>= pure
-                  pure (MkBuild {..}))
 
 --------------------------------------------------------------------------------
 

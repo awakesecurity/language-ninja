@@ -48,6 +48,7 @@ library
     exposed-modules:      Language.Ninja
                         , Language.Ninja.Env
                         , Language.Ninja.Eval
+                        , Language.Ninja.Eval.Build
                         , Language.Ninja.Eval.Pool
                         , Language.Ninja.Eval.Rule
                         , Language.Ninja.Eval.Target
