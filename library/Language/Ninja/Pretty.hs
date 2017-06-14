@@ -69,8 +69,10 @@ prettyNinja ninja
     ] |> sequenceA |> fmap (mconcat .> mconcat)
 
 prettyRule :: (Str, PRule) -> IO ByteString
-prettyRule (name, (Ninja.MkPRule {..})) = do
-  let binds = mconcat $ map (prettyBind . Arr.second prettyExpr) ruleBind
+prettyRule (name, rule) = do
+  let binds = rule ^. pruleBindings
+              |> map (prettyBind . Arr.second prettyExpr)
+              |> mconcat
   pure $ mconcat ["rule ", name, "\n", binds]
 
 prettyExpr :: Ninja.PExpr -> ByteString

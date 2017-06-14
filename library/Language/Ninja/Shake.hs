@@ -157,7 +157,7 @@ computeRuleEnv out b r = liftIO $ do
   Ninja.addEnv env "in"         $ BSC8.unwords $ map quote deps
   Ninja.addEnv env "in_newline" $ BSC8.unlines deps
   forM_ (Ninja.buildBind b) $ \(a, b) -> Ninja.addEnv env a b
-  Ninja.addBinds env (Ninja.ruleBind r)
+  Ninja.addBinds env (r ^. pruleBindings)
   pure env
 
 ninjaCompDB :: PNinja -> [Str] -> IO (Maybe (Rules ()))
@@ -181,7 +181,6 @@ ninjaCompDB ninja args = do
 
   compDB <- forM itemsToBuild $ \(out, build, file, rule) -> do
     let (Ninja.MkPBuild {..}) = build
-    let (Ninja.MkPRule {..})  = rule
     env <- computeRuleEnv out build rule
     commandLine <- BSC8.unpack <$> Ninja.askVar env "command"
     pure $ MkCompDB dir commandLine $ BSC8.unpack $ head depsNormal
@@ -274,8 +273,8 @@ runBuild needD phonys rules pools out (build@(Ninja.MkPBuild {..})) = do
   let ruleNotFound = [ "Ninja rule named ", ruleName
                      , " is missing, required to build ", BSC8.unwords out
                      ] |> mconcat |> errorA
-  (rule@(Ninja.MkPRule {..})) <- HM.lookup ruleName rules
-                                 |> maybe ruleNotFound pure
+
+  rule <- HM.lookup ruleName rules |> maybe ruleNotFound pure
 
   env <- computeRuleEnv out build rule
 

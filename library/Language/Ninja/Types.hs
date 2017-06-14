@@ -63,7 +63,8 @@ module Language.Ninja.Types
   , PBuild (..)
 
     -- * @PRule@
-  , PRule (..)
+  , PRule, makePRule
+  , pruleBindings
 
     -- * @PExpr@
   , PExpr (..), askVar, askExpr, addBind, addBinds
@@ -194,10 +195,19 @@ data PBuild
     }
   deriving (Show)
 
--- | FIXME: doc
+-- | A parsed Ninja @rule@ declaration.
 newtype PRule
   = MkPRule
-    { ruleBind :: [(Str, PExpr)]
-      -- ^ FIXME: doc
+    { _pruleBindings :: [(Str, PExpr)]
     }
   deriving (Eq, Show)
+
+-- | Construct a 'PRule' with all default values
+makePRule :: PRule
+makePRule = MkPRule
+            { _pruleBindings = mempty
+            }
+
+-- | The set of bindings in scope during the execution of this rule.
+pruleBindings :: Lens' PRule [(Str, PExpr)]
+pruleBindings = lens _pruleBindings (const MkPRule)
