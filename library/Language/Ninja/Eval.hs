@@ -195,21 +195,6 @@ instance FromJSON Meta where
 
 --------------------------------------------------------------------------------
 
--- ORPHAN INSTANCES
-
--- https://github.com/fosskers/versions/issues/6
-
-deriving instance Generic V.SemVer
-deriving instance Generic V.VUnit
-
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable V.SemVer
-
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable V.VUnit
-
---------------------------------------------------------------------------------
-
 -- HELPER FUNCTIONS
 
 -- | This function converts a @megaparsec@ parser to an @aeson@ parser.
