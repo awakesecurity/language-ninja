@@ -49,12 +49,15 @@ library
                         , Language.Ninja.Env
                         , Language.Ninja.Eval
                         , Language.Ninja.Eval.Pool
+                        , Language.Ninja.Eval.Rule
                         , Language.Ninja.Eval.Target
                         , Language.Ninja.Lexer
                         , Language.Ninja.Parse
                         , Language.Ninja.Pretty
                         , Language.Ninja.Shake
                         , Language.Ninja.Types
+                        , Language.Ninja.Misc.Command
+                        , Language.Ninja.Misc.Path
                         , Language.Ninja.Misc.IText
     default-language:     Haskell2010
     other-extensions:     OverloadedStrings

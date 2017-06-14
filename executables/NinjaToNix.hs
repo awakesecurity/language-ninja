@@ -5,57 +5,57 @@
 
 module Main where
 
-import           Control.Lens               as Lens hiding
+import           Control.Lens                as Lens hiding
                  ((.=), (.>), (<.), (<|), (|>))
 
-import qualified Data.Makefile              as Makefile
-import qualified Data.Makefile.Parse        as Makefile
+import qualified Data.Makefile               as Makefile
+import qualified Data.Makefile.Parse         as Makefile
 
 -- import           Turtle
 
 import           Control.Arrow
 import           Data.Either
-import           Data.List                  (sort)
+import           Data.List                   (sort)
 import           Data.Maybe
 import           Data.Monoid
 
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import qualified Data.Text.Encoding         as T
-import qualified Data.Text.IO               as T
+import           Data.Text                   (Text)
+import qualified Data.Text                   as T
+import qualified Data.Text.Encoding          as T
+import qualified Data.Text.IO                as T
 
-import           Data.ByteString            (ByteString)
-import qualified Data.ByteString            as BS
-import qualified Data.ByteString.Char8      as BS8
+import           Data.ByteString             (ByteString)
+import qualified Data.ByteString             as BS
+import qualified Data.ByteString.Char8       as BS8
 
-import qualified Data.ByteString.Lazy       as LBS
-import qualified Data.ByteString.Lazy.Char8 as LBS8
+import qualified Data.ByteString.Lazy        as LBS
+import qualified Data.ByteString.Lazy.Char8  as LBS8
 
-import           Data.Map.Strict            (Map)
-import qualified Data.Map.Strict            as Map
+import           Data.Map.Strict             (Map)
+import qualified Data.Map.Strict             as Map
 
-import           Data.Set                   (Set)
-import qualified Data.Set                   as Set
+import           Data.Set                    (Set)
+import qualified Data.Set                    as Set
 
-import           Data.HashMap.Strict        (HashMap)
-import qualified Data.HashMap.Strict        as HM
+import           Data.HashMap.Strict         (HashMap)
+import qualified Data.HashMap.Strict         as HM
 
-import           Data.HashSet               (HashSet)
-import qualified Data.HashSet               as HS
+import           Data.HashSet                (HashSet)
+import qualified Data.HashSet                as HS
 
-import qualified Language.Ninja.Env         as Ninja
-import qualified Language.Ninja.Lexer       as Ninja
-import qualified Language.Ninja.Parse       as Ninja
-import qualified Language.Ninja.Pretty      as Ninja
-import qualified Language.Ninja.Shake       as Ninja
-import qualified Language.Ninja.Types       as Ninja
+import qualified Language.Ninja.Env          as Ninja
+import qualified Language.Ninja.Lexer        as Ninja
+import qualified Language.Ninja.Parse        as Ninja
+import qualified Language.Ninja.Pretty       as Ninja
+import qualified Language.Ninja.Shake        as Ninja
+import qualified Language.Ninja.Types        as Ninja
 
-import           Language.Ninja.Eval        (Command (..))
 import           Language.Ninja.Eval.Target
-import           Language.Ninja.Misc.IText  (IText, internText, uninternText)
+import           Language.Ninja.Misc.Command
+import           Language.Ninja.Misc.IText   (IText, internText, uninternText)
 
-import           Data.Aeson                 as Aeson
-import           Data.Aeson.Encode.Pretty   as Aeson
+import           Data.Aeson                  as Aeson
+import           Data.Aeson.Encode.Pretty    as Aeson
 
 import           Flow
 
@@ -66,7 +66,7 @@ import           Misc.Hash
 pretty :: (ToJSON v) => v -> IO ()
 pretty = LBS8.putStrLn . encodePretty
 
-debugNinja :: IO Ninja.Ninja
+debugNinja :: IO Ninja.PNinja
 debugNinja = Ninja.parse "../data/build.ninja"
 
 debugSNinja :: IO SNinja
@@ -78,7 +78,7 @@ targetFromBS :: ByteString -> Target
 targetFromBS = T.decodeUtf8 .> makeTarget
 
 commandFromBS :: ByteString -> Command
-commandFromBS = T.decodeUtf8 .> MkCommand
+commandFromBS = T.decodeUtf8 .> makeCommand
 
 -- | A simplified build graph.
 data SNinja
@@ -137,8 +137,8 @@ data SBuild
 
 -- | FIXME: doc
 --   Note: this function assumes a very simple subset of Ninja.
-compileNinja :: Ninja.Ninja -> SNinja
-compileNinja (Ninja.MkNinja {..}) = MkSNinja simpleBuilds simpleDefaults
+compileNinja :: Ninja.PNinja -> SNinja
+compileNinja (Ninja.MkPNinja {..}) = MkSNinja simpleBuilds simpleDefaults
   where
     simpleBuilds :: HashMap Target SBuild
     simpleBuilds = [ HM.map simplifyBuild combined
@@ -148,8 +148,8 @@ compileNinja (Ninja.MkNinja {..}) = MkSNinja simpleBuilds simpleDefaults
     simpleDefaults :: HashSet Target
     simpleDefaults = HS.map targetFromBS $ HS.fromList defaults
 
-    simplifyBuild :: Ninja.Build -> SBuild
-    simplifyBuild (Ninja.MkBuild {..}) = MkSBuild (Just rule) deps
+    simplifyBuild :: Ninja.PBuild -> SBuild
+    simplifyBuild (Ninja.MkPBuild {..}) = MkSBuild (Just rule) deps
       where
         deps = HS.map targetFromBS $ HS.fromList $ mconcat
                [depsNormal, depsImplicit, depsOrderOnly]
@@ -166,14 +166,14 @@ compileNinja (Ninja.MkNinja {..}) = MkSNinja simpleBuilds simpleDefaults
     ruleMap :: HashMap Target Command
     ruleMap = HM.fromList $ map (targetFromBS *** computeCommand) rules
 
-    computeCommand :: Ninja.Rule -> Command
-    computeCommand (Ninja.MkRule {..})
+    computeCommand :: Ninja.PRule -> Command
+    computeCommand (Ninja.MkPRule {..})
       = case lookup "command" ruleBind
-        of Just (Ninja.Lit x) -> commandFromBS x
-           Just _             -> error "rule uses variables"
-           Nothing            -> error "\"command\" not found"
+        of Just (Ninja.PLit x) -> commandFromBS x
+           Just _              -> error "rule uses variables"
+           Nothing             -> error "\"command\" not found"
 
-    combined :: HashMap (HashSet Target) Ninja.Build
+    combined :: HashMap (HashSet Target) Ninja.PBuild
     combined = HM.fromList
                $ map (first (HS.fromList . map targetFromBS))
                $ multiples <> map (first (\x -> [x])) singles
