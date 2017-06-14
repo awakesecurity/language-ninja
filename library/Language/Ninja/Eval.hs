@@ -78,6 +78,11 @@ import           Data.Hashable               (Hashable (..))
 import           Data.String                 (IsString (..))
 import           GHC.Generics                (Generic)
 
+import           Control.Lens.Getter
+import           Control.Lens.Iso
+import           Control.Lens.Lens
+import           Control.Lens.Prism
+
 import           Flow
 
 --------------------------------------------------------------------------------
@@ -86,19 +91,49 @@ import           Flow
 data Ninja
   = MkNinja
     { _ninjaMeta     :: !Meta
-      -- ^ Metadata, which includes top-level variables like @builddir@.
     , _ninjaBuilds   :: !(HashSet Build)
-      -- ^ Evaluated @build@ declarations.
     , _ninjaPhonys   :: !(HashMap Target (HashSet Target))
-      -- ^ Phony targets, as documented
-      --   <https://ninja-build.org/manual.html#_more_details here>.
     , _ninjaDefaults :: !(HashSet Target)
-      -- ^ The set of default targets, as documented
-      --   <https://ninja-build.org/manual.html#_default_target_statements here>.
     , _ninjaPools    :: !(HashSet Pool)
-      -- ^ The set of pools for this
     }
   deriving (Eq, Show, Generic)
+
+-- | Construct a default 'Ninja' value.
+makeNinja :: Ninja
+makeNinja = MkNinja
+            { _ninjaMeta     = makeMeta
+            , _ninjaBuilds   = HS.empty
+            , _ninjaPhonys   = HM.empty
+            , _ninjaDefaults = HS.empty
+            , _ninjaPools    = HS.empty
+            }
+
+-- | Metadata, which includes top-level variables like @builddir@.
+ninjaMeta :: Lens' Ninja Meta
+ninjaMeta = lens _ninjaMeta
+            $ \(MkNinja {..}) x -> MkNinja { _ninjaMeta = x, .. }
+
+-- | Evaluated @build@ declarations.
+ninjaBuilds :: Lens' Ninja (HashSet Build)
+ninjaBuilds = lens _ninjaBuilds
+              $ \(MkNinja {..}) x -> MkNinja { _ninjaBuilds = x, .. }
+
+-- | Phony targets, as documented
+--   <https://ninja-build.org/manual.html#_more_details here>.
+ninjaPhonys :: Lens' Ninja (HashMap Target (HashSet Target))
+ninjaPhonys = lens _ninjaPhonys
+              $ \(MkNinja {..}) x -> MkNinja { _ninjaPhonys = x, .. }
+
+-- | The set of default targets, as documented
+--   <https://ninja-build.org/manual.html#_default_target_statements here>.
+ninjaDefaults :: Lens' Ninja (HashSet Target)
+ninjaDefaults = lens _ninjaDefaults
+                $ \(MkNinja {..}) x -> MkNinja { _ninjaDefaults = x, .. }
+
+-- | The set of pools for this Ninja file.
+ninjaPools :: Lens' Ninja (HashSet Pool)
+ninjaPools = lens _ninjaPools
+             $ \(MkNinja {..}) x -> MkNinja { _ninjaPools = x, .. }
 
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable Ninja
@@ -130,13 +165,33 @@ instance FromJSON Ninja where
 data Build
   = MkBuild
     { _buildRule :: !Rule
-      -- ^ The rule to execute when building any of the outputs.
     , _buildOuts :: !(HashSet Output)
-      -- ^ The outputs that are built as a result of rule execution.
     , _buildDeps :: !(HashSet Dependency)
-      -- ^ The dependencies that must be satisfied before this can be built.
     }
   deriving (Eq, Show, Generic)
+
+-- | Construct a default 'Build' from the given 'Rule'
+makeBuild :: Rule -> Build
+makeBuild rule = MkBuild
+                 { _buildRule = rule
+                 , _buildOuts = HS.empty
+                 , _buildDeps = HS.empty
+                 }
+
+-- | The rule to execute when building any of the outputs.
+buildRule :: Lens' Build Rule
+buildRule = lens _buildRule
+            $ \(MkBuild {..}) x -> MkBuild { _buildRule = x, .. }
+
+-- | The outputs that are built as a result of rule execution.
+buildOuts :: Lens' Build (HashSet Output)
+buildOuts = lens _buildOuts
+            $ \(MkBuild {..}) x -> MkBuild { _buildOuts = x, .. }
+
+-- | The dependencies that must be satisfied before this can be built.
+buildDeps :: Lens' Build (HashSet Dependency)
+buildDeps = lens _buildDeps
+            $ \(MkBuild {..}) x -> MkBuild { _buildDeps = x, .. }
 
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable Build
@@ -163,12 +218,27 @@ instance FromJSON Build where
 --   <https://ninja-build.org/manual.html#ref_toplevel here>.
 data Meta
   = MkMeta
-    { _metaRequiredVersion :: V.SemVer
-      -- ^ Corresponds to the @ninja_required_version@ top-level variable.
-    , _metaBuildDir        :: Path
-      -- ^ Corresponds to the @builddir@ top-level variable.
+    { _metaReqVersion :: !(Maybe V.SemVer)
+    , _metaBuildDir   :: !(Maybe Path)
     }
   deriving (Eq, Ord, Show, Generic)
+
+-- | Construct a default 'Meta' value.
+makeMeta :: Meta
+makeMeta = MkMeta
+           { _metaReqVersion = Nothing
+           , _metaBuildDir   = Nothing
+           }
+
+-- | Corresponds to the @ninja_required_version@ top-level variable.
+metaReqVersion :: Lens' Meta (Maybe V.SemVer)
+metaReqVersion = lens _metaReqVersion
+                 $ \(MkMeta {..}) x -> MkMeta { _metaReqVersion = x, .. }
+
+-- | Corresponds to the @builddir@ top-level variable.
+metaBuildDir :: Lens' Meta (Maybe Path)
+metaBuildDir = lens _metaBuildDir
+               $ \(MkMeta {..}) x -> MkMeta { _metaBuildDir = x, .. }
 
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable Meta
@@ -176,8 +246,8 @@ instance Hashable Meta
 -- | Converts to @{required-version: …, build-directory: …}@.
 instance ToJSON Meta where
   toJSON (MkMeta {..})
-    = [ "required-version" .= semverJ _metaRequiredVersion
-      , "build-directory"  .= _metaBuildDir
+    = [ "req-version" .= fmap semverJ _metaReqVersion
+      , "build-dir"   .= _metaBuildDir
       ] |> object
     where
       semverJ :: V.SemVer -> Value
@@ -186,10 +256,13 @@ instance ToJSON Meta where
 -- | Inverse of the 'ToJSON' instance.
 instance FromJSON Meta where
   parseJSON = (withObject "Meta" $ \o -> do
-                  _metaRequiredVersion <- (o .: "required-version") >>= semverP
-                  _metaBuildDir        <- (o .: "build-directory")  >>= pure
+                  _metaReqVersion <- (o .: "req-version") >>= maybeSemverP
+                  _metaBuildDir   <- (o .: "build-dir")   >>= pure
                   pure (MkMeta {..}))
     where
+      maybeSemverP :: Maybe Value -> Aeson.Parser (Maybe V.SemVer)
+      maybeSemverP = fmap semverP .> sequenceA
+
       semverP :: Value -> Aeson.Parser V.SemVer
       semverP = withText "SemVer" (megaparsecToAeson V.semver')
 
