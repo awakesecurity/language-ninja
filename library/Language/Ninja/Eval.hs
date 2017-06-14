@@ -150,8 +150,8 @@ instance FromJSON Ninja where
 
 -- | A Ninja @rule@ declaration, as documented
 --   <https://ninja-build.org/manual.html#_rules here>.
-data ERule
-  = MkERule
+data Rule
+  = MkRule
     { _ruleName         :: !Text
       -- ^ The name of the rule.
     , _ruleCommand      :: !Command
@@ -194,7 +194,7 @@ data ERule
   deriving (Eq, Ord, Show, Generic)
 
 -- | Default 'Hashable' instance via 'Generic'.
-instance Hashable ERule
+instance Hashable Rule
 
 -- | Converts to
 --   @{name: …,
@@ -206,8 +206,8 @@ instance Hashable ERule
 --     generator: …,
 --     restat: …,
 --     rsp: …}@.
-instance ToJSON ERule where
-  toJSON (MkERule {..})
+instance ToJSON Rule where
+  toJSON (MkRule {..})
     = [ "name"      .= _ruleName
       , "command"   .= _ruleCommand
       , "desc"      .= _ruleDescription
@@ -220,8 +220,8 @@ instance ToJSON ERule where
       ] |> object
 
 -- | Inverse of the 'ToJSON' instance.
-instance FromJSON ERule where
-  parseJSON = (withObject "ERule" $ \o -> do
+instance FromJSON Rule where
+  parseJSON = (withObject "Rule" $ \o -> do
                   _ruleName         <- (o .: "name")      >>= pure
                   _ruleCommand      <- (o .: "command")   >>= pure
                   _ruleDescription  <- (o .: "desc")      >>= pure
@@ -231,17 +231,17 @@ instance FromJSON ERule where
                   _ruleGenerator    <- (o .: "generator") >>= pure
                   _ruleRestat       <- (o .: "restat")    >>= pure
                   _ruleResponseFile <- (o .: "rsp")       >>= pure
-                  pure (MkERule {..}))
+                  pure (MkRule {..}))
 
--- | Construct an 'ERule' with the given name and command, with default values
+-- | Construct an 'Rule' with the given name and command, with default values
 --   for all other attributes (e.g.: 'False', 'Nothing', 'PoolNameDefault').
 makeRule :: Text
          -- ^ The rule name.
          -> Command
          -- ^ The command to run.
-         -> ERule
+         -> Rule
          -- ^ A rule that runs this command.
-makeRule name cmd = MkERule
+makeRule name cmd = MkRule
                     { _ruleName         = name
                     , _ruleCommand      = cmd
                     , _ruleDescription  = Nothing
@@ -259,7 +259,7 @@ makeRule name cmd = MkERule
 --   <https://ninja-build.org/manual.html#_build_statements here>.
 data Build
   = MkBuild
-    { _buildRule :: !ERule
+    { _buildRule :: !Rule
       -- ^ The rule to execute when building any of the outputs.
     , _buildOuts :: !(HashSet Output)
       -- ^ The outputs that are built as a result of rule execution.
