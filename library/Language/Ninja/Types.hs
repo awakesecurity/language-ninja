@@ -60,7 +60,12 @@ module Language.Ninja.Types
   , pninjaPools
 
     -- * @PBuild@
-  , PBuild (..)
+  , PBuild, makePBuild
+  , pbuildRule, pbuildEnv, pbuildDeps, pbuildBind
+
+    -- * @PDeps@
+  , PDeps, makePDeps
+  , pdepsNormal, pdepsImplicit, pdepsOrderOnly
 
     -- * @PRule@
   , PRule, makePRule
@@ -89,20 +94,24 @@ import           Language.Ninja.Env
 
 import           Flow
 
+--------------------------------------------------------------------------------
+
 -- | FIXME: doc
 type Str = BS.ByteString
 
 -- | FIXME: doc
 type FileStr = Str
 
+--------------------------------------------------------------------------------
+
 -- | FIXME: doc
 data PExpr
-  = PExprs [PExpr]
-  -- ^ FIXME: doc
-  | PLit Str
-  -- ^ FIXME: doc
-  | PVar Str
-  -- ^ FIXME: doc
+  = -- | FIXME: doc
+    PExprs [PExpr]
+  | -- | FIXME: doc
+    PLit Str
+  | -- | FIXME: doc
+    PVar Str
   deriving (Eq, Show)
 
 -- | FIXME: doc
@@ -123,6 +132,8 @@ addBind e k v = askExpr e v >>= addEnv e k
 addBinds :: (MonadIO m) => Env Str Str -> [(Str, PExpr)] -> m ()
 addBinds e bs = mapM (\(a, b) -> (a,) <$> askExpr e b) bs
                 >>= mapM_ (uncurry (addEnv e))
+
+--------------------------------------------------------------------------------
 
 -- | A parsed Ninja file.
 data PNinja
@@ -177,23 +188,86 @@ pninjaPools :: Lens' PNinja [(Str, Int)]
 pninjaPools = lens _pninjaPools
               $ \(MkPNinja {..}) x -> MkPNinja { _pninjaPools = x, .. }
 
--- | FIXME: doc
+--------------------------------------------------------------------------------
+
+-- | A parsed Ninja @build@ declaration.
 data PBuild
   = MkPBuild
-    { ruleName      :: Str
-      -- ^ FIXME: doc
-    , env           :: Env Str Str
-      -- ^ FIXME: doc
-    , depsNormal    :: [FileStr]
-      -- ^ FIXME: doc
-    , depsImplicit  :: [FileStr]
-      -- ^ FIXME: doc
-    , depsOrderOnly :: [FileStr]
-      -- ^ FIXME: doc
-    , buildBind     :: [(Str, Str)]
-      -- ^ FIXME: doc
+    { _pbuildRule :: !Str
+    , _pbuildEnv  :: !(Env Str Str)
+    , _pbuildDeps :: !PDeps
+    , _pbuildBind :: ![(Str, Str)]
     }
   deriving (Show)
+
+-- | Construct a 'PBuild' with all default values.
+makePBuild :: Str
+           -- ^ The rule name
+           -> Env Str Str
+           -- ^ The environment
+           -> PBuild
+makePBuild rule env = MkPBuild
+                      { _pbuildRule = rule
+                      , _pbuildEnv  = env
+                      , _pbuildDeps = makePDeps
+                      , _pbuildBind = mempty
+                      }
+
+-- | A lens into the rule name associated with a 'PBuild'.
+pbuildRule :: Lens' PBuild Str
+pbuildRule = lens _pbuildRule
+             $ \(MkPBuild {..}) x -> MkPBuild { _pbuildRule = x, .. }
+
+-- | A lens into the environment associated with a 'PBuild'.
+pbuildEnv :: Lens' PBuild (Env Str Str)
+pbuildEnv = lens _pbuildEnv
+             $ \(MkPBuild {..}) x -> MkPBuild { _pbuildEnv = x, .. }
+
+-- | A lens into the dependencies associated with a 'PBuild'.
+pbuildDeps :: Lens' PBuild PDeps
+pbuildDeps = lens _pbuildDeps
+             $ \(MkPBuild {..}) x -> MkPBuild { _pbuildDeps = x, .. }
+
+-- | A lens into the bindings associated with a 'PBuild'.
+pbuildBind :: Lens' PBuild [(Str, Str)]
+pbuildBind = lens _pbuildBind
+             $ \(MkPBuild {..}) x -> MkPBuild { _pbuildBind = x, .. }
+
+--------------------------------------------------------------------------------
+
+-- | A set of Ninja build dependencies.
+data PDeps
+  = MkPDeps
+    { _pdepsNormal    :: ![FileStr]
+    , _pdepsImplicit  :: ![FileStr]
+    , _pdepsOrderOnly :: ![FileStr]
+    }
+  deriving (Eq, Show)
+
+-- | Construct a 'PDeps' with all default values
+makePDeps :: PDeps
+makePDeps = MkPDeps
+            { _pdepsNormal    = mempty
+            , _pdepsImplicit  = mempty
+            , _pdepsOrderOnly = mempty
+            }
+
+-- | A lens into the set of normal dependencies in a 'PDeps'.
+pdepsNormal :: Lens' PDeps [FileStr]
+pdepsNormal = lens _pdepsNormal
+              $ \(MkPDeps {..}) x -> MkPDeps { _pdepsNormal = x, .. }
+
+-- | A lens into the set of implicit dependencies in a 'PDeps'.
+pdepsImplicit :: Lens' PDeps [FileStr]
+pdepsImplicit = lens _pdepsImplicit
+                $ \(MkPDeps {..}) x -> MkPDeps { _pdepsImplicit = x, .. }
+
+-- | A lens into the set of order-only dependencies in a 'PDeps'.
+pdepsOrderOnly :: Lens' PDeps [FileStr]
+pdepsOrderOnly = lens _pdepsOrderOnly
+                 $ \(MkPDeps {..}) x -> MkPDeps { _pdepsOrderOnly = x, .. }
+
+--------------------------------------------------------------------------------
 
 -- | A parsed Ninja @rule@ declaration.
 newtype PRule
@@ -211,3 +285,5 @@ makePRule = MkPRule
 -- | The set of bindings in scope during the execution of this rule.
 pruleBindings :: Lens' PRule [(Str, PExpr)]
 pruleBindings = lens _pruleBindings (const MkPRule)
+
+--------------------------------------------------------------------------------

@@ -177,13 +177,18 @@ compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
     simpleDefaults = HS.map targetFromBS $ HS.fromList defaults
 
     simplifyBuild :: Ninja.PBuild -> SBuild
-    simplifyBuild (Ninja.MkPBuild {..}) = MkSBuild (Just rule) deps
+    simplifyBuild build = MkSBuild (Just rule) deps
       where
         deps = HS.map targetFromBS $ HS.fromList $ mconcat
-               [depsNormal, depsImplicit, depsOrderOnly]
+               [ build ^. pbuildDeps . pdepsNormal
+               , build ^. pbuildDeps . pdepsImplicit
+               , build ^. pbuildDeps . pdepsOrderOnly
+               ]
 
         rule = fromMaybe (error ("rule not found: " <> show ruleName))
                $ HM.lookup (targetFromBS ruleName) ruleMap
+
+        ruleName = build ^. pbuildRule
 
     simplifyPhony :: (ByteString, [ByteString]) -> (HashSet Target, SBuild)
     simplifyPhony (name, files) = ( HS.singleton (targetFromBS name)
@@ -195,8 +200,8 @@ compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
     ruleMap = HM.fromList $ map (targetFromBS *** computeCommand) rules
 
     computeCommand :: Ninja.PRule -> Command
-    computeCommand (Ninja.MkPRule {..})
-      = case lookup "command" ruleBind
+    computeCommand rule
+      = case lookup "command" (rule ^. pruleBindings)
         of Just (Ninja.PLit x) -> commandFromBS x
            Just _              -> error "rule uses variables"
            Nothing             -> error "\"command\" not found"

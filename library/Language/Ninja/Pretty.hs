@@ -86,16 +86,17 @@ prettySingle :: (FileStr, PBuild) -> IO ByteString
 prettySingle (output, build) = prettyMultiple ([output], build)
 
 prettyMultiple :: ([FileStr], PBuild) -> IO ByteString
-prettyMultiple (outputs, (Ninja.MkPBuild {..})) = do
-  stack <- Ninja.getEnvStack env
+prettyMultiple (outputs, build) = do
+  stack <- Ninja.getEnvStack (build ^. pbuildEnv)
 
   let prefixIfThere :: Str -> Str -> Str
       prefixIfThere pfx rest = if BSC8.all isSpace rest then "" else pfx <> rest
 
-  let normal = BSC8.unwords depsNormal
-  let implicit = BSC8.unwords depsImplicit
-  let orderOnly = BSC8.unwords depsOrderOnly
-  let binds = mconcat (map prettyBind buildBind)
+  let ruleName  = build ^. pbuildRule
+  let normal    = build ^. pbuildDeps . pdepsNormal    . to BSC8.unwords
+  let implicit  = build ^. pbuildDeps . pdepsImplicit  . to BSC8.unwords
+  let orderOnly = build ^. pbuildDeps . pdepsOrderOnly . to BSC8.unwords
+  let binds     = build ^. pbuildBind . to (map prettyBind) . to mconcat
 
   pure $ mconcat
     [ "build ", BSC8.unwords outputs, ": "

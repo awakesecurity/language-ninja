@@ -98,7 +98,11 @@ applyStmt env ninja (key, binds) = case key of
     deps <- mapM (askExpr env) deps
     binds <- mapM (\(a, b) -> (a,) <$> askExpr env b) binds
     let (normal, implicit, orderOnly) = splitDeps deps
-    let build = MkPBuild rule env normal implicit orderOnly binds
+    let build = makePBuild rule env
+                & (pbuildDeps . pdepsNormal    .~ normal)
+                & (pbuildDeps . pdepsImplicit  .~ implicit)
+                & (pbuildDeps . pdepsOrderOnly .~ orderOnly)
+                & (pbuildBind                  .~ binds)
     let addP p = [(x, normal <> implicit <> orderOnly) | x <- outputs] <> p
     let addS s = (head outputs, build) : s
     let addM m = (outputs, build) : m

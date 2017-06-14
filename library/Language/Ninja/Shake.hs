@@ -150,13 +150,13 @@ ninjaDispatch (NinjaOptionsUnknown tool)  = [ "Unknown tool: ", tool
 
 computeRuleEnv :: (MonadIO m) => [Str] -> PBuild -> PRule -> m (Env Str Str)
 computeRuleEnv out b r = liftIO $ do
-  let deps = Ninja.depsNormal b
-  env <- Ninja.scopeEnv (Ninja.env b)
+  let deps = b ^. pbuildDeps . pdepsNormal
+  env <- Ninja.scopeEnv (b ^. pbuildEnv)
   -- the order of adding new environment variables matters
   Ninja.addEnv env "out"        $ BSC8.unwords $ map quote out
   Ninja.addEnv env "in"         $ BSC8.unwords $ map quote deps
   Ninja.addEnv env "in_newline" $ BSC8.unlines deps
-  forM_ (Ninja.buildBind b) $ \(a, b) -> Ninja.addEnv env a b
+  forM_ (b ^. pbuildBind) $ \(a, b) -> Ninja.addEnv env a b
   Ninja.addBinds env (r ^. pruleBindings)
   pure env
 
@@ -175,15 +175,15 @@ ninjaCompDB ninja args = do
         let multiples = ninja ^. pninjaMultiples
         let singles = ninja ^. pninjaSingles
         (outputs, build) <- reverse (multiples <> map (first pure) singles)
-        (Just rule) <- [HM.lookup (Ninja.ruleName build) rules]
-        (file:_) <- [Ninja.depsNormal build]
+        (Just rule) <- [HM.lookup (build ^. pbuildRule) rules]
+        (file:_) <- [build ^. pbuildDeps . pdepsNormal]
         pure (outputs, build, file, rule)
 
   compDB <- forM itemsToBuild $ \(out, build, file, rule) -> do
-    let (Ninja.MkPBuild {..}) = build
     env <- computeRuleEnv out build rule
     commandLine <- BSC8.unpack <$> Ninja.askVar env "command"
-    pure $ MkCompDB dir commandLine $ BSC8.unpack $ head depsNormal
+    let deps = build ^. pbuildDeps . pdepsNormal . to (head .> BSC8.unpack)
+    pure $ MkCompDB dir commandLine deps
 
   putStr $ printCompDB compDB
 
@@ -265,11 +265,18 @@ runBuild :: (PBuild -> [Str] -> Action ())
          -> [Str]
          -> PBuild
          -> Action ()
-runBuild needD phonys rules pools out (build@(Ninja.MkPBuild {..})) = do
+runBuild needD phonys rules pools out build = do
   let errorA :: Str -> Action a
       errorA = BSC8.unpack .> errorIO .> liftIO
+
+  let ruleName      = build ^. pbuildRule
+  let depsNormal    = build ^. pbuildDeps . pdepsNormal
+  let depsImplicit  = build ^. pbuildDeps . pdepsImplicit
+  let depsOrderOnly = build ^. pbuildDeps . pdepsOrderOnly
+
   needBS $ concatMap (resolvePhony phonys) $ depsNormal <> depsImplicit
   orderOnlyBS $ concatMap (resolvePhony phonys) depsOrderOnly
+
   let ruleNotFound = [ "Ninja rule named ", ruleName
                      , " is missing, required to build ", BSC8.unwords out
                      ] |> mconcat |> errorA
@@ -368,9 +375,10 @@ needDeps ninja = \build xs -> do
       where
         f _    []     []                = []
         f seen []     (x:xs)            = let fpNorm = filepathNormalise
-                                              paths = [ Ninja.depsNormal x
-                                                      , Ninja.depsImplicit x
-                                                      , Ninja.depsOrderOnly x
+                                              deps  = x ^. pbuildDeps
+                                              paths = [ deps ^. pdepsNormal
+                                                      , deps ^. pdepsImplicit
+                                                      , deps ^. pdepsOrderOnly
                                                       ] |> mconcat |> map fpNorm
                                           in f seen paths xs
         f seen (x:xs) rest   | x ∈ seen = f seen xs rest
