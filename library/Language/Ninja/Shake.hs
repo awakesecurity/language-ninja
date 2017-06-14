@@ -70,8 +70,7 @@ import qualified Development.Shake.FilePath as Shake (normaliseEx, toStandard)
 import qualified Development.Shake.Util     as Shake (parseMakefile)
 
 import           Language.Ninja.Env         (Env)
-import           Language.Ninja.Types       (FileStr, Str)
-import           Language.Ninja.Types       (PBuild, PNinja, PRule)
+import           Language.Ninja.Types
 
 import qualified Language.Ninja.Env         as Ninja
 import qualified Language.Ninja.Parse       as Ninja
@@ -81,6 +80,9 @@ import           Control.Applicative
 import           Control.Exception.Extra
 import           Control.Monad
 import           Control.Monad.IO.Class
+
+import           Control.Lens               hiding ((.>), (<.), (<|), (|>))
+
 import           Data.Char
 import           Data.List.Extra
 import           Data.Maybe
@@ -159,7 +161,7 @@ computeRuleEnv out b r = liftIO $ do
   pure env
 
 ninjaCompDB :: PNinja -> [Str] -> IO (Maybe (Rules ()))
-ninjaCompDB (Ninja.MkPNinja {..}) args = do
+ninjaCompDB ninja args = do
   dir <- getCurrentDirectory
 
   -- Compute the set of rules
@@ -170,6 +172,8 @@ ninjaCompDB (Ninja.MkPNinja {..}) args = do
   -- the build items are generated in reverse order, hence the reverse
   let itemsToBuild :: [([Str], PBuild, Str, PRule)]
       itemsToBuild = do
+        let multiples = ninja ^. pninjaMultiples
+        let singles = ninja ^. pninjaSingles
         (outputs, build) <- reverse (multiples <> map (first pure) singles)
         (Just rule) <- [HM.lookup (Ninja.ruleName build) rules]
         (file:_) <- [Ninja.depsNormal build]
@@ -187,43 +191,55 @@ ninjaCompDB (Ninja.MkPNinja {..}) args = do
   pure Nothing
 
 ninjaBuild :: PNinja -> [Str] -> IO (Maybe (Rules ()))
-ninjaBuild ninja args = do
-  let (Ninja.MkPNinja {..}) = ninja
-  pure $ Just $ do
-    let normalisedMultiples = first (map filepathNormalise) <$> multiples
-    phonys    <- pure $ HM.fromList phonys
-    singles   <- pure $ HM.fromList (first filepathNormalise <$> singles)
-    multiples <- pure $ HM.fromList
-                 [(x, (xs, b)) | (xs, b) <- normalisedMultiples, x <- xs]
-    rules     <- pure $ HM.fromList rules
-    pools     <- fmap HM.fromList
-                 $ forM (("console", 1) : pools)
-                 $ \(name, depth) ->
-                     (name,) <$> Shake.newResource (BSC8.unpack name) depth
+ninjaBuild ninja args = pure $ Just $ do
+  let normalisedMultiples = ninja
+                            ^. pninjaMultiples
+                            .  to (fmap (first (map filepathNormalise)))
 
-    let build :: [Str] -> PBuild -> Action ()
-        build = runBuild (needDeps ninja) phonys rules pools
+  let poolToResource (name, depth) = (BSC8.pack name,)
+                                     <$> Shake.newResource name depth
 
-    let targets :: [Str]
-        targets | not (null args)     = args
-                | not (null defaults) = defaults
-                | otherwise           = HM.keys singles <> HM.keys multiples
+  poolList <- mapM (first BSC8.unpack .> poolToResource)
+              (("console", 1) : (ninja ^. pninjaPools))
 
-    Shake.action $ needBS $ concatMap (resolvePhony phonys) targets
+  let phonys    = ninja ^. pninjaPhonys
+                  |> HM.fromList
+  let singles   = ninja ^. pninjaSingles
+                  |> fmap (first filepathNormalise)
+                  |> HM.fromList
+  let multiples = [(x, (xs, b)) | (xs, b) <- normalisedMultiples, x <- xs]
+                  |> HM.fromList
+  let rules     = ninja ^. pninjaRules
+                  |> HM.fromList
+  let pools     = poolList
+                  |> HM.fromList
+  let defaults  = ninja ^. pninjaDefaults
+                  |> HS.fromList
 
-    let relatedOutputs :: FilePath -> Maybe [FilePath]
-        relatedOutputs (BSC8.pack -> out)
-          = HM.lookup out multiples
-            |> fmap fst
-            |> fromMaybe (if HM.member out singles then [out] else [])
-            |> map BSC8.unpack
-            |> Just
+  let build :: [Str] -> PBuild -> Action ()
+      build = runBuild (needDeps ninja) phonys rules pools
 
-    relatedOutputs &?> \(map BSC8.pack -> outputs) -> do
-      build outputs (snd (multiples HM.! head outputs))
+  let targets :: HashSet Str
+      targets | not (null args)        = HS.fromList args
+              | not (HS.null defaults) = defaults
+              | otherwise              = HS.fromList
+                                         (HM.keys singles <> HM.keys multiples)
 
-    (flip HM.member singles . BSC8.pack) ?> \(BSC8.pack -> output) -> do
-      build [output] (singles HM.! output)
+  Shake.action $ needBS $ concatMap (resolvePhony phonys) $ HS.toList targets
+
+  let relatedOutputs :: FilePath -> Maybe [FilePath]
+      relatedOutputs (BSC8.pack -> out)
+        = HM.lookup out multiples
+          |> fmap fst
+          |> fromMaybe (if HM.member out singles then [out] else [])
+          |> map BSC8.unpack
+          |> Just
+
+  relatedOutputs &?> \(map BSC8.pack -> outputs) -> do
+    build outputs (snd (multiples HM.! head outputs))
+
+  (flip HM.member singles . BSC8.pack) ?> \(BSC8.pack -> output) -> do
+    build [output] (singles HM.! output)
 
 resolvePhony :: HashMap Str [Str] -> Str -> [Str]
 resolvePhony mp = f (Left 100)
@@ -311,7 +327,7 @@ runBuild needD phonys rules pools out (build@(Ninja.MkPBuild {..})) = do
       -- when (deps == "gcc") $ liftIO $ removeFile depfile
 
 needDeps :: PNinja -> PBuild -> [Str] -> Action ()
-needDeps (Ninja.MkPNinja {..}) = \build xs -> do
+needDeps ninja = \build xs -> do
   let errorA :: Str -> Action a
       errorA = BSC8.unpack .> errorIO .> liftIO
   -- eta reduced so 'builds' is shared
@@ -331,7 +347,9 @@ needDeps (Ninja.MkPNinja {..}) = \build xs -> do
                ] |> mconcat |> errorA
   where
     builds :: HashMap Str PBuild
-    builds = HM.fromList (singles <> [(x, y) | (xs, y) <- multiples, x <- xs])
+    builds = let singles   = ninja ^. pninjaSingles
+                 multiples = ninja ^. pninjaMultiples
+             in HM.fromList (singles <> [(x, y) | (xs, y) <- multiples, x <- xs])
 
     -- do list difference, assuming a small initial set, most of which occurs
     -- early in the list

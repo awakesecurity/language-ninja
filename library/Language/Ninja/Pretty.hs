@@ -37,8 +37,9 @@ module Language.Ninja.Pretty
 
 import qualified Control.Arrow         as Arr
 
-import           Language.Ninja.Types  (FileStr, Str)
-import           Language.Ninja.Types  (PBuild, PNinja, PRule)
+import           Control.Lens.Getter
+
+import           Language.Ninja.Types
 
 import qualified Language.Ninja.Env    as Ninja
 import qualified Language.Ninja.Types  as Ninja
@@ -58,13 +59,13 @@ import           Data.Monoid
 import           Flow
 
 prettyNinja :: PNinja -> IO ByteString
-prettyNinja (Ninja.MkPNinja {..})
-  = [ mapM prettyRule     rules
-    , mapM prettySingle   singles
-    , mapM prettyMultiple multiples
-    , mapM prettyPhony    phonys
-    , mapM prettyDefault  defaults
-    , mapM prettyPool     pools
+prettyNinja ninja
+  = [ mapM prettyRule     (ninja ^. pninjaRules)
+    , mapM prettySingle   (ninja ^. pninjaSingles)
+    , mapM prettyMultiple (ninja ^. pninjaMultiples)
+    , mapM prettyPhony    (ninja ^. pninjaPhonys)
+    , mapM prettyDefault  (ninja ^. pninjaDefaults)
+    , mapM prettyPool     (ninja ^. pninjaPools)
     ] |> sequenceA |> fmap (mconcat .> mconcat)
 
 prettyRule :: (Str, PRule) -> IO ByteString

@@ -51,7 +51,13 @@
 --   the 'Env' itself is passed around purely.
 module Language.Ninja.Types
   ( -- * @PNinja@
-    PNinja (..), newPNinja
+    PNinja, makePNinja
+  , pninjaRules
+  , pninjaSingles
+  , pninjaMultiples
+  , pninjaPhonys
+  , pninjaDefaults
+  , pninjaPools
 
     -- * @PBuild@
   , PBuild (..)
@@ -60,7 +66,10 @@ module Language.Ninja.Types
   , PRule (..)
 
     -- * @PExpr@
-  , PExpr (..), Env, newEnv, askVar, askExpr, addEnv, addBind, addBinds
+  , PExpr (..), askVar, askExpr, addBind, addBinds
+
+    -- * @Env@
+  , Env, newEnv, addEnv
 
     -- * Miscellaneous
   , Str, FileStr
@@ -69,6 +78,8 @@ module Language.Ninja.Types
 import           Control.Applicative
 import           Control.Arrow
 import           Control.Monad.IO.Class
+
+import           Control.Lens.Lens
 
 import qualified Data.ByteString.Char8  as BS
 import           Data.Maybe
@@ -112,27 +123,58 @@ addBinds :: (MonadIO m) => Env Str Str -> [(Str, PExpr)] -> m ()
 addBinds e bs = mapM (\(a, b) -> (a,) <$> askExpr e b) bs
                 >>= mapM_ (uncurry (addEnv e))
 
--- | FIXME: doc
+-- | A parsed Ninja file.
 data PNinja
   = MkPNinja
-    { rules     :: [(Str, PRule)]
-      -- ^ FIXME: doc
-    , singles   :: [(FileStr, PBuild)]
-      -- ^ FIXME: doc
-    , multiples :: [([FileStr], PBuild)]
-      -- ^ FIXME: doc
-    , phonys    :: [(Str, [FileStr])]
-      -- ^ FIXME: doc
-    , defaults  :: [FileStr]
-      -- ^ FIXME: doc
-    , pools     :: [(Str, Int)]
-      -- ^ FIXME: doc
+    { _pninjaRules     :: [(Str, PRule)]
+    , _pninjaSingles   :: [(FileStr, PBuild)]
+    , _pninjaMultiples :: [([FileStr], PBuild)]
+    , _pninjaPhonys    :: [(Str, [FileStr])]
+    , _pninjaDefaults  :: [FileStr]
+    , _pninjaPools     :: [(Str, Int)]
     }
   deriving (Show)
 
--- | FIXME: doc
-newPNinja :: PNinja
-newPNinja = MkPNinja [] [] [] [] [] []
+-- | Construct a 'PNinja' with all default values
+makePNinja :: PNinja
+makePNinja = MkPNinja
+             { _pninjaRules     = mempty
+             , _pninjaSingles   = mempty
+             , _pninjaMultiples = mempty
+             , _pninjaPhonys    = mempty
+             , _pninjaDefaults  = mempty
+             , _pninjaPools     = mempty
+             }
+
+-- | The rules defined in a parsed Ninja file.
+pninjaRules :: Lens' PNinja [(Str, PRule)]
+pninjaRules = lens _pninjaRules
+              $ \(MkPNinja {..}) x -> MkPNinja { _pninjaRules = x, .. }
+
+-- | The set of build declarations with precisely one output.
+pninjaSingles :: Lens' PNinja [(FileStr, PBuild)]
+pninjaSingles = lens _pninjaSingles
+              $ \(MkPNinja {..}) x -> MkPNinja { _pninjaSingles = x, .. }
+
+-- | The set of build declarations with two or more outputs.
+pninjaMultiples :: Lens' PNinja [([FileStr], PBuild)]
+pninjaMultiples = lens _pninjaMultiples
+                  $ \(MkPNinja {..}) x -> MkPNinja { _pninjaMultiples = x, .. }
+
+-- | The set of phony build declarations.
+pninjaPhonys :: Lens' PNinja [(Str, [FileStr])]
+pninjaPhonys = lens _pninjaPhonys
+               $ \(MkPNinja {..}) x -> MkPNinja { _pninjaPhonys = x, .. }
+
+-- | The set of default targets.
+pninjaDefaults :: Lens' PNinja [FileStr]
+pninjaDefaults = lens _pninjaDefaults
+                 $ \(MkPNinja {..}) x -> MkPNinja { _pninjaDefaults = x, .. }
+
+-- | A mapping from pool names to pool depth integers.
+pninjaPools :: Lens' PNinja [(Str, Int)]
+pninjaPools = lens _pninjaPools
+              $ \(MkPNinja {..}) x -> MkPNinja { _pninjaPools = x, .. }
 
 -- | FIXME: doc
 data PBuild

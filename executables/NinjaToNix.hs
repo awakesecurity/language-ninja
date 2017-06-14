@@ -76,7 +76,7 @@ import qualified Language.Ninja.Lexer        as Ninja
 import qualified Language.Ninja.Parse        as Ninja
 import qualified Language.Ninja.Pretty       as Ninja
 import qualified Language.Ninja.Shake        as Ninja
-import qualified Language.Ninja.Types        as Ninja
+import           Language.Ninja.Types        as Ninja
 
 import           Language.Ninja.AST.Target
 import           Language.Ninja.Misc.Command
@@ -166,7 +166,7 @@ data SBuild
 -- | FIXME: doc
 --   Note: this function assumes a very simple subset of Ninja.
 compileNinja :: Ninja.PNinja -> SNinja
-compileNinja (Ninja.MkPNinja {..}) = MkSNinja simpleBuilds simpleDefaults
+compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
   where
     simpleBuilds :: HashMap Target SBuild
     simpleBuilds = [ HM.map simplifyBuild combined
@@ -220,6 +220,12 @@ compileNinja (Ninja.MkPNinja {..}) = MkSNinja simpleBuilds simpleDefaults
 
     createEdge :: Target -> Target -> (Target, SBuild)
     createEdge x y = (x, MkSBuild Nothing (HS.singleton y))
+
+    rules     = ninja ^. pninjaRules
+    singles   = ninja ^. pninjaSingles
+    multiples = ninja ^. pninjaMultiples
+    phonys    = ninja ^. pninjaPhonys
+    defaults  = ninja ^. pninjaDefaults
 
 sninjaToJSON :: SNinja -> Value
 sninjaToJSON (sn@(MkSNinja {..})) = [ "graph" .= builds, "defaults" .= defaults

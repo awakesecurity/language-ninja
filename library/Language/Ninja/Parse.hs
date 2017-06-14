@@ -56,13 +56,19 @@ module Language.Ninja.Parse
 
 import           Control.Applicative
 import           Control.Monad
-import qualified Data.ByteString.Char8 as BS
+
+import           Control.Lens.Getter
+import           Control.Lens.Lens
+import           Control.Lens.Setter
+
+import qualified Data.ByteString.Char8 as BSC8
 import           Data.Monoid
-import           Prelude
 
 import           Language.Ninja.Env
 import           Language.Ninja.Lexer
 import           Language.Ninja.Types
+
+import           Prelude
 
 import           Flow
 
@@ -70,7 +76,7 @@ parse :: FilePath -> IO PNinja
 parse file = newEnv >>= parseWithEnv file
 
 parseWithEnv :: FilePath -> Env Str Str -> IO PNinja
-parseWithEnv file env = parseFile file env newPNinja
+parseWithEnv file env = parseFile file env makePNinja
 
 parseFile :: FilePath -> Env Str Str -> PNinja -> IO PNinja
 parseFile file env ninja = do
@@ -86,36 +92,39 @@ withBinds (x:xs) = (x, a) : withBinds b
     f xs                     = ([], xs)
 
 applyStmt :: Env Str Str -> PNinja -> (Lexeme, [(Str, PExpr)]) -> IO PNinja
-applyStmt env (ninja@(MkPNinja {..})) (key, binds) = case key of
+applyStmt env ninja (key, binds) = case key of
   (LexBuild outputs rule deps) -> do
     outputs <- mapM (askExpr env) outputs
     deps <- mapM (askExpr env) deps
     binds <- mapM (\(a, b) -> (a,) <$> askExpr env b) binds
     let (normal, implicit, orderOnly) = splitDeps deps
     let build = MkPBuild rule env normal implicit orderOnly binds
-    pure $ if      rule == "phony"     then ninja { phonys = [(x, normal <> implicit <> orderOnly) | x <- outputs] <> phonys }
-           else if length outputs == 1 then ninja { singles = (head outputs, build) : singles }
-           else                             ninja { multiples = (outputs, build) : multiples }
+    let addP p = [(x, normal <> implicit <> orderOnly) | x <- outputs] <> p
+    let addS s = (head outputs, build) : s
+    let addM m = (outputs, build) : m
+    pure $ if      rule == "phony"     then ninja & pninjaPhonys    %~ addP
+           else if length outputs == 1 then ninja & pninjaSingles   %~ addS
+           else                             ninja & pninjaMultiples %~ addM
   (LexRule name) -> do
-    pure ninja { rules = (name, MkPRule binds) : rules }
+    pure (ninja & pninjaRules %~ ((name, MkPRule binds) :))
   (LexDefault xs) -> do
     xs <- mapM (askExpr env) xs
-    pure (ninja { defaults = xs ++ defaults })
+    pure (ninja & pninjaDefaults %~ (xs ++))
   (LexPool name) -> do
     depth <- getDepth env binds
-    pure (ninja { pools = (name, depth) : pools })
+    pure (ninja & pninjaPools %~ ((name, depth) :))
   (LexInclude expr) -> do
     file <- askExpr env expr
-    parseFile (BS.unpack file) env ninja
+    parseFile (BSC8.unpack file) env ninja
   (LexSubninja expr) -> do
     file <- askExpr env expr
     e <- scopeEnv env
-    parseFile (BS.unpack file) e ninja
+    parseFile (BSC8.unpack file) e ninja
   (LexDefine a b) -> do
     addBind env a b
     pure ninja
   (LexBind a _) -> [ "Unexpected binding defining ", a
-                   ] |> mconcat |> BS.unpack |> error
+                   ] |> mconcat |> BSC8.unpack |> error
 
 splitDeps :: [Str] -> ([Str], [Str], [Str])
 splitDeps []                   = ([],      [],     [])
@@ -128,11 +137,11 @@ splitDeps (x:xs) | (x == "|")  = ([],  a <> b,      c)
 getDepth :: Env Str Str -> [(Str, PExpr)] -> IO Int
 getDepth env xs = do
   let poolDepthError x = [ "Could not parse depth field in pool, got: ", x
-                         ] |> mconcat |> BS.unpack |> error
+                         ] |> mconcat |> BSC8.unpack |> error
   case lookup "depth" xs of
     Nothing -> pure 1
     Just x -> do
       x <- askExpr env x
-      case BS.readInt x of
-        (Just (i, n)) | BS.null n -> pure i
-        _                         -> poolDepthError x
+      case BSC8.readInt x of
+        (Just (i, n)) | BSC8.null n -> pure i
+        _                           -> poolDepthError x
