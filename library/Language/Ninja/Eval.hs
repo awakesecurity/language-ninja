@@ -110,7 +110,7 @@ data Ninja
   = MkNinja
     { _ninjaMeta     :: !Meta
       -- ^ Metadata, which includes top-level variables like @builddir@.
-    , _ninjaBuilds   :: !(HashSet EBuild)
+    , _ninjaBuilds   :: !(HashSet Build)
       -- ^ Evaluated @build@ declarations.
     , _ninjaPhonys   :: !(HashMap Target (HashSet Target))
       -- ^ Phony targets, as documented
@@ -257,8 +257,8 @@ makeRule name cmd = MkERule
 
 -- | A Ninja @build@ declaration, as documented
 --   <https://ninja-build.org/manual.html#_build_statements here>.
-data EBuild
-  = MkEBuild
+data Build
+  = MkBuild
     { _buildRule :: !ERule
       -- ^ The rule to execute when building any of the outputs.
     , _buildOuts :: !(HashSet Output)
@@ -269,23 +269,23 @@ data EBuild
   deriving (Eq, Show, Generic)
 
 -- | Default 'Hashable' instance via 'Generic'.
-instance Hashable EBuild
+instance Hashable Build
 
 -- | Converts to @{rule: …, outputs: …, dependencies: …}@.
-instance ToJSON EBuild where
-  toJSON (MkEBuild {..})
+instance ToJSON Build where
+  toJSON (MkBuild {..})
     = [ "rule"         .= _buildRule
       , "outputs"      .= _buildOuts
       , "dependencies" .= _buildDeps
       ] |> object
 
 -- | Inverse of the 'ToJSON' instance.
-instance FromJSON EBuild where
-  parseJSON = (withObject "EBuild" $ \o -> do
+instance FromJSON Build where
+  parseJSON = (withObject "Build" $ \o -> do
                   _buildRule <- (o .: "rule")         >>= pure
                   _buildOuts <- (o .: "outputs")      >>= pure
                   _buildDeps <- (o .: "dependencies") >>= pure
-                  pure (MkEBuild {..}))
+                  pure (MkBuild {..}))
 
 --------------------------------------------------------------------------------
 
