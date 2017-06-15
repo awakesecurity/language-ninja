@@ -77,7 +77,8 @@ prettyNinja ninja
 prettyRule :: (Str, PRule) -> IO ByteString
 prettyRule (name, rule) = do
   let binds = rule ^. pruleBind
-              |> map (prettyBind . Arr.second prettyExpr)
+              |> HM.toList
+              |> map (Arr.second prettyExpr .> prettyBind)
               |> mconcat
   pure $ mconcat ["rule ", name, "\n", binds]
 
@@ -98,19 +99,22 @@ prettyMultiple (outputs, build) = do
   let prefixIfThere :: Str -> Str -> Str
       prefixIfThere pfx rest = if BSC8.all isSpace rest then "" else pfx <> rest
 
+  let unwordsSet :: HashSet Str -> Str
+      unwordsSet = HS.toList .> BSC8.unwords
+
   let ruleName  = build ^. pbuildRule
-  let normal    = build ^. pbuildDeps . pdepsNormal    . to BSC8.unwords
-  let implicit  = build ^. pbuildDeps . pdepsImplicit  . to BSC8.unwords
-  let orderOnly = build ^. pbuildDeps . pdepsOrderOnly . to BSC8.unwords
-  let binds     = build ^. pbuildBind . to (map prettyBind) . to mconcat
+  let normal    = build ^. pbuildDeps . pdepsNormal
+  let implicit  = build ^. pbuildDeps . pdepsImplicit
+  let orderOnly = build ^. pbuildDeps . pdepsOrderOnly
+  let binds     = build ^. pbuildBind
 
   pure $ mconcat
     [ "build ", BSC8.unwords (HS.toList outputs), ": "
-    , ruleName, " ", normal
-    , prefixIfThere " | "  implicit
-    , prefixIfThere " || " orderOnly, "\n"
+    , ruleName, " ", unwordsSet normal
+    , prefixIfThere " | "  (unwordsSet implicit)
+    , prefixIfThere " || " (unwordsSet orderOnly), "\n"
     , "    # environment: ", bshow (map HM.toList stack), "\n"
-    , binds
+    , HM.toList binds |> map prettyBind |> mconcat
     ]
 
 prettyPhony :: (Str, HashSet FileStr) -> IO ByteString

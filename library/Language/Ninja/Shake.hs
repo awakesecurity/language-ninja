@@ -155,10 +155,10 @@ computeRuleEnv out b r = liftIO $ do
   env <- Ninja.scopeEnv (b ^. pbuildEnv)
   -- the order of adding new environment variables matters
   Ninja.addEnv env "out"        $ BSC8.unwords $ map quote (HS.toList out)
-  Ninja.addEnv env "in"         $ BSC8.unwords $ map quote deps
-  Ninja.addEnv env "in_newline" $ BSC8.unlines deps
-  forM_ (b ^. pbuildBind) $ \(a, b) -> Ninja.addEnv env a b
-  Ninja.addBinds env (r ^. pruleBind)
+  Ninja.addEnv env "in"         $ BSC8.unwords $ map quote (HS.toList deps)
+  Ninja.addEnv env "in_newline" $ BSC8.unlines (HS.toList deps)
+  forM_ (HM.toList (b ^. pbuildBind)) $ \(a, b) -> Ninja.addEnv env a b
+  Ninja.addBinds env (HM.toList (r ^. pruleBind))
   pure env
 
 ninjaCompDB :: PNinja -> [Str] -> IO (Maybe (Rules ()))
@@ -179,14 +179,14 @@ ninjaCompDB ninja args = do
                             , map (first HS.singleton) (HM.toList singles)
                             ] |> mconcat |> reverse
         (Just rule) <- [HM.lookup (build ^. pbuildRule) rules]
-        (file:_) <- [build ^. pbuildDeps . pdepsNormal]
+        (file:_) <- [build ^. pbuildDeps . pdepsNormal . to HS.toList]
         pure (outputs, build, file, rule)
 
   compDB <- forM itemsToBuild $ \(out, build, file, rule) -> do
     env <- computeRuleEnv out build rule
     commandLine <- BSC8.unpack <$> Ninja.askVar env "command"
-    let deps = build ^. pbuildDeps . pdepsNormal . to (head .> BSC8.unpack)
-    pure $ MkCompDB dir commandLine deps
+    let deps = build ^. pbuildDeps . pdepsNormal
+    pure $ MkCompDB dir commandLine (BSC8.unpack (head (HS.toList deps)))
 
   putStr $ printCompDB compDB
 
@@ -280,8 +280,8 @@ runBuild needD phonys rules pools out build = do
   let depsImplicit  = build ^. pbuildDeps . pdepsImplicit
   let depsOrderOnly = build ^. pbuildDeps . pdepsOrderOnly
 
-  let setConcatMap :: (Eq b, Hashable b) => (a -> HashSet b) -> [a] -> [b]
-      setConcatMap f = map f .> HS.unions .> HS.toList
+  let setConcatMap :: (Eq b, Hashable b) => (a -> HashSet b) -> HashSet a -> [b]
+      setConcatMap f = HS.map f .> HS.toList .> HS.unions .> HS.toList
 
   needBS      $ setConcatMap (resolvePhony phonys) $ depsNormal <> depsImplicit
   orderOnlyBS $ setConcatMap (resolvePhony phonys) depsOrderOnly
@@ -394,11 +394,13 @@ needDeps ninja = \build xs -> do
       where
         f _    []     []                = []
         f seen []     (x:xs)            = let fpNorm = filepathNormalise
-                                              deps  = x ^. pbuildDeps
-                                              paths = [ deps ^. pdepsNormal
-                                                      , deps ^. pdepsImplicit
-                                                      , deps ^. pdepsOrderOnly
-                                                      ] |> mconcat |> map fpNorm
+                                              pdeps  = x ^. pbuildDeps
+                                              deps   = [ pdeps ^. pdepsNormal
+                                                       , pdeps ^. pdepsImplicit
+                                                       , pdeps ^. pdepsOrderOnly
+                                                       ] |> mconcat
+                                              paths  = HS.toList deps
+                                                       |> map fpNorm
                                           in f seen paths xs
         f seen (x:xs) rest   | x ∈ seen = f seen xs rest
         f seen (x:xs) rest              = let seen' = HS.insert x seen

@@ -202,7 +202,7 @@ data PBuild
     { _pbuildRule :: !Str
     , _pbuildEnv  :: !(Env Str Str)
     , _pbuildDeps :: !PDeps
-    , _pbuildBind :: ![(Str, Str)]
+    , _pbuildBind :: !(HashMap Str Str)
     }
   deriving (Show)
 
@@ -235,7 +235,7 @@ pbuildDeps = lens _pbuildDeps
              $ \(MkPBuild {..}) x -> MkPBuild { _pbuildDeps = x, .. }
 
 -- | A lens into the bindings associated with a 'PBuild'.
-pbuildBind :: Lens' PBuild [(Str, Str)]
+pbuildBind :: Lens' PBuild (HashMap Str Str)
 pbuildBind = lens _pbuildBind
              $ \(MkPBuild {..}) x -> MkPBuild { _pbuildBind = x, .. }
 
@@ -244,9 +244,9 @@ pbuildBind = lens _pbuildBind
 -- | A set of Ninja build dependencies.
 data PDeps
   = MkPDeps
-    { _pdepsNormal    :: ![FileStr]
-    , _pdepsImplicit  :: ![FileStr]
-    , _pdepsOrderOnly :: ![FileStr]
+    { _pdepsNormal    :: !(HashSet FileStr)
+    , _pdepsImplicit  :: !(HashSet FileStr)
+    , _pdepsOrderOnly :: !(HashSet FileStr)
     }
   deriving (Eq, Show)
 
@@ -259,17 +259,17 @@ makePDeps = MkPDeps
             }
 
 -- | A lens into the set of normal dependencies in a 'PDeps'.
-pdepsNormal :: Lens' PDeps [FileStr]
+pdepsNormal :: Lens' PDeps (HashSet FileStr)
 pdepsNormal = lens _pdepsNormal
               $ \(MkPDeps {..}) x -> MkPDeps { _pdepsNormal = x, .. }
 
 -- | A lens into the set of implicit dependencies in a 'PDeps'.
-pdepsImplicit :: Lens' PDeps [FileStr]
+pdepsImplicit :: Lens' PDeps (HashSet FileStr)
 pdepsImplicit = lens _pdepsImplicit
                 $ \(MkPDeps {..}) x -> MkPDeps { _pdepsImplicit = x, .. }
 
 -- | A lens into the set of order-only dependencies in a 'PDeps'.
-pdepsOrderOnly :: Lens' PDeps [FileStr]
+pdepsOrderOnly :: Lens' PDeps (HashSet FileStr)
 pdepsOrderOnly = lens _pdepsOrderOnly
                  $ \(MkPDeps {..}) x -> MkPDeps { _pdepsOrderOnly = x, .. }
 
@@ -278,7 +278,7 @@ pdepsOrderOnly = lens _pdepsOrderOnly
 -- | A parsed Ninja @rule@ declaration.
 newtype PRule
   = MkPRule
-    { _pruleBind :: [(Str, PExpr)]
+    { _pruleBind :: HashMap Str PExpr
     }
   deriving (Eq, Show)
 
@@ -289,7 +289,7 @@ makePRule = MkPRule
             }
 
 -- | The set of bindings in scope during the execution of this rule.
-pruleBind :: Lens' PRule [(Str, PExpr)]
+pruleBind :: Lens' PRule (HashMap Str PExpr)
 pruleBind = lens _pruleBind (const MkPRule)
 
 --------------------------------------------------------------------------------

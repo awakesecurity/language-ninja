@@ -185,11 +185,10 @@ compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
     simplifyBuild :: Ninja.PBuild -> SBuild
     simplifyBuild build = MkSBuild (Just rule) deps
       where
-        deps = HS.map targetFromBS $ HS.fromList $ mconcat
-               [ build ^. pbuildDeps . pdepsNormal
+        deps = [ build ^. pbuildDeps . pdepsNormal
                , build ^. pbuildDeps . pdepsImplicit
                , build ^. pbuildDeps . pdepsOrderOnly
-               ]
+               ] |> mconcat |> HS.map targetFromBS
 
         rule = fromMaybe (error ("rule not found: " <> show ruleName))
                $ HM.lookup (targetFromBS ruleName) ruleMap
@@ -208,13 +207,13 @@ compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
 
     computeCommand :: Ninja.PRule -> Command
     computeCommand rule
-      = case lookup "command" (rule ^. pruleBind)
+      = case HM.lookup "command" (rule ^. pruleBind)
         of Just (Ninja.PLit x) -> commandFromBS x
            Just _              -> error "rule uses variables"
            Nothing             -> error "\"command\" not found"
 
     combined :: HashMap (HashSet Target) Ninja.PBuild
-    combined = multiples <> onHM (first (\x -> HS.singleton x)) singles
+    combined = multiples <> onHM (first HS.singleton) singles
                |> onHM (first (HS.map targetFromBS))
 
     linearizeGraph :: HashMap (HashSet Target) SBuild -> HashMap Target SBuild

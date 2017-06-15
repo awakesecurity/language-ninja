@@ -101,16 +101,16 @@ applyStmt :: Env Str Str -> PNinja -> (Lexeme, [(Str, PExpr)]) -> IO PNinja
 applyStmt env ninja (key, binds) = case key of
   (LexBuild outputs rule deps) -> do
     outputs <- mapM (askExpr env) outputs
-    deps <- mapM (askExpr env) deps
-    binds <- mapM (\(a, b) -> (a,) <$> askExpr env b) binds
+    deps <- HS.fromList <$> mapM (askExpr env) deps
+    binds <- HM.fromList <$> mapM (\(a, b) -> (a,) <$> askExpr env b) binds
     let (normal, implicit, orderOnly) = splitDeps deps
     let build = makePBuild rule env
                 & (pbuildDeps . pdepsNormal    .~ normal)
                 & (pbuildDeps . pdepsImplicit  .~ implicit)
                 & (pbuildDeps . pdepsOrderOnly .~ orderOnly)
                 & (pbuildBind                  .~ binds)
-    let depSet = HS.fromList (normal <> implicit <> orderOnly)
-    let addP = \p -> [(x, depSet) | x <- outputs] <> (HM.toList p)
+    let allDeps = normal <> implicit <> orderOnly
+    let addP = \p -> [(x, allDeps) | x <- outputs] <> (HM.toList p)
                      |> HM.fromList
     let addS = HM.insert (head outputs) build
     let addM = HM.insert (HS.fromList outputs) build
@@ -118,7 +118,7 @@ applyStmt env ninja (key, binds) = case key of
            else if length outputs == 1 then ninja & pninjaSingles   %~ addS
            else                             ninja & pninjaMultiples %~ addM
   (LexRule name) -> do
-    let rule = makePRule & pruleBind .~ binds
+    let rule = makePRule & pruleBind .~ HM.fromList binds
     pure (ninja & pninjaRules %~ HM.insert name rule)
   (LexDefault xs) -> do
     xs <- HS.fromList <$> mapM (askExpr env) xs
@@ -139,13 +139,18 @@ applyStmt env ninja (key, binds) = case key of
   (LexBind a _) -> [ "Unexpected binding defining ", a
                    ] |> mconcat |> BSC8.unpack |> error
 
-splitDeps :: [Str] -> ([Str], [Str], [Str])
-splitDeps []                   = ([],      [],     [])
-splitDeps (x:xs) | (x == "|")  = ([],  a <> b,      c)
-                 | (x == "||") = ([],       b, a <> c)
-                 | otherwise   = (x:a,      b,      c)
+splitDeps :: HashSet Str -> (HashSet Str, HashSet Str, HashSet Str)
+splitDeps = HS.toList
+            .> go
+            .> (\(a, b, c) -> (HS.fromList a, HS.fromList b, HS.fromList c))
   where
-    (a, b, c) = splitDeps xs
+    go :: [Str] -> ([Str], [Str], [Str])
+    go []                   = ([],      [],     [])
+    go (x:xs) | (x == "|")  = ([],  a <> b,      c)
+              | (x == "||") = ([],       b, a <> c)
+              | otherwise   = (x:a,      b,      c)
+      where
+        (a, b, c) = go xs
 
 getDepth :: Env Str Str -> [(Str, PExpr)] -> IO Int
 getDepth env xs = do
