@@ -144,23 +144,23 @@ take0 i (Str0 x) = BSC8.takeWhile (/= '\0') $ BSC8.take i x
 
 -- | Lex each line separately, rather than each lexeme
 data Lexeme
-  = LexBind Str PExpr
-  -- ^ @[indent]foo = bar@
-  | LexBuild [PExpr] Str [PExpr]
-  -- ^ @build foo: bar | baz || qux@ (@|@ and @||@ are represented as 'Expr')
-  | LexInclude PExpr
-  -- ^ @include file@
-  | LexSubninja PExpr
-  -- ^ @include file@
-  | LexRule Str
-  -- ^ @rule name@
-  | LexPool Str
-  -- ^ @pool name@
-  | LexDefault [PExpr]
-  -- ^ @default foo bar@
-  | LexDefine Str PExpr
-  -- ^ @foo = bar@
-  deriving Show
+  = -- | @foo = bar@
+    LexDefine Str PExpr
+  | -- | @[indent]foo = bar@
+    LexBind Str PExpr
+  | -- | @include file@
+    LexInclude PExpr
+  | -- | @subninja file@
+    LexSubninja PExpr
+  | -- | @build foo: bar | baz || qux@ (@|@ and @||@ are represented as 'Expr')
+    LexBuild [PExpr] Str [PExpr]
+  | -- | @rule name@
+    LexRule Str
+  | -- | @pool name@
+    LexPool Str
+  | -- | @default foo bar@
+    LexDefault [PExpr]
+  deriving (Eq, Show)
 
 -- | FIXME: doc
 lexerFile :: Maybe FilePath -> IO [Lexeme]
