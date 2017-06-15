@@ -37,6 +37,7 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
+{-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections   #-}
 
@@ -98,6 +99,9 @@ import qualified Data.HashSet           as HS
 
 import           Data.Monoid
 
+import           Data.Hashable          (Hashable)
+import           GHC.Generics           (Generic)
+
 import           Language.Ninja.Env
 
 import           Flow
@@ -120,7 +124,7 @@ data PExpr
     PLit Str
   | -- | FIXME: doc
     PVar Str
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | FIXME: doc
 askExpr :: Env Str Str -> PExpr -> Str
@@ -154,7 +158,7 @@ data PNinja
     , _pninjaDefaults  :: HashSet FileStr
     , _pninjaPools     :: HashMap Str Int
     }
-  deriving (Show)
+  deriving (Eq, Show, Generic)
 
 -- | Construct a 'PNinja' with all default values
 makePNinja :: PNinja
@@ -207,7 +211,7 @@ data PBuild
     , _pbuildDeps :: !PDeps
     , _pbuildBind :: !(HashMap Str Str)
     }
-  deriving (Show)
+  deriving (Eq, Show, Generic)
 
 -- | Construct a 'PBuild' with all default values.
 makePBuild :: Str
@@ -251,7 +255,7 @@ data PDeps
     , _pdepsImplicit  :: !(HashSet FileStr)
     , _pdepsOrderOnly :: !(HashSet FileStr)
     }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | Construct a 'PDeps' with all default values
 makePDeps :: PDeps
@@ -283,7 +287,7 @@ newtype PRule
   = MkPRule
     { _pruleBind :: HashMap Str PExpr
     }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | Construct a 'PRule' with all default values
 makePRule :: PRule

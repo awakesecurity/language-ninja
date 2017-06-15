@@ -27,34 +27,23 @@ import qualified Data.Text.Encoding         as T
 dataPrefix :: String
 dataPrefix = "" -- "tests/data/"
 
-liftE :: IO a -> ExceptT String IO a
-liftE action = let handler :: SomeException -> IO (Either String a)
-                   handler = pure . Left . displayException
-               in ExceptT ((pure <$> action) `catch` handler)
-
 roundtrip :: String -> H.Expectation
-roundtrip file = H.shouldReturn (runExceptT go) (Right ())
-  where
-    go :: ExceptT String IO ()
-    go = do
-      let inputPath = dataPrefix <> file <> ".ninja"
-      let expectedPath = dataPrefix <> file <> ".expected"
+roundtrip file = do
+  let inputPath = dataPrefix <> file <> ".ninja"
+  let expectedPath = dataPrefix <> file <> ".expected"
 
-      let withTempDir = Turtle.with (Turtle.mktempdir "." "test")
+  let withTempDir = Turtle.with (Turtle.mktempdir "." "test")
 
-      (expected, actual) <- liftE $ withTempDir $ \tmpdir -> do
-        input  <- Ninja.parse inputPath
-        prettyInput <- Ninja.prettyNinja input
-        let tmpfile = tmpdir </> "generated.ninja"
-        Turtle.writeTextFile tmpfile (T.decodeUtf8 prettyInput)
-        output <- Ninja.parse (FP.encodeString tmpfile)
-        -- prettyOutput <- Ninja.prettyNinja output
-        pure (input, output)
+  (expected, actual) <- withTempDir $ \tmpdir -> do
+    input  <- Ninja.parse inputPath
+    prettyInput <- Ninja.prettyNinja input
+    let tmpfile = tmpdir </> "generated.ninja"
+    Turtle.writeTextFile tmpfile (T.decodeUtf8 prettyInput)
+    output <- Ninja.parse (FP.encodeString tmpfile)
+    -- prettyOutput <- Ninja.prettyNinja output
+    pure (input, output)
 
-      eq <- lift $ Ninja.ninjaEqual expected actual
-
-      unless eq $ do
-        throwE "output was not equal"
+  actual `H.shouldBe` expected
 
 generateExpectedRoundtrip :: IO ()
 generateExpectedRoundtrip = forM_ roundtripNames go
