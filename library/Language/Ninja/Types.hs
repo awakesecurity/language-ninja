@@ -96,6 +96,8 @@ import qualified Data.HashMap.Strict    as HM
 import           Data.HashSet           (HashSet)
 import qualified Data.HashSet           as HS
 
+import           Data.Monoid
+
 import           Language.Ninja.Env
 
 import           Flow
@@ -121,23 +123,24 @@ data PExpr
   deriving (Eq, Show)
 
 -- | FIXME: doc
-askExpr :: (MonadIO m) => Env Str Str -> PExpr -> m Str
-askExpr e (PExprs xs) = BSC8.concat <$> mapM (askExpr e) xs
-askExpr _ (PLit x)    = pure x
+askExpr :: Env Str Str -> PExpr -> Str
+askExpr e (PExprs xs) = BSC8.concat (map (askExpr e) xs)
+askExpr _ (PLit x)    = x
 askExpr e (PVar x)    = askVar e x
 
 -- | FIXME: doc
-askVar :: (MonadIO m) => Env Str Str -> Str -> m Str
-askVar e x = fromMaybe BSC8.empty <$> askEnv e x
+askVar :: Env Str Str -> Str -> Str
+askVar e x = fromMaybe BSC8.empty (askEnv e x)
 
 -- | FIXME: doc
-addBind :: (MonadIO m) => Env Str Str -> Str -> PExpr -> m ()
-addBind e k v = askExpr e v >>= addEnv e k
+addBind :: Str -> PExpr -> Env Str Str -> Env Str Str
+addBind k v e = addEnv k (askExpr e v) e
 
 -- | FIXME: doc
-addBinds :: (MonadIO m) => Env Str Str -> [(Str, PExpr)] -> m ()
-addBinds e bs = mapM (\(a, b) -> (a,) <$> askExpr e b) bs
-                >>= mapM_ (uncurry (addEnv e))
+addBinds :: [(Str, PExpr)] -> Env Str Str -> Env Str Str
+addBinds bs e = map (second (askExpr e) .> uncurry addEnv .> Endo) bs
+                |> mconcat
+                |> (\endo -> appEndo endo e)
 
 --------------------------------------------------------------------------------
 

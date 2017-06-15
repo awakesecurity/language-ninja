@@ -148,18 +148,20 @@ ninjaDispatch (NinjaOptionsCompDB n args) = ninjaCompDB n args
 ninjaDispatch (NinjaOptionsUnknown tool)  = [ "Unknown tool: ", tool
                                             ] |> mconcat |> T.unpack |> errorIO
 
-computeRuleEnv :: (MonadIO m)
-               => HashSet Str -> PBuild -> PRule -> m (Env Str Str)
-computeRuleEnv out b r = liftIO $ do
+computeRuleEnv :: HashSet Str -> PBuild -> PRule -> Env Str Str
+computeRuleEnv out b r = do
   let deps = b ^. pbuildDeps . pdepsNormal
-  env <- Ninja.scopeEnv (b ^. pbuildEnv)
   -- the order of adding new environment variables matters
-  Ninja.addEnv env "out"        $ BSC8.unwords $ map quote (HS.toList out)
-  Ninja.addEnv env "in"         $ BSC8.unwords $ map quote (HS.toList deps)
-  Ninja.addEnv env "in_newline" $ BSC8.unlines (HS.toList deps)
-  forM_ (HM.toList (b ^. pbuildBind)) $ \(a, b) -> Ninja.addEnv env a b
-  Ninja.addBinds env (HM.toList (r ^. pruleBind))
-  pure env
+
+  let compose :: [a -> a] -> (a -> a)
+      compose = map Endo .> mconcat .> appEndo
+
+  Ninja.scopeEnv (b ^. pbuildEnv)
+    |> Ninja.addEnv "out"        (BSC8.unwords (map quote (HS.toList out)))
+    |> Ninja.addEnv "in"         (BSC8.unwords (map quote (HS.toList deps)))
+    |> Ninja.addEnv "in_newline" (BSC8.unlines (HS.toList deps))
+    |> compose (map (uncurry Ninja.addEnv) (HM.toList (b ^. pbuildBind)))
+    |> Ninja.addBinds (HM.toList (r ^. pruleBind))
 
 ninjaCompDB :: PNinja -> [Str] -> IO (Maybe (Rules ()))
 ninjaCompDB ninja args = do
@@ -183,8 +185,8 @@ ninjaCompDB ninja args = do
         pure (outputs, build, file, rule)
 
   compDB <- forM itemsToBuild $ \(out, build, file, rule) -> do
-    env <- computeRuleEnv out build rule
-    commandLine <- BSC8.unpack <$> Ninja.askVar env "command"
+    let env = computeRuleEnv out build rule
+    let commandLine = BSC8.unpack (Ninja.askVar env "command")
     let deps = build ^. pbuildDeps . pdepsNormal
     pure $ MkCompDB dir commandLine (BSC8.unpack (head (HS.toList deps)))
 
@@ -293,19 +295,17 @@ runBuild needD phonys rules pools out build = do
 
   rule <- HM.lookup ruleName rules |> maybe ruleNotFound pure
 
-  env <- computeRuleEnv out build rule
+  let env = computeRuleEnv out build rule
 
   applyRspfile env $ do
-    let askVarStr :: Str -> Action String
-        askVarStr = Ninja.askVar env
-                    .> fmap BSC8.unpack
-                    .> liftIO
+    let askVarStr :: Str -> String
+        askVarStr = Ninja.askVar env .> BSC8.unpack
 
-    commandline <- askVarStr "command"
-    depfile     <- askVarStr "depfile"
-    deps        <- askVarStr "deps"
-    description <- askVarStr "description"
-    pool        <- BSC8.pack <$> askVarStr "pool"
+    let commandline = askVarStr        "command"
+    let depfile     = askVarStr        "depfile"
+    let deps        = askVarStr        "deps"
+    let description = askVarStr        "description"
+    let pool        = Ninja.askVar env "pool"
 
     let withPool act = if BSC8.null pool
                        then act
@@ -321,9 +321,8 @@ runBuild needD phonys rules pools out build = do
     let (opts, prog, args) = toCommand commandline
       in if deps == "msvc"
          then do stdout <- withPool (Shake.command opts prog args)
-                 prefix <- Ninja.askEnv env "msvc_deps_prefix"
-                           |> fmap (fromMaybe "Note: including file: ")
-                           |> liftIO
+                 let prefix = Ninja.askEnv env "msvc_deps_prefix"
+                              |> fromMaybe "Note: including file: "
                  let outStr = BSC8.pack (Shake.fromStdout stdout)
                  needD build (parseShowIncludes prefix outStr)
          else withPool (Shake.command_ opts prog args)
@@ -413,8 +412,8 @@ needDeps ninja = \build xs -> do
 
 applyRspfile :: Env Str Str -> Action a -> Action a
 applyRspfile env act = do
-  rspfile <- liftIO (BSC8.unpack <$> Ninja.askVar env "rspfile")
-  rspfile_content <- liftIO (Ninja.askVar env "rspfile_content")
+  let rspfile         = BSC8.unpack (Ninja.askVar env "rspfile")
+  let rspfile_content = Ninja.askVar env "rspfile_content"
   if rspfile == ""
     then act
     else (liftIO (BS.writeFile rspfile rspfile_content) >> act)

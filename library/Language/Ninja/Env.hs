@@ -49,70 +49,48 @@
 --
 --   A Ninja-style environment, basically a linked-list of mutable hash tables.
 module Language.Ninja.Env
-  ( Env, newEnv, scopeEnv, addEnv, askEnv, fromEnv, getEnvStack, envEqual
+  ( Env, newEnv, scopeEnv, addEnv, askEnv, fromEnv, getEnvStack
   ) where
-
-import           Control.Monad.IO.Class
 
 import           Data.Hashable
 
-import           Data.HashMap.Strict    (HashMap)
-import qualified Data.HashMap.Strict    as HM
-
-import           Data.IORef
-
--- FIXME: it seems unlikely to me that this module actually needs to be
--- using 'IORef's, perhaps a refactoring is in order?
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HM
 
 -- | FIXME: doc
 data Env k v
-  = MkEnv (IORef (HashMap k v)) (Maybe (Env k v))
+  = MkEnv (HashMap k v) (Maybe (Env k v))
 
 -- FIXME: this instance is not law-abiding
 instance Show (Env k v) where
   show _ = "Env"
 
 -- | FIXME: doc
-newEnv :: (MonadIO m) => m (Env k v)
-newEnv = do
-  ref <- liftIO $ newIORef HM.empty
-  pure $ MkEnv ref Nothing
+newEnv :: Env k v
+newEnv = MkEnv HM.empty Nothing
 
 -- | FIXME: doc
-scopeEnv :: (MonadIO m) => Env k v -> m (Env k v)
-scopeEnv e = do
-  ref <- liftIO $ newIORef HM.empty
-  pure $ MkEnv ref $ Just e
+scopeEnv :: Env k v -> Env k v
+scopeEnv e = MkEnv HM.empty (Just e)
 
 -- | FIXME: doc
-addEnv :: (Eq k, Hashable k, MonadIO m) => Env k v -> k -> v -> m ()
-addEnv (MkEnv ref _) k v = liftIO $ modifyIORef ref $ HM.insert k v
+addEnv :: (Eq k, Hashable k) => k -> v -> Env k v -> Env k v
+addEnv k v (MkEnv m rest) = MkEnv (HM.insert k v m) rest
 
 -- | FIXME: doc
-askEnv :: (Eq k, Hashable k, MonadIO m) => Env k v -> k -> m (Maybe v)
-askEnv (MkEnv ref e) k = do
-  mp <- liftIO $ readIORef ref
-  case HM.lookup k mp
-    of Just v  -> pure (Just v)
-       Nothing -> case e
-                  of Just e' -> askEnv e' k
-                     Nothing -> pure Nothing
+askEnv :: (Eq k, Hashable k) => Env k v -> k -> Maybe v
+askEnv (MkEnv m e) k = case HM.lookup k m
+                       of Just v  -> Just v
+                          Nothing -> e >>= (`askEnv` k)
 
 -- | FIXME: doc
-fromEnv :: (MonadIO m) => Env k v -> m (HashMap k v)
-fromEnv (MkEnv ref _) = liftIO $ readIORef ref
+fromEnv :: Env k v -> HashMap k v
+fromEnv (MkEnv m _) = m
 
 -- | FIXME: doc
-getEnvStack :: (MonadIO m) => Env k v -> m [HashMap k v]
-getEnvStack = liftIO . go
+getEnvStack :: Env k v -> [HashMap k v]
+getEnvStack = go
   where
-    go :: Env k v -> IO [HashMap k v]
-    go (MkEnv ref Nothing)     = (: []) <$> readIORef ref
-    go (MkEnv ref (Just rest)) = (:) <$> readIORef ref <*> go rest
-
--- | FIXME: doc
-envEqual :: (Eq k, Eq v) => Env k v -> Env k v -> IO Bool
-envEqual eX eY = do
-  stackX <- getEnvStack eX
-  stackY <- getEnvStack eY
-  pure (stackX == stackY)
+    go :: Env k v -> [HashMap k v]
+    go (MkEnv m Nothing)     = [m]
+    go (MkEnv m (Just rest)) = m : go rest

@@ -55,6 +55,7 @@ module Language.Ninja.Parse
   ) where
 
 import           Control.Applicative
+import           Control.Arrow
 import           Control.Monad
 
 import           Control.Lens.Getter
@@ -79,15 +80,20 @@ import           Prelude
 import           Flow
 
 parse :: FilePath -> IO PNinja
-parse file = newEnv >>= parseWithEnv file
+parse file = parseWithEnv file newEnv
 
 parseWithEnv :: FilePath -> Env Str Str -> IO PNinja
-parseWithEnv file env = parseFile file env makePNinja
+parseWithEnv file env = fst <$> parseFile file (makePNinja, env)
 
-parseFile :: FilePath -> Env Str Str -> PNinja -> IO PNinja
-parseFile file env ninja = do
+parseFile :: FilePath
+          -> (PNinja, Env Str Str) -> IO (PNinja, Env Str Str)
+parseFile file (ninja, env) = do
   lexes <- lexerFile $ if file == "-" then Nothing else Just file
-  foldM (applyStmt env) ninja $ withBinds lexes
+  withBinds lexes
+    |> map applyStmt
+    |> foldr (>=>) pure
+    |> (\f -> f (ninja, env))
+  -- foldM (applyStmt env) ninja $
 
 withBinds :: [Lexeme] -> [(Lexeme, [(Str, PExpr)])]
 withBinds [] = []
@@ -97,45 +103,46 @@ withBinds (x:xs) = (x, a) : withBinds b
     f ((LexBind a b) : rest) = let (as, bs) = f rest in (((a, b):as), bs)
     f xs                     = ([], xs)
 
-applyStmt :: Env Str Str -> PNinja -> (Lexeme, [(Str, PExpr)]) -> IO PNinja
-applyStmt env ninja (key, binds) = case key of
-  (LexBuild outputs rule deps) -> do
-    outputs <- mapM (askExpr env) outputs
-    deps <- HS.fromList <$> mapM (askExpr env) deps
-    binds <- HM.fromList <$> mapM (\(a, b) -> (a,) <$> askExpr env b) binds
+applyStmt :: (Lexeme, [(Str, PExpr)])
+          -> (PNinja, Env Str Str) -> IO (PNinja, Env Str Str)
+applyStmt (lexKey, lexBinds) (ninja, env) = case lexKey of
+  (LexBuild lexOutputs lexRule lexDeps) -> do
+    let outputs = map (askExpr env) lexOutputs
+    let deps    = HS.fromList (map (askExpr env) lexDeps)
+    let binds   = HM.fromList (map (second (askExpr env)) lexBinds)
     let (normal, implicit, orderOnly) = splitDeps deps
-    let build = makePBuild rule env
-                & (pbuildDeps . pdepsNormal    .~ normal)
-                & (pbuildDeps . pdepsImplicit  .~ implicit)
-                & (pbuildDeps . pdepsOrderOnly .~ orderOnly)
-                & (pbuildBind                  .~ binds)
+    let build = makePBuild lexRule env
+                |> (pbuildDeps . pdepsNormal    .~ normal)
+                |> (pbuildDeps . pdepsImplicit  .~ implicit)
+                |> (pbuildDeps . pdepsOrderOnly .~ orderOnly)
+                |> (pbuildBind                  .~ binds)
     let allDeps = normal <> implicit <> orderOnly
     let addP = \p -> [(x, allDeps) | x <- outputs] <> (HM.toList p)
                      |> HM.fromList
     let addS = HM.insert (head outputs) build
     let addM = HM.insert (HS.fromList outputs) build
-    pure $ if      rule == "phony"     then ninja & pninjaPhonys    %~ addP
-           else if length outputs == 1 then ninja & pninjaSingles   %~ addS
-           else                             ninja & pninjaMultiples %~ addM
+    let newNinja
+          = if      lexRule == "phony"  then ninja |> pninjaPhonys    %~ addP
+            else if length outputs == 1 then ninja |> pninjaSingles   %~ addS
+            else                             ninja |> pninjaMultiples %~ addM
+    pure (newNinja, env)
   (LexRule name) -> do
-    let rule = makePRule & pruleBind .~ HM.fromList binds
-    pure (ninja & pninjaRules %~ HM.insert name rule)
+    let rule = makePRule |> pruleBind .~ HM.fromList lexBinds
+    pure (ninja |> pninjaRules %~ HM.insert name rule, env)
   (LexDefault xs) -> do
-    xs <- HS.fromList <$> mapM (askExpr env) xs
-    pure (ninja & pninjaDefaults %~ (xs <>))
+    let set = HS.fromList (map (askExpr env) xs)
+    pure (ninja |> pninjaDefaults %~ (set <>), env)
   (LexPool name) -> do
-    depth <- getDepth env binds
-    pure (ninja & pninjaPools %~ HM.insert name depth)
+    depth <- getDepth env lexBinds
+    pure (ninja |> pninjaPools %~ HM.insert name depth, env)
   (LexInclude expr) -> do
-    file <- askExpr env expr
-    parseFile (BSC8.unpack file) env ninja
+    let file = askExpr env expr
+    parseFile (BSC8.unpack file) (ninja, env)
   (LexSubninja expr) -> do
-    file <- askExpr env expr
-    e <- scopeEnv env
-    parseFile (BSC8.unpack file) e ninja
+    let file = askExpr env expr
+    parseFile (BSC8.unpack file) (ninja, scopeEnv env)
   (LexDefine a b) -> do
-    addBind env a b
-    pure ninja
+    pure (ninja, addBind a b env)
   (LexBind a _) -> [ "Unexpected binding defining ", a
                    ] |> mconcat |> BSC8.unpack |> error
 
@@ -156,10 +163,8 @@ getDepth :: Env Str Str -> [(Str, PExpr)] -> IO Int
 getDepth env xs = do
   let poolDepthError x = [ "Could not parse depth field in pool, got: ", x
                          ] |> mconcat |> BSC8.unpack |> error
-  case lookup "depth" xs of
+  case askExpr env <$> lookup "depth" xs of
     Nothing -> pure 1
-    Just x -> do
-      x <- askExpr env x
-      case BSC8.readInt x of
-        (Just (i, n)) | BSC8.null n -> pure i
-        _                           -> poolDepthError x
+    Just x -> case BSC8.readInt x of
+                (Just (i, n)) | BSC8.null n -> pure i
+                _                           -> poolDepthError x
