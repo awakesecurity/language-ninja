@@ -37,6 +37,7 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
@@ -49,48 +50,63 @@
 --
 --   A Ninja-style environment, basically a linked-list of mutable hash tables.
 module Language.Ninja.Env
-  ( Env, newEnv, scopeEnv, addEnv, askEnv, fromEnv, getEnvStack
+  ( Env, makeEnv, fromEnv, headEnv, tailEnv
+  , scopeEnv, addEnv, askEnv, getEnvStack
   ) where
 
-import           Data.Hashable
+import           Control.Applicative
+
+import           Control.Lens.Iso
+
+import           Data.Maybe
+
+import           Data.List.NonEmpty  (NonEmpty (..))
+import qualified Data.List.NonEmpty  as NE
 
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 
--- | FIXME: doc
-data Env k v
-  = MkEnv (HashMap k v) (Maybe (Env k v))
+import           Data.Hashable       (Hashable)
+import           GHC.Generics        (Generic)
 
--- FIXME: this instance is not law-abiding
-instance Show (Env k v) where
-  show _ = "Env"
+import           Flow
 
 -- | FIXME: doc
-newEnv :: Env k v
-newEnv = MkEnv HM.empty Nothing
+newtype Env k v
+  = MkEnv
+    { _fromEnv :: NonEmpty (HashMap k v)
+    }
+  deriving (Eq, Show, Generic)
+
+-- | FIXME: doc
+makeEnv :: Env k v
+makeEnv = MkEnv (HM.empty :| [])
+
+-- | FIXME: doc
+fromEnv :: Iso' (Env k v) (NonEmpty (HashMap k v))
+fromEnv = iso _fromEnv MkEnv
+
+-- | FIXME: doc
+headEnv :: Env k v -> HashMap k v
+headEnv (MkEnv (m :| _)) = m
+
+-- | FIXME: doc
+tailEnv :: Env k v -> Maybe (Env k v)
+tailEnv (MkEnv (_ :| e)) = MkEnv <$> NE.nonEmpty e
 
 -- | FIXME: doc
 scopeEnv :: Env k v -> Env k v
-scopeEnv e = MkEnv HM.empty (Just e)
+scopeEnv e = MkEnv (NE.cons HM.empty (_fromEnv e))
 
 -- | FIXME: doc
 addEnv :: (Eq k, Hashable k) => k -> v -> Env k v -> Env k v
-addEnv k v (MkEnv m rest) = MkEnv (HM.insert k v m) rest
+addEnv k v (MkEnv (m :| rest)) = MkEnv (HM.insert k v m :| rest)
 
 -- | FIXME: doc
 askEnv :: (Eq k, Hashable k) => Env k v -> k -> Maybe v
-askEnv (MkEnv m e) k = case HM.lookup k m
-                       of Just v  -> Just v
-                          Nothing -> e >>= (`askEnv` k)
-
--- | FIXME: doc
-fromEnv :: Env k v -> HashMap k v
-fromEnv (MkEnv m _) = m
+askEnv env k = HM.lookup k (headEnv env)
+               <|> (tailEnv env >>= (`askEnv` k))
 
 -- | FIXME: doc
 getEnvStack :: Env k v -> [HashMap k v]
-getEnvStack = go
-  where
-    go :: Env k v -> [HashMap k v]
-    go (MkEnv m Nothing)     = [m]
-    go (MkEnv m (Just rest)) = m : go rest
+getEnvStack = _fromEnv .> NE.toList

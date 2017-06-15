@@ -75,7 +75,7 @@ module Language.Ninja.Types
   , PExpr (..), askVar, askExpr, addBind, addBinds
 
     -- * @Env@
-  , Env, newEnv, addEnv
+  , Env, makeEnv, fromEnv, addEnv, scopeEnv
 
     -- * Miscellaneous
   , Str, FileStr

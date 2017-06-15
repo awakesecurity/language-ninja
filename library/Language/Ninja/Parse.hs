@@ -80,7 +80,7 @@ import           Prelude
 import           Flow
 
 parse :: FilePath -> IO PNinja
-parse file = parseWithEnv file newEnv
+parse file = parseWithEnv file makeEnv
 
 parseWithEnv :: FilePath -> Env Str Str -> IO PNinja
 parseWithEnv file env = fst <$> parseFile file (makePNinja, env)
