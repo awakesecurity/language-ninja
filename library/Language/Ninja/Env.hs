@@ -55,6 +55,7 @@ module Language.Ninja.Env
   ) where
 
 import           Control.Applicative
+import           Control.Monad
 
 import           Control.Lens.Iso
 
@@ -68,6 +69,9 @@ import qualified Data.HashMap.Strict as HM
 
 import           Data.Hashable       (Hashable)
 import           GHC.Generics        (Generic)
+
+import           Data.Aeson          as Aeson
+import qualified Data.Aeson.Types    as Aeson
 
 import           Flow
 
@@ -110,3 +114,13 @@ askEnv env k = HM.lookup k (headEnv env)
 -- | FIXME: doc
 getEnvStack :: Env k v -> [HashMap k v]
 getEnvStack = _fromEnv .> NE.toList
+
+instance (ToJSONKey k, ToJSON v) => ToJSON (Env k v) where
+  toJSON = _fromEnv .> NE.toList .> toJSON
+
+instance (Eq k, Hashable k, FromJSONKey k, FromJSON v) =>
+         FromJSON (Env k v) where
+  parseJSON = parseJSON
+              >=> NE.nonEmpty
+              .>  maybe (fail "Env list was empty!") pure
+              .>  fmap MkEnv

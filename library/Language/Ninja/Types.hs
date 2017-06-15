@@ -309,15 +309,19 @@ pbuildBind = lens _pbuildBind
 
 instance ToJSON PBuild where
   toJSON (MkPBuild {..})
-    = [
+    = [ "rule" .= _pbuildRule
+      , "env"  .= _pbuildEnv
+      , "deps" .= _pbuildDeps
+      , "bind" .= _pbuildBind
       ] |> object
 
 instance FromJSON PBuild where
   parseJSON = (withObject "PBuild" $ \o -> do
-                  undefined
-                  -- _pdepsNormal <- (o .: "normal") >>= pure
-                  -- pure (MkPBuild {..})
-              )
+                  _pbuildRule <- (o .: "rule") >>= pure
+                  _pbuildEnv  <- (o .: "env")  >>= pure
+                  _pbuildDeps <- (o .: "deps") >>= pure
+                  _pbuildBind <- (o .: "bind") >>= pure
+                  pure (MkPBuild {..}))
 
 --------------------------------------------------------------------------------
 
@@ -355,15 +359,17 @@ pdepsOrderOnly = lens _pdepsOrderOnly
 
 instance ToJSON PDeps where
   toJSON (MkPDeps {..})
-    = [
+    = [ "normal"     .= _pdepsNormal
+      , "implicit"   .= _pdepsImplicit
+      , "order-only" .= _pdepsOrderOnly
       ] |> object
 
 instance FromJSON PDeps where
   parseJSON = (withObject "PDeps" $ \o -> do
-                  undefined
-                  -- _pdepsNormal <- (o .: "normal") >>= pure
-                  -- pure (MkPDeps {..})
-              )
+                  _pdepsNormal    <- (o .: "normal")     >>= pure
+                  _pdepsImplicit  <- (o .: "implicit")   >>= pure
+                  _pdepsOrderOnly <- (o .: "order-only") >>= pure
+                  pure (MkPDeps {..}))
 
 --------------------------------------------------------------------------------
 
