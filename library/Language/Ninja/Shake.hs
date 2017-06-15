@@ -148,12 +148,13 @@ ninjaDispatch (NinjaOptionsCompDB n args) = ninjaCompDB n args
 ninjaDispatch (NinjaOptionsUnknown tool)  = [ "Unknown tool: ", tool
                                             ] |> mconcat |> T.unpack |> errorIO
 
-computeRuleEnv :: (MonadIO m) => [Str] -> PBuild -> PRule -> m (Env Str Str)
+computeRuleEnv :: (MonadIO m)
+               => HashSet Str -> PBuild -> PRule -> m (Env Str Str)
 computeRuleEnv out b r = liftIO $ do
   let deps = b ^. pbuildDeps . pdepsNormal
   env <- Ninja.scopeEnv (b ^. pbuildEnv)
   -- the order of adding new environment variables matters
-  Ninja.addEnv env "out"        $ BSC8.unwords $ map quote out
+  Ninja.addEnv env "out"        $ BSC8.unwords $ map quote (HS.toList out)
   Ninja.addEnv env "in"         $ BSC8.unwords $ map quote deps
   Ninja.addEnv env "in_newline" $ BSC8.unlines deps
   forM_ (b ^. pbuildBind) $ \(a, b) -> Ninja.addEnv env a b
@@ -170,11 +171,13 @@ ninjaCompDB ninja args = do
   let rules = HM.filterWithKey (curry inArgs) rules
 
   -- the build items are generated in reverse order, hence the reverse
-  let itemsToBuild :: [([Str], PBuild, Str, PRule)]
+  let itemsToBuild :: [(HashSet Str, PBuild, Str, PRule)]
       itemsToBuild = do
         let multiples = ninja ^. pninjaMultiples
         let singles = ninja ^. pninjaSingles
-        (outputs, build) <- reverse (multiples <> map (first pure) singles)
+        (outputs, build) <- [ HM.toList multiples
+                            , map (first HS.singleton) (HM.toList singles)
+                            ] |> mconcat |> reverse
         (Just rule) <- [HM.lookup (build ^. pbuildRule) rules]
         (file:_) <- [build ^. pbuildDeps . pdepsNormal]
         pure (outputs, build, file, rule)
@@ -191,31 +194,29 @@ ninjaCompDB ninja args = do
 
 ninjaBuild :: PNinja -> [Str] -> IO (Maybe (Rules ()))
 ninjaBuild ninja args = pure $ Just $ do
-  let normalisedMultiples = ninja
-                            ^. pninjaMultiples
-                            .  to (fmap (first (map filepathNormalise)))
+  let normMultiples = ninja
+                      ^. pninjaMultiples
+                      .  to HM.toList
+                      .  to (fmap (first (HS.map filepathNormalise)))
 
-  let poolToResource (name, depth) = (BSC8.pack name,)
-                                     <$> Shake.newResource name depth
+  let poolToResource (name, depth) = Shake.newResource name depth
 
-  poolList <- mapM (first BSC8.unpack .> poolToResource)
-              (("console", 1) : (ninja ^. pninjaPools))
+  poolList <- HM.traverseWithKey
+              (\k v -> Shake.newResource (BSC8.unpack k) v)
+              (HM.insert "console" 1 (ninja ^. pninjaPools))
 
   let phonys    = ninja ^. pninjaPhonys
-                  |> HM.fromList
   let singles   = ninja ^. pninjaSingles
+                  |> HM.toList
                   |> fmap (first filepathNormalise)
                   |> HM.fromList
-  let multiples = [(x, (xs, b)) | (xs, b) <- normalisedMultiples, x <- xs]
+  let multiples = [(x, (xs, b)) | (xs, b) <- normMultiples, x <- HS.toList xs]
                   |> HM.fromList
   let rules     = ninja ^. pninjaRules
-                  |> HM.fromList
   let pools     = poolList
-                  |> HM.fromList
   let defaults  = ninja ^. pninjaDefaults
-                  |> HS.fromList
 
-  let build :: [Str] -> PBuild -> Action ()
+  let build :: HashSet Str -> PBuild -> Action ()
       build = runBuild (needDeps ninja) phonys rules pools
 
   let targets :: HashSet Str
@@ -224,34 +225,39 @@ ninjaBuild ninja args = pure $ Just $ do
               | otherwise              = HS.fromList
                                          (HM.keys singles <> HM.keys multiples)
 
-  Shake.action $ needBS $ concatMap (resolvePhony phonys) $ HS.toList targets
+  Shake.action $ needBS
+    $ HS.toList $ HS.unions $ fmap (resolvePhony phonys) $ HS.toList targets
 
   let relatedOutputs :: FilePath -> Maybe [FilePath]
       relatedOutputs (BSC8.pack -> out)
         = HM.lookup out multiples
-          |> fmap fst
+          |> fmap (fst .> HS.toList)
           |> fromMaybe (if HM.member out singles then [out] else [])
           |> map BSC8.unpack
           |> Just
 
   relatedOutputs &?> \(map BSC8.pack -> outputs) -> do
-    build outputs (snd (multiples HM.! head outputs))
+    build (HS.fromList outputs) (snd (multiples HM.! head outputs))
 
   (flip HM.member singles . BSC8.pack) ?> \(BSC8.pack -> output) -> do
-    build [output] (singles HM.! output)
+    build (HS.singleton output) (singles HM.! output)
 
-resolvePhony :: HashMap Str [Str] -> Str -> [Str]
+resolvePhony :: HashMap Str (HashSet Str) -> Str -> HashSet Str
 resolvePhony mp = f (Left 100)
   where
     -- FIXME: use HashSet or Vector here?
-    f (Left 0)   x               = f (Right []) x
-    f (Right xs) x | x `elem` xs = [ "Recursive phony involving "
-                                   , BSC8.unpack x
-                                   ] |> mconcat |> error
-    f a          x               = case HM.lookup x mp of
-                                     Nothing -> [x]
-                                     Just xs -> bimap (subtract 1) (x:) a
-                                                |> \a' -> concatMap (f a') xs
+    f :: Either Int (HashSet Str) -> Str -> HashSet Str
+    f (Left 0)   x          = f (Right HS.empty) x
+    f (Right xs) x | x ∈ xs = [ "Recursive phony involving "
+                              , BSC8.unpack x
+                              ] |> mconcat |> error
+    f a          x          = case HS.toList <$> HM.lookup x mp of
+                                Nothing -> HS.singleton x
+                                Just xs -> bimap (subtract 1) (HS.insert x) a
+                                           |> \a' -> HS.unions (map (f a') xs)
+
+    (∈) :: (Eq a, Hashable a) => a -> HashSet a -> Bool
+    (∈) = HS.member
 
 quote :: Str -> Str
 quote x | BSC8.any isSpace x = let q = BSC8.singleton '\"' in mconcat [q, x, q]
@@ -259,10 +265,10 @@ quote x                      = x
 
 
 runBuild :: (PBuild -> [Str] -> Action ())
-         -> HashMap Str [Str]
+         -> HashMap Str (HashSet Str)
          -> HashMap Str PRule
          -> HashMap Str Shake.Resource
-         -> [Str]
+         -> HashSet Str
          -> PBuild
          -> Action ()
 runBuild needD phonys rules pools out build = do
@@ -274,11 +280,15 @@ runBuild needD phonys rules pools out build = do
   let depsImplicit  = build ^. pbuildDeps . pdepsImplicit
   let depsOrderOnly = build ^. pbuildDeps . pdepsOrderOnly
 
-  needBS $ concatMap (resolvePhony phonys) $ depsNormal <> depsImplicit
-  orderOnlyBS $ concatMap (resolvePhony phonys) depsOrderOnly
+  let setConcatMap :: (Eq b, Hashable b) => (a -> HashSet b) -> [a] -> [b]
+      setConcatMap f = map f .> HS.unions .> HS.toList
+
+  needBS      $ setConcatMap (resolvePhony phonys) $ depsNormal <> depsImplicit
+  orderOnlyBS $ setConcatMap (resolvePhony phonys) depsOrderOnly
 
   let ruleNotFound = [ "Ninja rule named ", ruleName
-                     , " is missing, required to build ", BSC8.unwords out
+                     , " is missing, required to build "
+                     , BSC8.unwords (HS.toList out)
                      ] |> mconcat |> errorA
 
   rule <- HM.lookup ruleName rules |> maybe ruleNotFound pure
@@ -302,7 +312,7 @@ runBuild needD phonys rules pools out build = do
                        else case HM.lookup pool pools of
                               Nothing -> [ "Ninja pool named ", pool
                                          , " not found, required to build "
-                                         , BSC8.unwords out
+                                         , BSC8.unwords (HS.toList out)
                                          ] |> mconcat |> errorA
                               (Just r) -> Shake.withResource r 1 act
 
@@ -355,7 +365,16 @@ needDeps ninja = \build xs -> do
     builds :: HashMap Str PBuild
     builds = let singles   = ninja ^. pninjaSingles
                  multiples = ninja ^. pninjaMultiples
-             in HM.fromList (singles <> [(x, y) | (xs, y) <- multiples, x <- xs])
+             in singles <> explodeHM multiples
+
+    explodeHM :: (Eq k, Hashable k) => HashMap (HashSet k) v -> HashMap k v
+    explodeHM = HM.toList
+                .> map (first HS.toList)
+                .> explode
+                .> HM.fromList
+
+    explode :: [([k], v)] -> [(k, v)]
+    explode m = [(x, y) | (xs, y) <- m, x <- xs]
 
     -- do list difference, assuming a small initial set, most of which occurs
     -- early in the list

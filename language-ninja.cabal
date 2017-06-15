@@ -102,6 +102,7 @@ executable ninja2nix
                         , containers            -any
                         , cryptonite            >= 0.21    && < 0.22
                         , flow                  -any
+                        , hashable              -any
                         , lens                  -any
                         , makefile              -any
                         , text                  -any

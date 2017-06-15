@@ -48,6 +48,12 @@ import           Data.ByteString       (ByteString)
 import qualified Data.ByteString       as BS
 import qualified Data.ByteString.Char8 as BSC8
 
+import           Data.HashMap.Strict   (HashMap)
+import qualified Data.HashMap.Strict   as HM
+
+import           Data.HashSet          (HashSet)
+import qualified Data.HashSet          as HS
+
 import qualified Data.Text             as T
 import qualified Data.Text.Encoding    as T
 
@@ -60,12 +66,12 @@ import           Flow
 
 prettyNinja :: PNinja -> IO ByteString
 prettyNinja ninja
-  = [ mapM prettyRule     (ninja ^. pninjaRules)
-    , mapM prettySingle   (ninja ^. pninjaSingles)
-    , mapM prettyMultiple (ninja ^. pninjaMultiples)
-    , mapM prettyPhony    (ninja ^. pninjaPhonys)
-    , mapM prettyDefault  (ninja ^. pninjaDefaults)
-    , mapM prettyPool     (ninja ^. pninjaPools)
+  = [ mapM prettyRule     (HM.toList (ninja ^. pninjaRules))
+    , mapM prettySingle   (HM.toList (ninja ^. pninjaSingles))
+    , mapM prettyMultiple (HM.toList (ninja ^. pninjaMultiples))
+    , mapM prettyPhony    (HM.toList (ninja ^. pninjaPhonys))
+    , mapM prettyDefault  (HS.toList (ninja ^. pninjaDefaults))
+    , mapM prettyPool     (HM.toList (ninja ^. pninjaPools))
     ] |> sequenceA |> fmap (mconcat .> mconcat)
 
 prettyRule :: (Str, PRule) -> IO ByteString
@@ -83,9 +89,9 @@ prettyExpr = go .> mconcat
     go (Ninja.PVar name) = ["${", name, "}"]
 
 prettySingle :: (FileStr, PBuild) -> IO ByteString
-prettySingle (output, build) = prettyMultiple ([output], build)
+prettySingle (output, build) = prettyMultiple (HS.singleton output, build)
 
-prettyMultiple :: ([FileStr], PBuild) -> IO ByteString
+prettyMultiple :: (HashSet FileStr, PBuild) -> IO ByteString
 prettyMultiple (outputs, build) = do
   stack <- Ninja.getEnvStack (build ^. pbuildEnv)
 
@@ -99,7 +105,7 @@ prettyMultiple (outputs, build) = do
   let binds     = build ^. pbuildBind . to (map prettyBind) . to mconcat
 
   pure $ mconcat
-    [ "build ", BSC8.unwords outputs, ": "
+    [ "build ", BSC8.unwords (HS.toList outputs), ": "
     , ruleName, " ", normal
     , prefixIfThere " | "  implicit
     , prefixIfThere " || " orderOnly, "\n"
@@ -107,9 +113,9 @@ prettyMultiple (outputs, build) = do
     , binds
     ]
 
-prettyPhony :: (Str, [FileStr]) -> IO ByteString
+prettyPhony :: (Str, HashSet FileStr) -> IO ByteString
 prettyPhony (name, inputs)
-  = [ ["build ", name, ": phony ", BSC8.unwords inputs]
+  = [ ["build ", name, ": phony ", BSC8.unwords (HS.toList inputs)]
     ] |> map mconcat |> BSC8.unlines |> pure
 
 prettyDefault :: FileStr -> IO ByteString

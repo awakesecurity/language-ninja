@@ -64,6 +64,12 @@ import           Control.Lens.Setter
 import qualified Data.ByteString.Char8 as BSC8
 import           Data.Monoid
 
+import           Data.HashMap.Strict   (HashMap)
+import qualified Data.HashMap.Strict   as HM
+
+import           Data.HashSet          (HashSet)
+import qualified Data.HashSet          as HS
+
 import           Language.Ninja.Env
 import           Language.Ninja.Lexer
 import           Language.Ninja.Types
@@ -103,21 +109,23 @@ applyStmt env ninja (key, binds) = case key of
                 & (pbuildDeps . pdepsImplicit  .~ implicit)
                 & (pbuildDeps . pdepsOrderOnly .~ orderOnly)
                 & (pbuildBind                  .~ binds)
-    let addP p = [(x, normal <> implicit <> orderOnly) | x <- outputs] <> p
-    let addS s = (head outputs, build) : s
-    let addM m = (outputs, build) : m
+    let depSet = HS.fromList (normal <> implicit <> orderOnly)
+    let addP = \p -> [(x, depSet) | x <- outputs] <> (HM.toList p)
+                     |> HM.fromList
+    let addS = HM.insert (head outputs) build
+    let addM = HM.insert (HS.fromList outputs) build
     pure $ if      rule == "phony"     then ninja & pninjaPhonys    %~ addP
            else if length outputs == 1 then ninja & pninjaSingles   %~ addS
            else                             ninja & pninjaMultiples %~ addM
   (LexRule name) -> do
     let rule = makePRule & pruleBind .~ binds
-    pure (ninja & pninjaRules %~ ((name, rule) :))
+    pure (ninja & pninjaRules %~ HM.insert name rule)
   (LexDefault xs) -> do
-    xs <- mapM (askExpr env) xs
-    pure (ninja & pninjaDefaults %~ (xs ++))
+    xs <- HS.fromList <$> mapM (askExpr env) xs
+    pure (ninja & pninjaDefaults %~ (xs <>))
   (LexPool name) -> do
     depth <- getDepth env binds
-    pure (ninja & pninjaPools %~ ((name, depth) :))
+    pure (ninja & pninjaPools %~ HM.insert name depth)
   (LexInclude expr) -> do
     file <- askExpr env expr
     parseFile (BSC8.unpack file) env ninja

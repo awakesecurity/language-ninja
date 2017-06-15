@@ -90,6 +90,12 @@ import           Control.Lens.Lens
 import qualified Data.ByteString.Char8  as BSC8
 import           Data.Maybe
 
+import           Data.HashMap.Strict    (HashMap)
+import qualified Data.HashMap.Strict    as HM
+
+import           Data.HashSet           (HashSet)
+import qualified Data.HashSet           as HS
+
 import           Language.Ninja.Env
 
 import           Flow
@@ -138,12 +144,12 @@ addBinds e bs = mapM (\(a, b) -> (a,) <$> askExpr e b) bs
 -- | A parsed Ninja file.
 data PNinja
   = MkPNinja
-    { _pninjaRules     :: [(Str, PRule)]
-    , _pninjaSingles   :: [(FileStr, PBuild)]
-    , _pninjaMultiples :: [([FileStr], PBuild)]
-    , _pninjaPhonys    :: [(Str, [FileStr])]
-    , _pninjaDefaults  :: [FileStr]
-    , _pninjaPools     :: [(Str, Int)]
+    { _pninjaRules     :: HashMap Str PRule
+    , _pninjaSingles   :: HashMap FileStr PBuild
+    , _pninjaMultiples :: HashMap (HashSet FileStr) PBuild
+    , _pninjaPhonys    :: HashMap Str (HashSet FileStr)
+    , _pninjaDefaults  :: HashSet FileStr
+    , _pninjaPools     :: HashMap Str Int
     }
   deriving (Show)
 
@@ -159,32 +165,32 @@ makePNinja = MkPNinja
              }
 
 -- | The rules defined in a parsed Ninja file.
-pninjaRules :: Lens' PNinja [(Str, PRule)]
+pninjaRules :: Lens' PNinja (HashMap Str PRule)
 pninjaRules = lens _pninjaRules
               $ \(MkPNinja {..}) x -> MkPNinja { _pninjaRules = x, .. }
 
 -- | The set of build declarations with precisely one output.
-pninjaSingles :: Lens' PNinja [(FileStr, PBuild)]
+pninjaSingles :: Lens' PNinja (HashMap FileStr PBuild)
 pninjaSingles = lens _pninjaSingles
               $ \(MkPNinja {..}) x -> MkPNinja { _pninjaSingles = x, .. }
 
 -- | The set of build declarations with two or more outputs.
-pninjaMultiples :: Lens' PNinja [([FileStr], PBuild)]
+pninjaMultiples :: Lens' PNinja (HashMap (HashSet FileStr) PBuild)
 pninjaMultiples = lens _pninjaMultiples
                   $ \(MkPNinja {..}) x -> MkPNinja { _pninjaMultiples = x, .. }
 
 -- | The set of phony build declarations.
-pninjaPhonys :: Lens' PNinja [(Str, [FileStr])]
+pninjaPhonys :: Lens' PNinja (HashMap Str (HashSet FileStr))
 pninjaPhonys = lens _pninjaPhonys
                $ \(MkPNinja {..}) x -> MkPNinja { _pninjaPhonys = x, .. }
 
 -- | The set of default targets.
-pninjaDefaults :: Lens' PNinja [FileStr]
+pninjaDefaults :: Lens' PNinja (HashSet FileStr)
 pninjaDefaults = lens _pninjaDefaults
                  $ \(MkPNinja {..}) x -> MkPNinja { _pninjaDefaults = x, .. }
 
 -- | A mapping from pool names to pool depth integers.
-pninjaPools :: Lens' PNinja [(Str, Int)]
+pninjaPools :: Lens' PNinja (HashMap Str Int)
 pninjaPools = lens _pninjaPools
               $ \(MkPNinja {..}) x -> MkPNinja { _pninjaPools = x, .. }
 

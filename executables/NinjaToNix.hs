@@ -71,6 +71,8 @@ import qualified Data.HashMap.Strict         as HM
 import           Data.HashSet                (HashSet)
 import qualified Data.HashSet                as HS
 
+import           Data.Hashable               (Hashable)
+
 import qualified Language.Ninja.Env          as Ninja
 import qualified Language.Ninja.Lexer        as Ninja
 import qualified Language.Ninja.Parse        as Ninja
@@ -168,13 +170,17 @@ data SBuild
 compileNinja :: Ninja.PNinja -> SNinja
 compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
   where
+    onHM :: (Eq k', Hashable k')
+         => ((k, v) -> (k', v')) -> HashMap k v -> HashMap k' v'
+    onHM f = HM.toList .> map f .> HM.fromList
+
     simpleBuilds :: HashMap Target SBuild
     simpleBuilds = [ HM.map simplifyBuild combined
-                   , HM.fromList (map simplifyPhony phonys)
+                   , onHM simplifyPhony phonys
                    ] |> mconcat |> linearizeGraph
 
     simpleDefaults :: HashSet Target
-    simpleDefaults = HS.map targetFromBS $ HS.fromList defaults
+    simpleDefaults = HS.map targetFromBS defaults
 
     simplifyBuild :: Ninja.PBuild -> SBuild
     simplifyBuild build = MkSBuild (Just rule) deps
@@ -190,14 +196,15 @@ compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
 
         ruleName = build ^. pbuildRule
 
-    simplifyPhony :: (ByteString, [ByteString]) -> (HashSet Target, SBuild)
+    simplifyPhony :: (ByteString, HashSet ByteString)
+                  -> (HashSet Target, SBuild)
     simplifyPhony (name, files) = ( HS.singleton (targetFromBS name)
-                                  , MkSBuild Nothing (HS.fromList filesT) )
+                                  , MkSBuild Nothing filesT )
       where
-        filesT = map targetFromBS files
+        filesT = HS.map targetFromBS files
 
     ruleMap :: HashMap Target Command
-    ruleMap = HM.fromList $ map (targetFromBS *** computeCommand) rules
+    ruleMap = onHM (targetFromBS *** computeCommand) rules
 
     computeCommand :: Ninja.PRule -> Command
     computeCommand rule
@@ -207,9 +214,8 @@ compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
            Nothing             -> error "\"command\" not found"
 
     combined :: HashMap (HashSet Target) Ninja.PBuild
-    combined = HM.fromList
-               $ map (first (HS.fromList . map targetFromBS))
-               $ multiples <> map (first (\x -> [x])) singles
+    combined = multiples <> onHM (first (\x -> HS.singleton x)) singles
+               |> onHM (first (HS.map targetFromBS))
 
     linearizeGraph :: HashMap (HashSet Target) SBuild -> HashMap Target SBuild
     linearizeGraph = HM.toList
