@@ -64,43 +64,43 @@ import           Data.Monoid
 
 import           Flow
 
-prettyNinja :: PNinja -> IO ByteString
+prettyNinja :: PNinja -> Text
 prettyNinja ninja
-  = [ mapM prettyRule     (HM.toList (ninja ^. pninjaRules))
-    , mapM prettySingle   (HM.toList (ninja ^. pninjaSingles))
-    , mapM prettyMultiple (HM.toList (ninja ^. pninjaMultiples))
-    , mapM prettyPhony    (HM.toList (ninja ^. pninjaPhonys))
-    , mapM prettyDefault  (HS.toList (ninja ^. pninjaDefaults))
-    , mapM prettyPool     (HM.toList (ninja ^. pninjaPools))
-    ] |> sequenceA |> fmap (mconcat .> mconcat)
+  = [ map prettyRule     (HM.toList (ninja ^. pninjaRules))
+    , map prettySingle   (HM.toList (ninja ^. pninjaSingles))
+    , map prettyMultiple (HM.toList (ninja ^. pninjaMultiples))
+    , map prettyPhony    (HM.toList (ninja ^. pninjaPhonys))
+    , map prettyDefault  (HS.toList (ninja ^. pninjaDefaults))
+    , map prettyPool     (HM.toList (ninja ^. pninjaPools))
+    ] |> mconcat |> mconcat
 
-prettyRule :: (Str, PRule) -> IO ByteString
+prettyRule :: (Text, PRule) -> Text
 prettyRule (name, rule) = do
   let binds = rule ^. pruleBind
               |> HM.toList
               |> map (Arr.second prettyExpr .> prettyBind)
               |> mconcat
-  pure $ mconcat ["rule ", name, "\n", binds]
+  mconcat ["rule ", name, "\n", binds]
 
-prettyExpr :: Ninja.PExpr -> ByteString
+prettyExpr :: Ninja.PExpr -> Text
 prettyExpr = go .> mconcat
   where
     go (Ninja.PExprs es) = map prettyExpr es
     go (Ninja.PLit  str) = [str]
     go (Ninja.PVar name) = ["${", name, "}"]
 
-prettySingle :: (FileStr, PBuild) -> IO ByteString
+prettySingle :: (FileText, PBuild) -> Text
 prettySingle (output, build) = prettyMultiple (HS.singleton output, build)
 
-prettyMultiple :: (HashSet FileStr, PBuild) -> IO ByteString
+prettyMultiple :: (HashSet FileText, PBuild) -> Text
 prettyMultiple (outputs, build) = do
   let stack = Ninja.getEnvStack (build ^. pbuildEnv)
 
-  let prefixIfThere :: Str -> Str -> Str
-      prefixIfThere pfx rest = if BSC8.all isSpace rest then "" else pfx <> rest
+  let prefixIfThere :: Text -> Text -> Text
+      prefixIfThere pfx rest = if T.all isSpace rest then "" else pfx <> rest
 
-  let unwordsSet :: HashSet Str -> Str
-      unwordsSet = HS.toList .> BSC8.unwords
+  let unwordsSet :: HashSet Text -> Text
+      unwordsSet = HS.toList .> T.unwords
 
   let ruleName  = build ^. pbuildRule
   let normal    = build ^. pbuildDeps . pdepsNormal
@@ -108,33 +108,33 @@ prettyMultiple (outputs, build) = do
   let orderOnly = build ^. pbuildDeps . pdepsOrderOnly
   let binds     = build ^. pbuildBind
 
-  pure $ mconcat
-    [ "build ", BSC8.unwords (HS.toList outputs), ": "
+  mconcat
+    [ "build ", T.unwords (HS.toList outputs), ": "
     , ruleName, " ", unwordsSet normal
     , prefixIfThere " | "  (unwordsSet implicit)
     , prefixIfThere " || " (unwordsSet orderOnly), "\n"
-    , "    # environment: ", bshow (map HM.toList stack), "\n"
+    , "    # environment: ", tshow (map HM.toList stack), "\n"
     , HM.toList binds |> map prettyBind |> mconcat
     ]
 
-prettyPhony :: (Str, HashSet FileStr) -> IO ByteString
+prettyPhony :: (Text, HashSet FileText) -> Text
 prettyPhony (name, inputs)
-  = [ ["build ", name, ": phony ", BSC8.unwords (HS.toList inputs)]
-    ] |> map mconcat |> BSC8.unlines |> pure
+  = [ ["build ", name, ": phony ", T.unwords (HS.toList inputs)]
+    ] |> map mconcat |> T.unlines
 
-prettyDefault :: FileStr -> IO ByteString
+prettyDefault :: FileText -> Text
 prettyDefault target
   = [ ["default ", target]
-    ] |> map mconcat |> BSC8.unlines |> pure
+    ] |> map mconcat |> T.unlines
 
-prettyPool :: (Str, Int) -> IO ByteString
+prettyPool :: (Text, Int) -> Text
 prettyPool (name, depth)
   = [ ["pool ", name]
-    , ["    depth = ", bshow depth]
-    ] |> map mconcat |> BSC8.unlines |> pure
+    , ["    depth = ", tshow depth]
+    ] |> map mconcat |> T.unlines
 
-prettyBind :: (Str, Str) -> Str
+prettyBind :: (Text, Text) -> Text
 prettyBind (name, value) = mconcat ["    ", name, " = ", value, "\n"]
 
-bshow :: (Show s) => s -> Str
-bshow = T.encodeUtf8 . T.pack . show
+tshow :: (Show s) => s -> Text
+tshow = show .> T.pack

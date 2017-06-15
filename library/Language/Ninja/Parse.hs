@@ -62,8 +62,12 @@ import           Control.Lens.Getter
 import           Control.Lens.Lens
 import           Control.Lens.Setter
 
-import qualified Data.ByteString.Char8 as BSC8
 import           Data.Monoid
+
+import qualified Data.ByteString.Char8 as BSC8
+
+import qualified Data.Text             as T
+import qualified Data.Text.Encoding    as T
 
 import           Data.HashMap.Strict   (HashMap)
 import qualified Data.HashMap.Strict   as HM
@@ -82,36 +86,36 @@ import           Flow
 parse :: FilePath -> IO PNinja
 parse file = parseWithEnv file makeEnv
 
-parseWithEnv :: FilePath -> Env Str Str -> IO PNinja
+parseWithEnv :: FilePath -> Env Text Text -> IO PNinja
 parseWithEnv file env = fst <$> parseFile file (makePNinja, env)
 
 parseFile :: FilePath
-          -> (PNinja, Env Str Str) -> IO (PNinja, Env Str Str)
+          -> (PNinja, Env Text Text) -> IO (PNinja, Env Text Text)
 parseFile file (ninja, env) = do
   lexes <- lexerFile $ if file == "-" then Nothing else Just file
   withBinds lexes
     |> map applyStmt
     |> foldr (>=>) pure
     |> (\f -> f (ninja, env))
-  -- foldM (applyStmt env) ninja $
 
-withBinds :: [Lexeme] -> [(Lexeme, [(Str, PExpr)])]
-withBinds [] = []
-withBinds (x:xs) = (x, a) : withBinds b
+withBinds :: [Lexeme] -> [(Lexeme, [(Text, PExpr)])]
+withBinds []     = []
+withBinds (x:xs) = let (a, b) = f xs
+                   in (x, a) : withBinds b
   where
-    (a, b) = f xs
-    f ((LexBind a b) : rest) = let (as, bs) = f rest in (((a, b):as), bs)
+    f ((LexBind a b) : rest) = let (as, bs) = f rest
+                               in (((T.decodeUtf8 a, b):as), bs)
     f xs                     = ([], xs)
 
-applyStmt :: (Lexeme, [(Str, PExpr)])
-          -> (PNinja, Env Str Str) -> IO (PNinja, Env Str Str)
+applyStmt :: (Lexeme, [(Text, PExpr)])
+          -> (PNinja, Env Text Text) -> IO (PNinja, Env Text Text)
 applyStmt (lexKey, lexBinds) (ninja, env) = case lexKey of
   (LexBuild lexOutputs lexRule lexDeps) -> do
     let outputs = map (askExpr env) lexOutputs
     let deps    = HS.fromList (map (askExpr env) lexDeps)
     let binds   = HM.fromList (map (second (askExpr env)) lexBinds)
     let (normal, implicit, orderOnly) = splitDeps deps
-    let build = makePBuild lexRule env
+    let build = makePBuild (T.decodeUtf8 lexRule) env
                 |> (pbuildDeps . pdepsNormal    .~ normal)
                 |> (pbuildDeps . pdepsImplicit  .~ implicit)
                 |> (pbuildDeps . pdepsOrderOnly .~ orderOnly)
@@ -126,32 +130,32 @@ applyStmt (lexKey, lexBinds) (ninja, env) = case lexKey of
             else if length outputs == 1 then ninja |> pninjaSingles   %~ addS
             else                             ninja |> pninjaMultiples %~ addM
     pure (newNinja, env)
-  (LexRule name) -> do
+  (LexRule lexName) -> do
     let rule = makePRule |> pruleBind .~ HM.fromList lexBinds
-    pure (ninja |> pninjaRules %~ HM.insert name rule, env)
-  (LexDefault xs) -> do
-    let set = HS.fromList (map (askExpr env) xs)
+    pure (ninja |> pninjaRules %~ HM.insert (T.decodeUtf8 lexName) rule, env)
+  (LexDefault lexDefaults) -> do
+    let set = HS.fromList (map (askExpr env) lexDefaults)
     pure (ninja |> pninjaDefaults %~ (set <>), env)
-  (LexPool name) -> do
+  (LexPool lexName) -> do
     depth <- getDepth env lexBinds
-    pure (ninja |> pninjaPools %~ HM.insert name depth, env)
-  (LexInclude expr) -> do
-    let file = askExpr env expr
-    parseFile (BSC8.unpack file) (ninja, env)
-  (LexSubninja expr) -> do
-    let file = askExpr env expr
-    parseFile (BSC8.unpack file) (ninja, scopeEnv env)
+    pure (ninja |> pninjaPools %~ HM.insert (T.decodeUtf8 lexName) depth, env)
+  (LexInclude lexExpr) -> do
+    let file = askExpr env lexExpr
+    parseFile (T.unpack file) (ninja, env)
+  (LexSubninja lexExpr) -> do
+    let file = askExpr env lexExpr
+    parseFile (T.unpack file) (ninja, scopeEnv env)
   (LexDefine a b) -> do
-    pure (ninja, addBind a b env)
+    pure (ninja, addBind (T.decodeUtf8 a) b env)
   (LexBind a _) -> [ "Unexpected binding defining ", a
                    ] |> mconcat |> BSC8.unpack |> error
 
-splitDeps :: HashSet Str -> (HashSet Str, HashSet Str, HashSet Str)
+splitDeps :: HashSet Text -> (HashSet Text, HashSet Text, HashSet Text)
 splitDeps = HS.toList
             .> go
             .> (\(a, b, c) -> (HS.fromList a, HS.fromList b, HS.fromList c))
   where
-    go :: [Str] -> ([Str], [Str], [Str])
+    go :: [Text] -> ([Text], [Text], [Text])
     go []                   = ([],      [],     [])
     go (x:xs) | (x == "|")  = ([],  a <> b,      c)
               | (x == "||") = ([],       b, a <> c)
@@ -159,12 +163,12 @@ splitDeps = HS.toList
       where
         (a, b, c) = go xs
 
-getDepth :: Env Str Str -> [(Str, PExpr)] -> IO Int
+getDepth :: Env Text Text -> [(Text, PExpr)] -> IO Int
 getDepth env xs = do
   let poolDepthError x = [ "Could not parse depth field in pool, got: ", x
-                         ] |> mconcat |> BSC8.unpack |> error
+                         ] |> mconcat |> T.unpack |> error
   case askExpr env <$> lookup "depth" xs of
     Nothing -> pure 1
-    Just x -> case BSC8.readInt x of
-                (Just (i, n)) | BSC8.null n -> pure i
-                _                           -> poolDepthError x
+    Just x  -> case BSC8.readInt (T.encodeUtf8 x) of
+                 (Just (i, n)) | BSC8.null n -> pure i
+                 _                           -> poolDepthError x

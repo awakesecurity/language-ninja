@@ -58,6 +58,10 @@ import qualified Data.ByteString.Char8    as BSC8
 import qualified Data.ByteString.Internal as BS.Internal
 import qualified Data.ByteString.Unsafe   as BS.Unsafe
 
+import           Data.Text                (Text)
+import qualified Data.Text                as T
+import qualified Data.Text.Encoding       as T
+
 import           Data.Char
 import           Data.Tuple.Extra
 import           Data.Word
@@ -270,7 +274,7 @@ lexxExpr stopColon stopSpace = first exprs . f
                 (False, False) -> \x -> (x <= '$') && (                        x == '$' || x == '\r' || x == '\n' || x == '\0')
 
     f x = case break00 special x of
-      (a, x) -> if BSC8.null a then g x else PLit a $: g x
+      (a, x) -> if BSC8.null a then g x else PLit (T.decodeUtf8 a) $: g x
 
     x $: (xs,y) = (x:xs,y)
 
@@ -279,18 +283,18 @@ lexxExpr stopColon stopSpace = first exprs . f
       = ([], x)
       | c_x <- tail0 x, (c, x) <- list0 c_x
       = case c of
-          '$'   -> PLit (BSC8.singleton '$') $: f x
-          ' '   -> PLit (BSC8.singleton ' ') $: f x
-          ':'   -> PLit (BSC8.singleton ':') $: f x
+          '$'   -> PLit (T.singleton '$') $: f x
+          ' '   -> PLit (T.singleton ' ') $: f x
+          ':'   -> PLit (T.singleton ':') $: f x
           '\n'  -> f $ dropSpace x
           '\r'  -> f $ dropSpace $ dropN x
           '{' | (name, x) <- span0 isVarDot x
               , not $ BSC8.null name
               , ('}', x) <- list0 x
-                -> PVar name $: f x
+                -> PVar (T.decodeUtf8 name) $: f x
           _   | (name, x) <- span0 isVar c_x
               , not $ BSC8.null name
-                -> PVar name $: f x
+                -> PVar (T.decodeUtf8 name) $: f x
           _     -> error "Unexpect $ followed by unexpected stuff"
 
 

@@ -104,12 +104,6 @@ debugSNinja = compileNinja <$> debugNinja
 
 --------------------------------------------------------------------------------
 
-targetFromBS :: ByteString -> Target
-targetFromBS = T.decodeUtf8 .> makeTarget
-
-commandFromBS :: ByteString -> Command
-commandFromBS = T.decodeUtf8 .> makeCommand
-
 -- | A simplified build graph.
 data SNinja
   = MkSNinja
@@ -180,7 +174,7 @@ compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
                    ] |> mconcat |> linearizeGraph
 
     simpleDefaults :: HashSet Target
-    simpleDefaults = HS.map targetFromBS defaults
+    simpleDefaults = HS.map makeTarget defaults
 
     simplifyBuild :: Ninja.PBuild -> SBuild
     simplifyBuild build = MkSBuild (Just rule) deps
@@ -188,33 +182,33 @@ compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
         deps = [ build ^. pbuildDeps . pdepsNormal
                , build ^. pbuildDeps . pdepsImplicit
                , build ^. pbuildDeps . pdepsOrderOnly
-               ] |> mconcat |> HS.map targetFromBS
+               ] |> mconcat |> HS.map makeTarget
 
         rule = fromMaybe (error ("rule not found: " <> show ruleName))
-               $ HM.lookup (targetFromBS ruleName) ruleMap
+               $ HM.lookup (makeTarget ruleName) ruleMap
 
         ruleName = build ^. pbuildRule
 
-    simplifyPhony :: (ByteString, HashSet ByteString)
+    simplifyPhony :: (Text, HashSet Text)
                   -> (HashSet Target, SBuild)
-    simplifyPhony (name, files) = ( HS.singleton (targetFromBS name)
+    simplifyPhony (name, files) = ( HS.singleton (makeTarget name)
                                   , MkSBuild Nothing filesT )
       where
-        filesT = HS.map targetFromBS files
+        filesT = HS.map makeTarget files
 
     ruleMap :: HashMap Target Command
-    ruleMap = onHM (targetFromBS *** computeCommand) rules
+    ruleMap = onHM (makeTarget *** computeCommand) rules
 
     computeCommand :: Ninja.PRule -> Command
     computeCommand rule
       = case HM.lookup "command" (rule ^. pruleBind)
-        of Just (Ninja.PLit x) -> commandFromBS x
+        of Just (Ninja.PLit x) -> makeCommand x
            Just _              -> error "rule uses variables"
            Nothing             -> error "\"command\" not found"
 
     combined :: HashMap (HashSet Target) Ninja.PBuild
     combined = multiples <> onHM (first HS.singleton) singles
-               |> onHM (first (HS.map targetFromBS))
+               |> onHM (first (HS.map makeTarget))
 
     linearizeGraph :: HashMap (HashSet Target) SBuild -> HashMap Target SBuild
     linearizeGraph = HM.toList

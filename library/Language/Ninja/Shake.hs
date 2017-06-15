@@ -60,9 +60,10 @@ import           Data.Monoid
 
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
+import qualified Data.Text.Encoding         as T
+import qualified Data.Text.IO               as T
 
 import qualified Data.ByteString            as BS
-import qualified Data.ByteString.Char8      as BSC8
 
 import           Development.Shake          (Action, Rules, (&?>), (?>))
 import qualified Development.Shake          as Shake
@@ -103,20 +104,20 @@ import           Flow
 --------------------------------------------------------------------------------
 -- STUBS
 
-filepathNormalise :: Str -> Str
-filepathNormalise = BSC8.unpack
+filepathNormalise :: Text -> Text
+filepathNormalise = T.unpack
                     .> Shake.normaliseEx
                     .> Shake.toStandard
-                    .> BSC8.pack
+                    .> T.pack
 
-needBS :: [Str] -> Action ()
-needBS = Shake.need . map BSC8.unpack
+needT :: [Text] -> Action ()
+needT = Shake.need . map T.unpack
 
-neededBS :: [Str] -> Action ()
-neededBS = Shake.needed . map BSC8.unpack
+neededT :: [Text] -> Action ()
+neededT = Shake.needed . map T.unpack
 
-orderOnlyBS :: [Str] -> Action ()
-orderOnlyBS = Shake.orderOnly . map BSC8.unpack
+orderOnlyT :: [Text] -> Action ()
+orderOnlyT = Shake.orderOnly . map T.unpack
 
 --------------------------------------------------------------------------------
 
@@ -130,12 +131,12 @@ runNinja file args tool = do
   ninjaDispatch options
 
 data NinjaOptions
-  = NinjaOptionsBuild   !PNinja ![Str]
-  | NinjaOptionsCompDB  !PNinja ![Str]
+  = NinjaOptionsBuild   !PNinja ![Text]
+  | NinjaOptionsCompDB  !PNinja ![Text]
   | NinjaOptionsUnknown !Text
 
 parseNinjaOptions :: FilePath -> [String] -> Maybe String -> IO NinjaOptions
-parseNinjaOptions file (map BSC8.pack -> args) tool = do
+parseNinjaOptions file (map T.pack -> args) tool = do
   ninja <- Ninja.parse file
   pure $ case tool of
     Nothing         -> NinjaOptionsBuild  ninja args
@@ -148,7 +149,7 @@ ninjaDispatch (NinjaOptionsCompDB n args) = ninjaCompDB n args
 ninjaDispatch (NinjaOptionsUnknown tool)  = [ "Unknown tool: ", tool
                                             ] |> mconcat |> T.unpack |> errorIO
 
-computeRuleEnv :: HashSet Str -> PBuild -> PRule -> Env Str Str
+computeRuleEnv :: HashSet Text -> PBuild -> PRule -> Env Text Text
 computeRuleEnv out b r = do
   let deps = b ^. pbuildDeps . pdepsNormal
   -- the order of adding new environment variables matters
@@ -157,13 +158,13 @@ computeRuleEnv out b r = do
       compose = map Endo .> mconcat .> appEndo
 
   Ninja.scopeEnv (b ^. pbuildEnv)
-    |> Ninja.addEnv "out"        (BSC8.unwords (map quote (HS.toList out)))
-    |> Ninja.addEnv "in"         (BSC8.unwords (map quote (HS.toList deps)))
-    |> Ninja.addEnv "in_newline" (BSC8.unlines (HS.toList deps))
+    |> Ninja.addEnv "out"        (T.unwords (map quote (HS.toList out)))
+    |> Ninja.addEnv "in"         (T.unwords (map quote (HS.toList deps)))
+    |> Ninja.addEnv "in_newline" (T.unlines (HS.toList deps))
     |> compose (map (uncurry Ninja.addEnv) (HM.toList (b ^. pbuildBind)))
     |> Ninja.addBinds (HM.toList (r ^. pruleBind))
 
-ninjaCompDB :: PNinja -> [Str] -> IO (Maybe (Rules ()))
+ninjaCompDB :: PNinja -> [Text] -> IO (Maybe (Rules ()))
 ninjaCompDB ninja args = do
   dir <- getCurrentDirectory
 
@@ -173,7 +174,7 @@ ninjaCompDB ninja args = do
   let rules = HM.filterWithKey (curry inArgs) rules
 
   -- the build items are generated in reverse order, hence the reverse
-  let itemsToBuild :: [(HashSet Str, PBuild, Str, PRule)]
+  let itemsToBuild :: [(HashSet Text, PBuild, Text, PRule)]
       itemsToBuild = do
         let multiples = ninja ^. pninjaMultiples
         let singles = ninja ^. pninjaSingles
@@ -186,15 +187,15 @@ ninjaCompDB ninja args = do
 
   compDB <- forM itemsToBuild $ \(out, build, file, rule) -> do
     let env = computeRuleEnv out build rule
-    let commandLine = BSC8.unpack (Ninja.askVar env "command")
+    let commandLine = T.unpack (Ninja.askVar env "command")
     let deps = build ^. pbuildDeps . pdepsNormal
-    pure $ MkCompDB dir commandLine (BSC8.unpack (head (HS.toList deps)))
+    pure $ MkCompDB dir commandLine (T.unpack (head (HS.toList deps)))
 
   putStr $ printCompDB compDB
 
   pure Nothing
 
-ninjaBuild :: PNinja -> [Str] -> IO (Maybe (Rules ()))
+ninjaBuild :: PNinja -> [Text] -> IO (Maybe (Rules ()))
 ninjaBuild ninja args = pure $ Just $ do
   let normMultiples = ninja
                       ^. pninjaMultiples
@@ -204,7 +205,7 @@ ninjaBuild ninja args = pure $ Just $ do
   let poolToResource (name, depth) = Shake.newResource name depth
 
   poolList <- HM.traverseWithKey
-              (\k v -> Shake.newResource (BSC8.unpack k) v)
+              (\k v -> Shake.newResource (T.unpack k) v)
               (HM.insert "console" 1 (ninja ^. pninjaPools))
 
   let phonys    = ninja ^. pninjaPhonys
@@ -218,40 +219,39 @@ ninjaBuild ninja args = pure $ Just $ do
   let pools     = poolList
   let defaults  = ninja ^. pninjaDefaults
 
-  let build :: HashSet Str -> PBuild -> Action ()
+  let build :: HashSet Text -> PBuild -> Action ()
       build = runBuild (needDeps ninja) phonys rules pools
 
-  let targets :: HashSet Str
+  let targets :: HashSet Text
       targets | not (null args)        = HS.fromList args
               | not (HS.null defaults) = defaults
               | otherwise              = HS.fromList
                                          (HM.keys singles <> HM.keys multiples)
 
-  Shake.action $ needBS
+  Shake.action $ needT
     $ HS.toList $ HS.unions $ fmap (resolvePhony phonys) $ HS.toList targets
 
   let relatedOutputs :: FilePath -> Maybe [FilePath]
-      relatedOutputs (BSC8.pack -> out)
+      relatedOutputs (T.pack -> out)
         = HM.lookup out multiples
           |> fmap (fst .> HS.toList)
           |> fromMaybe (if HM.member out singles then [out] else [])
-          |> map BSC8.unpack
+          |> map T.unpack
           |> Just
 
-  relatedOutputs &?> \(map BSC8.pack -> outputs) -> do
+  relatedOutputs &?> \(map T.pack -> outputs) -> do
     build (HS.fromList outputs) (snd (multiples HM.! head outputs))
 
-  (flip HM.member singles . BSC8.pack) ?> \(BSC8.pack -> output) -> do
+  (flip HM.member singles . T.pack) ?> \(T.pack -> output) -> do
     build (HS.singleton output) (singles HM.! output)
 
-resolvePhony :: HashMap Str (HashSet Str) -> Str -> HashSet Str
+resolvePhony :: HashMap Text (HashSet Text) -> Text -> HashSet Text
 resolvePhony mp = f (Left 100)
   where
-    -- FIXME: use HashSet or Vector here?
-    f :: Either Int (HashSet Str) -> Str -> HashSet Str
+    f :: Either Int (HashSet Text) -> Text -> HashSet Text
     f (Left 0)   x          = f (Right HS.empty) x
     f (Right xs) x | x ∈ xs = [ "Recursive phony involving "
-                              , BSC8.unpack x
+                              , T.unpack x
                               ] |> mconcat |> error
     f a          x          = case HS.toList <$> HM.lookup x mp of
                                 Nothing -> HS.singleton x
@@ -261,21 +261,21 @@ resolvePhony mp = f (Left 100)
     (∈) :: (Eq a, Hashable a) => a -> HashSet a -> Bool
     (∈) = HS.member
 
-quote :: Str -> Str
-quote x | BSC8.any isSpace x = let q = BSC8.singleton '\"' in mconcat [q, x, q]
-quote x                      = x
+quote :: Text -> Text
+quote x | T.any isSpace x = let q = T.singleton '\"' in mconcat [q, x, q]
+quote x                   = x
 
 
-runBuild :: (PBuild -> [Str] -> Action ())
-         -> HashMap Str (HashSet Str)
-         -> HashMap Str PRule
-         -> HashMap Str Shake.Resource
-         -> HashSet Str
+runBuild :: (PBuild -> [Text] -> Action ())
+         -> HashMap Text (HashSet Text)
+         -> HashMap Text PRule
+         -> HashMap Text Shake.Resource
+         -> HashSet Text
          -> PBuild
          -> Action ()
 runBuild needD phonys rules pools out build = do
-  let errorA :: Str -> Action a
-      errorA = BSC8.unpack .> errorIO .> liftIO
+  let errorA :: Text -> Action a
+      errorA = T.unpack .> errorIO .> liftIO
 
   let ruleName      = build ^. pbuildRule
   let depsNormal    = build ^. pbuildDeps . pdepsNormal
@@ -285,12 +285,12 @@ runBuild needD phonys rules pools out build = do
   let setConcatMap :: (Eq b, Hashable b) => (a -> HashSet b) -> HashSet a -> [b]
       setConcatMap f = HS.map f .> HS.toList .> HS.unions .> HS.toList
 
-  needBS      $ setConcatMap (resolvePhony phonys) $ depsNormal <> depsImplicit
-  orderOnlyBS $ setConcatMap (resolvePhony phonys) depsOrderOnly
+  needT      $ setConcatMap (resolvePhony phonys) $ depsNormal <> depsImplicit
+  orderOnlyT $ setConcatMap (resolvePhony phonys) depsOrderOnly
 
   let ruleNotFound = [ "Ninja rule named ", ruleName
                      , " is missing, required to build "
-                     , BSC8.unwords (HS.toList out)
+                     , T.unwords (HS.toList out)
                      ] |> mconcat |> errorA
 
   rule <- HM.lookup ruleName rules |> maybe ruleNotFound pure
@@ -298,21 +298,21 @@ runBuild needD phonys rules pools out build = do
   let env = computeRuleEnv out build rule
 
   applyRspfile env $ do
-    let askVarStr :: Str -> String
-        askVarStr = Ninja.askVar env .> BSC8.unpack
+    let askVarString :: Text -> String
+        askVarString = Ninja.askVar env .> T.unpack
 
-    let commandline = askVarStr        "command"
-    let depfile     = askVarStr        "depfile"
-    let deps        = askVarStr        "deps"
-    let description = askVarStr        "description"
+    let commandline = askVarString     "command"
+    let depfile     = askVarString     "depfile"
+    let deps        = askVarString     "deps"
+    let description = askVarString     "description"
     let pool        = Ninja.askVar env "pool"
 
-    let withPool act = if BSC8.null pool
+    let withPool act = if T.null pool
                        then act
                        else case HM.lookup pool pools of
                               Nothing -> [ "Ninja pool named ", pool
                                          , " not found, required to build "
-                                         , BSC8.unwords (HS.toList out)
+                                         , T.unwords (HS.toList out)
                                          ] |> mconcat |> errorA
                               (Just r) -> Shake.withResource r 1 act
 
@@ -323,33 +323,33 @@ runBuild needD phonys rules pools out build = do
          then do stdout <- withPool (Shake.command opts prog args)
                  let prefix = Ninja.askEnv env "msvc_deps_prefix"
                               |> fromMaybe "Note: including file: "
-                 let outStr = BSC8.pack (Shake.fromStdout stdout)
+                 let outStr = T.pack (Shake.fromStdout stdout)
                  needD build (parseShowIncludes prefix outStr)
          else withPool (Shake.command_ opts prog args)
 
     when (depfile /= "") $ do
       when (deps /= "gcc") $ Shake.need [depfile]
 
-      depsrc <- BS.readFile depfile
-                |> fmap BSC8.unpack
+      depsrc <- T.readFile depfile
+                |> fmap T.unpack
                 |> liftIO
 
-      let parsed = map BSC8.pack (concatMap snd (Shake.parseMakefile depsrc))
+      let parsed = map T.pack (concatMap snd (Shake.parseMakefile depsrc))
 
       needD build parsed
 
       -- correct as per the Ninja spec, but breaks --skip-commands
       -- when (deps == "gcc") $ liftIO $ removeFile depfile
 
-needDeps :: PNinja -> PBuild -> [Str] -> Action ()
+needDeps :: PNinja -> PBuild -> [Text] -> Action ()
 needDeps ninja = \build xs -> do
-  let errorA :: Str -> Action a
-      errorA = BSC8.unpack .> errorIO .> liftIO
+  let errorA :: Text -> Action a
+      errorA = T.unpack .> errorIO .> liftIO
   -- eta reduced so 'builds' is shared
   opts <- Shake.getShakeOptions
   let dontLint = isNothing $ Shake.shakeLint opts
-  if dontLint then needBS xs else do
-    neededBS xs
+  if dontLint then needT xs else do
+    neededT xs
     -- now try and statically validate needed will never fail
     -- first find which dependencies are generated files
     xs <- pure $ filter (\b -> HM.member b builds) xs
@@ -361,7 +361,7 @@ needDeps ninja = \build xs -> do
                , "file in deps is generated and not a pre-dependency"
                ] |> mconcat |> errorA
   where
-    builds :: HashMap Str PBuild
+    builds :: HashMap Text PBuild
     builds = let singles   = ninja ^. pninjaSingles
                  multiples = ninja ^. pninjaMultiples
              in singles <> explodeHM multiples
@@ -377,7 +377,7 @@ needDeps ninja = \build xs -> do
 
     -- do list difference, assuming a small initial set, most of which occurs
     -- early in the list
-    difference :: [Str] -> [Str] -> [Str]
+    difference :: [Text] -> [Text] -> [Text]
     difference [] ys = []
     difference xs ys = f (HS.fromList xs) ys
       where
@@ -388,7 +388,7 @@ needDeps ninja = \build xs -> do
 
     -- find all dependencies of a rule, no duplicates, with all dependencies of
     -- this rule listed first
-    allDependencies :: PBuild -> [Str]
+    allDependencies :: PBuild -> [Text]
     allDependencies rule = f HS.empty [] [rule]
       where
         f _    []     []                = []
@@ -410,29 +410,30 @@ needDeps ninja = \build xs -> do
     (∈) :: (Eq a, Hashable a) => a -> HashSet a -> Bool
     (∈) = HS.member
 
-applyRspfile :: Env Str Str -> Action a -> Action a
+applyRspfile :: Env Text Text -> Action a -> Action a
 applyRspfile env act = do
-  let rspfile         = BSC8.unpack (Ninja.askVar env "rspfile")
+  let rspfile         = Ninja.askVar env "rspfile"
   let rspfile_content = Ninja.askVar env "rspfile_content"
   if rspfile == ""
     then act
-    else (liftIO (BS.writeFile rspfile rspfile_content) >> act)
+    else (liftIO (T.writeFile (T.unpack rspfile) rspfile_content) >> act)
          `Shake.actionFinally`
-         ignore (removeFile rspfile)
+         ignore (removeFile (T.unpack rspfile))
 
-parseShowIncludes :: Str -> Str -> [Str]
+parseShowIncludes :: Text -> Text -> [Text]
 parseShowIncludes prefix out = do
-  x <- BSC8.lines out
-  guard (prefix `BS.isPrefixOf` x)
-  let y = BSC8.dropWhile isSpace $ BS.drop (BS.length prefix) x
+  x <- T.lines out
+  guard (prefix `T.isPrefixOf` x)
+  let y = T.dropWhile isSpace $ T.drop (T.length prefix) x
   guard (not (isSystemInclude y))
   pure y
 
 -- Dodgy, but ported over from the original Ninja
-isSystemInclude :: Str -> Bool
-isSystemInclude x = (    BS.isInfixOf "PROGRAM FILES"           tx
-                      || BS.isInfixOf "MICROSOFT VISUAL STUDIO" tx
-                    )
+isSystemInclude :: Text -> Bool
+isSystemInclude (T.encodeUtf8 -> x)
+  = (    BS.isInfixOf "PROGRAM FILES"           tx
+      || BS.isInfixOf "MICROSOFT VISUAL STUDIO" tx
+    )
   where
     tx = BS.map (\c -> if c >= 97 then c - 32 else c) x
     -- optimised toUpper that only cares about letters and spaces

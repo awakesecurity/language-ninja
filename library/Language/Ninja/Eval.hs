@@ -129,31 +129,31 @@ evaluate pninja = result
     poolsM :: m (HashSet NA.Pool)
     poolsM = HM.toList ppools |> mapM evaluatePool |> fmap HS.fromList
 
-    evaluateTarget :: NP.Str -> m NA.Target
+    evaluateTarget :: NP.Text -> m NA.Target
     evaluateTarget = undefined -- FIXME: implement this
 
-    evaluateBuild :: (HashSet NP.FileStr, NP.PBuild) -> m NA.Build
+    evaluateBuild :: (HashSet NP.FileText, NP.PBuild) -> m NA.Build
     evaluateBuild = undefined -- FIXME: implement this
 
-    evaluatePhony :: (NP.Str, HashSet NP.FileStr)
+    evaluatePhony :: (NP.Text, HashSet NP.FileText)
                   -> m (NA.Target, HashSet NA.Target)
     evaluatePhony (name, deps) = do
       ename <- evaluateTarget name
       edeps <- HS.fromList <$> mapM evaluateTarget (HS.toList deps)
       pure (ename, edeps)
 
-    evaluateDefault :: NP.FileStr -> m NA.Target
+    evaluateDefault :: NP.FileText -> m NA.Target
     evaluateDefault = undefined -- FIXME: implement this
 
-    evaluatePool :: (NP.Str, Int) -> m NA.Pool
+    evaluatePool :: (NP.Text, Int) -> m NA.Pool
     evaluatePool = undefined -- FIXME: implement this
 
-    prules     :: HashMap NP.Str NP.PRule
-    psingles   :: HashMap NP.FileStr NP.PBuild
-    pmultiples :: HashMap (HashSet NP.FileStr) NP.PBuild
-    pphonys    :: HashMap NP.Str (HashSet NP.FileStr)
-    pdefaults  :: HashSet NP.FileStr
-    ppools     :: HashMap NP.Str Int
+    prules     :: HashMap NP.Text NP.PRule
+    psingles   :: HashMap NP.FileText NP.PBuild
+    pmultiples :: HashMap (HashSet NP.FileText) NP.PBuild
+    pphonys    :: HashMap NP.Text (HashSet NP.FileText)
+    pdefaults  :: HashSet NP.FileText
+    ppools     :: HashMap NP.Text Int
     prules     = pninja ^. NP.pninjaRules
     psingles   = pninja ^. NP.pninjaSingles
     pmultiples = pninja ^. NP.pninjaMultiples
