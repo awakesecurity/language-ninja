@@ -16,8 +16,6 @@ cabal.config
 *.aux
 *.hp
 *.tix
-default.nix
-shell.nix
 scratchpad.hs
 *~
 [#]*[#]
