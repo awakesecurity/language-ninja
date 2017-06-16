@@ -61,7 +61,6 @@ roundtrip file = do
   Turtle.cd (FP.decodeString dataPrefix)
 
   let inputPath = file <> ".ninja"
-  let expectedPath = file <> ".expected"
 
   let withTempDir = Turtle.with (Turtle.mktempdir "." "test")
 
@@ -84,17 +83,6 @@ roundtrip file = do
     -- LBSC8.putStrLn (Aeson.encodePretty actualJ)
     -- Aeson.encode actualJ `H.shouldBe` Aeson.encode expectedJ
     actual `H.shouldBe` expected
-
-generateExpectedRoundtrip :: IO ()
-generateExpectedRoundtrip = forM_ roundtripNames go
-  where
-    go :: String -> IO ()
-    go file = do
-      let inputPath = dataPrefix <> file <> ".ninja"
-      let expectedPath = dataPrefix <> file <> ".expected"
-      parsed <- Ninja.parse inputPath
-      let prettied = Ninja.prettyNinja parsed
-      T.writeFile expectedPath prettied
 
 roundtripNames :: [String]
 roundtripNames = [ "buildseparate"
@@ -121,5 +109,4 @@ test = H.hspec $ do
 
 main :: IO ()
 main = do
-  Turtle.view (Turtle.ls ".")
-  test -- generateExpectedRoundtrip
+  test

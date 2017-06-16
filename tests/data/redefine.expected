@@ -1,5 +1,0 @@
-rule record
-    command = echo ${vGlobal} ${vBuild} > ${out}
-build redefine.txt: record 
-    # environment: [[("vGlobal","version3")]]
-    vBuild = version2
