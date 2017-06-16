@@ -113,7 +113,7 @@ prettyMultiple (outputs, build) = do
     , ruleName, " ", unwordsSet normal
     , prefixIfThere " | "  (unwordsSet implicit)
     , prefixIfThere " || " (unwordsSet orderOnly), "\n"
-    , "    # environment: ", tshow (map HM.toList stack), "\n"
+    -- , "    # environment: ", tshow (map HM.toList stack), "\n"
     , HM.toList binds |> map prettyBind |> mconcat
     ]
 

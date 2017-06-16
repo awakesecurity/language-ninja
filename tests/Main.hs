@@ -26,6 +26,9 @@ import           Data.Monoid
 import           Data.ByteString            (ByteString)
 import qualified Data.ByteString            as BS
 
+import qualified Data.ByteString.Lazy       as LBS
+import qualified Data.ByteString.Lazy.Char8 as LBSC8
+
 import qualified Data.Text.Encoding         as T
 import qualified Data.Text.IO               as T
 
@@ -42,15 +45,23 @@ import qualified Test.HUnit                 as H
 import           Filesystem.Path.CurrentOS  ((</>))
 import qualified Filesystem.Path.CurrentOS  as FP
 
+import qualified Data.Aeson                 as Aeson
+import qualified Data.Aeson.Diff            as Aeson
+import qualified Data.Aeson.Encode.Pretty   as Aeson
+
 import qualified Turtle
 
 dataPrefix :: String
-dataPrefix = "" -- "tests/data/"
+dataPrefix = "./tests/data/"
 
 roundtrip :: String -> H.Expectation
 roundtrip file = do
-  let inputPath = dataPrefix <> file <> ".ninja"
-  let expectedPath = dataPrefix <> file <> ".expected"
+  old <- Turtle.pwd
+
+  Turtle.cd (FP.decodeString dataPrefix)
+
+  let inputPath = file <> ".ninja"
+  let expectedPath = file <> ".expected"
 
   let withTempDir = Turtle.with (Turtle.mktempdir "." "test")
 
@@ -60,10 +71,19 @@ roundtrip file = do
     let tmpfile = tmpdir </> "generated.ninja"
     Turtle.writeTextFile tmpfile prettyInput
     output <- Ninja.parse (FP.encodeString tmpfile)
-    -- prettyOutput <- Ninja.prettyNinja output
-    pure (input, output)
+    let prettyOutput = Ninja.prettyNinja output
+    pure (prettyInput, prettyOutput)
 
-  actual `H.shouldBe` expected
+  Turtle.cd old
+
+  unless (actual == expected) $ do
+    -- let actualJ   = Aeson.toJSON actual
+    -- let expectedJ = Aeson.toJSON expected
+    -- -- LBSC8.putStrLn (Aeson.encodePretty (Aeson.diff actualJ expectedJ))
+    -- LBSC8.putStrLn (Aeson.encodePretty expectedJ)
+    -- LBSC8.putStrLn (Aeson.encodePretty actualJ)
+    -- Aeson.encode actualJ `H.shouldBe` Aeson.encode expectedJ
+    actual `H.shouldBe` expected
 
 generateExpectedRoundtrip :: IO ()
 generateExpectedRoundtrip = forM_ roundtripNames go
@@ -99,6 +119,7 @@ test = H.hspec $ do
     let roundtripTest name = H.it ("roundtrip on " <> name) (roundtrip name)
     forM_ roundtripNames roundtripTest
 
-
 main :: IO ()
-main = test -- generateExpectedRoundtrip
+main = do
+  Turtle.view (Turtle.ls ".")
+  test -- generateExpectedRoundtrip
