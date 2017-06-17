@@ -73,7 +73,7 @@ data Rule
     { _ruleName         :: !Text
     , _ruleCommand      :: !Command
     , _ruleDescription  :: !(Maybe Text)
-    , _rulePool         :: !Pool
+    , _rulePool         :: !PoolName
     , _ruleDepfile      :: !(Maybe Path)
     , _ruleSpecialDeps  :: !(Maybe SpecialDeps)
     , _ruleGenerator    :: !Bool
@@ -95,7 +95,7 @@ makeRule name cmd
     { _ruleName         = name
     , _ruleCommand      = cmd
     , _ruleDescription  = Nothing
-    , _rulePool         = poolDefault
+    , _rulePool         = poolNameDefault
     , _ruleDepfile      = Nothing
     , _ruleSpecialDeps  = Nothing
     , _ruleGenerator    = False
@@ -122,7 +122,7 @@ ruleDescription = lens _ruleDescription
                   $ \(MkRule {..}) x -> MkRule { _ruleDescription = x, .. }
 
 -- | The process pool in which this rule will be executed.
-rulePool :: Lens' Rule Pool
+rulePool :: Lens' Rule PoolName
 rulePool = lens _rulePool
            $ \(MkRule {..}) x -> MkRule { _rulePool = x, .. }
 
