@@ -37,8 +37,12 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternGuards     #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE PatternGuards              #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TupleSections              #-}
 
 -- |
 --   Module      : Language.Ninja.Lexer
@@ -50,17 +54,32 @@
 --   Lexing is a slow point, the code below is optimised.
 module Language.Ninja.Lexer
   ( Lexeme (..), lexerFile, lexer
+  , computeChunks
   ) where
 
 import           Control.Applicative
 
-import qualified Data.ByteString.Char8    as BSC8
-import qualified Data.ByteString.Internal as BS.Internal
-import qualified Data.ByteString.Unsafe   as BS.Unsafe
+import           Control.Monad.Catch
+import           Control.Monad.Trans.Except
+import           Control.Monad.Trans.Reader
 
-import           Data.Text                (Text)
-import qualified Data.Text                as T
-import qualified Data.Text.Encoding       as T
+import           Control.Monad.ST
+import           Data.STRef
+
+import           Control.Lens.Getter
+import           Control.Lens.Lens
+import           Control.Lens.Setter
+
+import qualified Data.ByteString.Char8       as BSC8
+import qualified Data.ByteString.Internal    as BS.Internal
+import qualified Data.ByteString.Unsafe      as BS.Unsafe
+
+import qualified Data.ByteString.Lazy        as LBS
+import qualified Data.ByteString.Lazy.Char8  as LBSC8
+
+import           Data.Text                   (Text)
+import qualified Data.Text                   as T
+import qualified Data.Text.Encoding          as T
 
 import           Data.Char
 import           Data.Tuple.Extra
@@ -71,7 +90,131 @@ import           GHC.Exts
 import           Prelude
 import           System.IO.Unsafe
 
+import           Flow
+
+import           Data.Aeson                  as Aeson
+
 import           Language.Ninja.Types
+
+import           Language.Ninja.Misc.Located as Loc
+import           Language.Ninja.Misc.Path
+
+--------------------------------------------------------------------------------
+
+-- | Lex each line separately, rather than each lexeme
+data Lexeme
+  = -- | @foo = bar@
+    LexDefine Str PExpr
+  | -- | @[indent]foo = bar@
+    LexBind Str PExpr
+  | -- | @include file@
+    LexInclude PExpr
+  | -- | @subninja file@
+    LexSubninja PExpr
+  | -- | @build foo: bar | baz || qux@ (@|@ and @||@ are represented as 'Expr')
+    LexBuild [PExpr] Str [PExpr]
+  | -- | @rule name@
+    LexRule Str
+  | -- | @pool name@
+    LexPool Str
+  | -- | @default foo bar@
+    LexDefault [PExpr]
+  deriving (Eq, Show)
+
+--------------------------------------------------------------------------------
+
+-- data LexerError
+--   = MkLexerError !Text
+--   deriving (Eq, Show)
+--
+-- instance Exception LexerError
+--
+-- type LText = Located Text
+--
+-- newtype LexM s a
+--   = MkLexM (ReaderT (STRef s [LText]) (ExceptT LexerError (ST s)) a)
+--   deriving (Functor)
+--
+-- runLexM :: forall a. (forall s. LexM s a) -> [LText] -> Either LexerError ([LText], a)
+-- runLexM (MkLexM r) xs = runST go
+--   where
+--     go :: forall s. ST s (Either LexerError ([LText], a))
+--     go = do
+--       ref <- newSTRef xs
+--       result <- runExceptT (runReaderT r ref)
+--       state <- readSTRef ref
+--       pure ((state,) <$> result)
+--
+-- -- | A replacement for @lexer@.
+-- rexer :: Str -> [Lexeme]
+-- rexer = runRexer Nothing .> map (view locatedVal)
+--
+-- runRexer :: Maybe Path -> Str -> [Located Lexeme]
+-- runRexer mpath = T.decodeUtf8 .> computeChunks mpath .> go
+--   where
+--     go :: [Located Text] -> [Located Lexeme]
+--     go xs = case runReaderT rex xs of
+--               Nothing             -> []
+--               Just (lexeme, rest) -> lexeme : go rest
+--
+--     rex :: ReaderT [Located Text] Maybe (Located Lexeme, [Located Text])
+--     rex = [
+--           ] |> asum
+
+prettyChunks :: (ToJSON t) => [Located t] -> IO ()
+prettyChunks = map Aeson.encode .> mapM_ LBSC8.putStrLn
+
+computeChunks :: Maybe Path -> Text -> [Located Text]
+computeChunks mpath = Loc.tokenize mpath .> addIndents
+  where
+    addIndents :: [Located Text] -> [Located Text]
+    addIndents []         = []
+    addIndents [x]        = [x]
+    addIndents (x:y:rest) = let toLine :: Located t -> Line
+                                toLine l = l ^. locatedPos . positionLine
+                                toCol :: Located t -> Column
+                                toCol l = l ^. locatedPos . positionCol
+                                new :: Located Text
+                                new = y
+                                      |> (locatedPos . positionCol .~ 0)
+                                      |> (locatedVal               .~ "\t")
+                                rest' :: [Located Text]
+                                rest' = addIndents (y:rest)
+                            in if toLine x == toLine y
+                               then x : rest'
+                               else if toCol y == 0
+                                    then x : rest'
+                                    else x : new : rest'
+
+data Token
+  = -- | An indentation; this token is used to distinguish a top-level binding
+    --   from a @rule@ or @build@-scoped binding.
+    TokenIndent
+  | -- | The @=@ symbol.
+    TokenEquals
+  | -- | The @:@ symbol.
+    TokenColon
+  | -- | The @|@ symbol.
+    TokenPipe
+  | -- | The @||@ symbol.
+    TokenDoublePipe
+  | -- | The @include@ keyword.
+    TokenInclude
+  | -- | The @subninja@ keyword.
+    TokenSubninja
+  | -- | The @build@ keyword.
+    TokenBuild
+  | -- | The @rule@ keyword.
+    TokenRule
+  | -- | The @pool@ keyword.
+    TokenPool
+  | -- | The @default@ keyword.
+    TokenDefault
+  | -- | Anything other than the keywords and symbols above are considered to
+    --   be identifiers of some kind.
+    TokenIdentifier !Text
+
+--------------------------------------------------------------------------------
 
 ---------------------------------------------------------------------
 -- LIBRARY BITS
@@ -142,29 +285,8 @@ list0 x = (head0 x, tail0 x)
 take0 :: Int -> Str0 -> Str
 take0 i (Str0 x) = BSC8.takeWhile (/= '\0') $ BSC8.take i x
 
-
 ---------------------------------------------------------------------
 -- ACTUAL LEXER
-
--- | Lex each line separately, rather than each lexeme
-data Lexeme
-  = -- | @foo = bar@
-    LexDefine Str PExpr
-  | -- | @[indent]foo = bar@
-    LexBind Str PExpr
-  | -- | @include file@
-    LexInclude PExpr
-  | -- | @subninja file@
-    LexSubninja PExpr
-  | -- | @build foo: bar | baz || qux@ (@|@ and @||@ are represented as 'Expr')
-    LexBuild [PExpr] Str [PExpr]
-  | -- | @rule name@
-    LexRule Str
-  | -- | @pool name@
-    LexPool Str
-  | -- | @default foo bar@
-    LexDefault [PExpr]
-  deriving (Eq, Show)
 
 -- | FIXME: doc
 lexerFile :: Maybe FilePath -> IO [Lexeme]
