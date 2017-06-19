@@ -1,8 +1,9 @@
 { mkDerivation, aeson, aeson-diff, aeson-pretty, base, bytestring
 , containers, cryptonite, deepseq, directory, exceptions, extra
 , flow, hashable, hspec, HUnit, intern, lens, makefile, megaparsec
-, mtl, shake, stdenv, system-filepath, text, transformers, turtle
-, unordered-containers, versions
+, mtl, QuickCheck, quickcheck-instances, shake, stdenv
+, system-filepath, text, transformers, turtle, unordered-containers
+, versions
 }:
 mkDerivation {
   pname = "language-ninja";
@@ -13,12 +14,13 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson aeson-pretty base bytestring containers deepseq directory
     exceptions extra flow hashable intern lens makefile megaparsec mtl
-    shake system-filepath text transformers unordered-containers
-    versions
+    QuickCheck quickcheck-instances shake system-filepath text
+    transformers unordered-containers versions
   ];
   executableHaskellDepends = [
     aeson aeson-pretty base bytestring containers cryptonite flow
-    hashable lens makefile text unordered-containers
+    hashable lens makefile QuickCheck quickcheck-instances text
+    unordered-containers
   ];
   testHaskellDepends = [
     aeson aeson-diff aeson-pretty base bytestring hspec HUnit
