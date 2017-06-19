@@ -1,0 +1,233 @@
+-- -*- coding: utf-8; mode: haskell; -*-
+
+-- File: library/Language/Ninja/Misc/Located.hs
+--
+-- License:
+--     Copyright 2017 Awake Networks
+--
+--     Licensed under the Apache License, Version 2.0 (the "License");
+--     you may not use this file except in compliance with the License.
+--     You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+--     Unless required by applicable law or agreed to in writing, software
+--     distributed under the License is distributed on an "AS IS" BASIS,
+--     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+--     See the License for the specific language governing permissions and
+--     limitations under the License.
+
+{-# OPTIONS_GHC #-}
+{-# OPTIONS_HADDOCK #-}
+
+{-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+
+-- |
+--   Module      : Language.Ninja.Misc.Located
+--   Copyright   : Copyright 2017 Awake Networks
+--   License     : Apache-2.0
+--   Maintainer  : opensource@awakenetworks.com
+--   Stability   : experimental
+--
+--   FIXME: doc
+module Language.Ninja.Misc.Located
+  ( -- * @Located@
+    Located, tokenize, tokenizeFile, tokenizeText
+  , locatedPosition, locatedValue
+
+    -- * @Position@
+  , Position, makePosition
+  , positionFile, positionLine, positionCol
+
+    -- * Miscellaneous
+  , Line, Column
+  ) where
+
+import           Control.Arrow
+
+import           Control.Lens.Getter
+import           Control.Lens.Lens
+
+import           Control.Monad.ST
+import           Data.STRef
+
+import           Data.Char
+import           Data.Maybe
+import           Data.Monoid
+
+import           Data.Text                (Text)
+import qualified Data.Text                as T
+import qualified Data.Text.IO             as T
+
+import           Data.Aeson               as Aeson
+import           Data.Aeson.Types         as Aeson
+
+import           Flow
+
+import           Language.Ninja.Misc.Path
+
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
+data Located t
+  = MkLocated
+    { _locatedPosition :: {-# UNPACK #-} !Position
+    , _locatedValue    ::                !t
+    }
+  deriving (Eq, Show, Functor)
+
+-- | Given @path :: Maybe Path@ and a @text :: Text@, do the following:
+--   * Remove all @'\r'@ characters from the @text@.
+--   * Split the @text@ into chunks that are guaranteed not to contain newlines
+--     or whitespace, and which are annotated with their location.
+tokenize :: Maybe Path -> Text -> [Located Text]
+tokenize mpath = removeWhitespace (mpath, 0, 0)
+
+-- | Read the file at the given 'Path' and then run 'tokenize' on the
+--   resulting 'Text'.
+tokenizeFile :: Path -> IO [Located Text]
+tokenizeFile path = tokenize (Just path)
+                    <$> T.readFile (T.unpack (path ^. pathText))
+
+-- | This function is equivalent to @tokenize Nothing@.
+tokenizeText :: Text -> [Located Text]
+tokenizeText = tokenize Nothing
+
+-- | The position of this located value.
+locatedPosition :: Getter (Located t) Position
+locatedPosition = to _locatedPosition
+
+-- | The value underlying this located value.
+locatedValue :: Lens' (Located t) t
+locatedValue = lens _locatedValue
+               $ \(MkLocated {..}) x -> MkLocated { _locatedValue = x, .. }
+
+-- | Converts to @{position: …, value: …}@.
+instance (ToJSON t) => ToJSON (Located t) where
+  toJSON (MkLocated {..})
+    = [ "position" .= _locatedPosition
+      , "value"    .= _locatedValue
+      ] |> object
+
+-- | Inverse of the 'ToJSON' instance.
+instance (FromJSON t) => FromJSON (Located t) where
+  parseJSON = (withObject "Located" $ \o -> do
+                  _locatedPosition <- (o .: "position") >>= pure
+                  _locatedValue    <- (o .: "value")    >>= pure
+                  pure (MkLocated {..}))
+
+--------------------------------------------------------------------------------
+
+-- | This datatype represents position of a cursor
+data Position
+  = MkPosition
+    { _positionFile ::                !(Maybe Path)
+    , _positionLine :: {-# UNPACK #-} !Line
+    , _positionCol  :: {-# UNPACK #-} !Column
+    }
+  deriving (Eq, Show)
+
+-- | Construct a 'Position' from a (nullable) path and a @(line, column)@ pair.
+makePosition :: Maybe Path -> (Line, Column) -> Position
+makePosition file (line, column) = MkPosition file line column
+
+-- | The path of the file pointed to by this position, if any.
+positionFile :: Lens' Position (Maybe Path)
+positionFile = lens _positionFile
+               $ \(MkPosition {..}) x -> MkPosition { _positionFile = x, .. }
+
+-- | The line number in the file pointed to by this position.
+positionLine :: Lens' Position Line
+positionLine = lens _positionLine
+               $ \(MkPosition {..}) x -> MkPosition { _positionLine = x, .. }
+
+-- | The column number in the line pointed to by this position.
+positionCol :: Lens' Position Column
+positionCol = lens _positionCol
+              $ \(MkPosition {..}) x -> MkPosition { _positionCol = x, .. }
+
+-- | Converts to @{file: …, line: …, col: …}@.
+instance ToJSON Position where
+  toJSON (MkPosition {..})
+    = [ "file" .= _positionFile
+      , "line" .= _positionLine
+      , "col"  .= _positionCol
+      ] |> object
+
+-- | Inverse of the 'ToJSON' instance.
+instance FromJSON Position where
+  parseJSON = (withObject "Position" $ \o -> do
+                  _positionFile <- (o .: "file") >>= pure
+                  _positionLine <- (o .: "line") >>= pure
+                  _positionCol  <- (o .: "col")  >>= pure
+                  pure (MkPosition {..}))
+
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
+type Line = Int
+
+-- | FIXME: doc
+type Column = Int
+
+--------------------------------------------------------------------------------
+
+data Chunk
+  = ChunkText                 !Text
+  | ChunkSpace {-# UNPACK #-} !Int
+  | ChunkLine  {-# UNPACK #-} !Int
+  deriving (Eq, Show)
+
+--------------------------------------------------------------------------------
+
+newtype Chunks
+  = MkChunks { fromChunks :: [Chunk] }
+  deriving (Eq, Show)
+
+chunksNil :: Chunks
+chunksNil = MkChunks []
+
+chunksCons :: Chunk -> Chunks -> Chunks
+chunksCons = \chunk (MkChunks list) -> MkChunks (go chunk list)
+  where
+    go (ChunkSpace m) (ChunkSpace n : rest) = ChunkSpace (m + n)  : rest
+    go (ChunkLine  m) (ChunkLine  n : rest) = ChunkLine  (m + n)  : rest
+    go (ChunkText  a) (ChunkText  b : rest) = ChunkText  (a <> b) : rest
+    go other          list                  = other               : list
+
+chunksAddChar :: Char -> Chunks -> Chunks
+chunksAddChar '\n'             = chunksCons (ChunkLine 1)
+chunksAddChar '\r'             = id
+chunksAddChar c    | isSpace c = chunksCons (ChunkSpace 1)
+chunksAddChar c                = chunksCons (ChunkText (T.singleton c))
+
+--------------------------------------------------------------------------------
+
+removeWhitespace :: (Maybe Path, Line, Column) -> Text -> [Located Text]
+removeWhitespace (file, initLine, initCol) = go .> catMaybes .> map makeLoc
+  where
+    go :: Text -> [Maybe (Line, Column, Text)]
+    go text = runST $ do ref <- newSTRef (initLine, initCol)
+                         T.foldr chunksAddChar chunksNil text
+                           |> fromChunks
+                           |> mapM (applyChunk ref)
+
+    applyChunk :: STRef s (Line, Column)
+               -> Chunk -> ST s (Maybe (Line, Column, Text))
+    applyChunk ref = \case
+      ChunkLine  n -> do modifySTRef' ref ((+ n) *** const 0)
+                         pure Nothing
+      ChunkSpace n -> do modifySTRef' ref (second (+ n))
+                         pure Nothing
+      ChunkText  t -> do (line, column) <- readSTRef ref
+                         modifySTRef' ref (second (+ T.length t))
+                         pure (Just (line, column, t))
+
+    makeLoc :: (Line, Column, Text) -> Located Text
+    makeLoc (line, col, text) = MkLocated (MkPosition file line col) text
+
+--------------------------------------------------------------------------------

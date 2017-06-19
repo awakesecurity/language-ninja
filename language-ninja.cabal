@@ -66,6 +66,7 @@ library
                         , Language.Ninja.Types
                         , Language.Ninja.Misc.Command
                         , Language.Ninja.Misc.Path
+                        , Language.Ninja.Misc.Located
                         , Language.Ninja.Misc.IText
     default-language:     Haskell2010
     other-extensions:     OverloadedStrings
