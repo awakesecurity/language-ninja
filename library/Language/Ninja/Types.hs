@@ -89,27 +89,31 @@ import           Control.Monad
 
 import           Control.Lens.Lens
 
-import           Data.Foldable         (asum)
+import           Data.Foldable             (asum)
 import           Data.Maybe
 import           Data.Monoid
 
-import qualified Data.ByteString.Char8 as BSC8
+import qualified Data.ByteString.Char8     as BSC8
 
-import           Data.Text             (Text)
-import qualified Data.Text             as T
-import qualified Data.Text.Encoding    as T
+import           Data.Text                 (Text)
+import qualified Data.Text                 as T
+import qualified Data.Text.Encoding        as T
 
-import           Data.HashMap.Strict   (HashMap)
-import qualified Data.HashMap.Strict   as HM
+import           Data.HashMap.Strict       (HashMap)
+import qualified Data.HashMap.Strict       as HM
 
-import           Data.HashSet          (HashSet)
-import qualified Data.HashSet          as HS
+import           Data.HashSet              (HashSet)
+import qualified Data.HashSet              as HS
 
-import           Data.Hashable         (Hashable)
-import           GHC.Generics          (Generic)
+import           Data.Hashable             (Hashable)
+import           GHC.Generics              (Generic)
 
-import           Data.Aeson            as Aeson
-import qualified Data.Aeson.Types      as Aeson
+import           Data.Aeson                as Aeson
+import qualified Data.Aeson.Types          as Aeson
+
+import           Test.QuickCheck.Arbitrary as Q
+import           Test.QuickCheck.Gen       as Q
+import           Test.QuickCheck.Instances ()
 
 import           Language.Ninja.Env
 
@@ -171,6 +175,25 @@ instance FromJSON PExpr where
     where
       choice :: [Value -> Aeson.Parser a] -> (Value -> Aeson.Parser a)
       choice = flip (\v -> map (\f -> f v)) .> fmap asum
+
+instance Arbitrary PExpr where
+  arbitrary = sized go
+    where
+      go :: Int -> Gen PExpr
+      go n | n <= 0 = [ PLit <$> resize litLength arbitrary
+                      , PVar <$> resize varLength arbitrary
+                      ] |> oneof
+      go n          = [ go 0
+                      , do width <- (`mod` maxWidth) <$> arbitrary
+                           let subtree = go (n `div` lossRate)
+                           PExprs <$> vectorOf width subtree
+                      ] |> oneof
+
+      litLength, varLength, lossRate, maxWidth :: Int
+      litLength = 10
+      varLength = 10
+      maxWidth  = 5
+      lossRate  = 2
 
 --------------------------------------------------------------------------------
 
