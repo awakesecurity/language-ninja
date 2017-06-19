@@ -43,6 +43,7 @@
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 -- |
 --   Module      : Language.Ninja.Lexer
@@ -123,43 +124,7 @@ data Lexeme
 
 --------------------------------------------------------------------------------
 
--- data LexerError
---   = MkLexerError !Text
---   deriving (Eq, Show)
---
--- instance Exception LexerError
---
--- type LText = Located Text
---
--- newtype LexM s a
---   = MkLexM (ReaderT (STRef s [LText]) (ExceptT LexerError (ST s)) a)
---   deriving (Functor)
---
--- runLexM :: forall a. (forall s. LexM s a) -> [LText] -> Either LexerError ([LText], a)
--- runLexM (MkLexM r) xs = runST go
---   where
---     go :: forall s. ST s (Either LexerError ([LText], a))
---     go = do
---       ref <- newSTRef xs
---       result <- runExceptT (runReaderT r ref)
---       state <- readSTRef ref
---       pure ((state,) <$> result)
---
--- -- | A replacement for @lexer@.
--- rexer :: Str -> [Lexeme]
--- rexer = runRexer Nothing .> map (view locatedVal)
---
--- runRexer :: Maybe Path -> Str -> [Located Lexeme]
--- runRexer mpath = T.decodeUtf8 .> computeChunks mpath .> go
---   where
---     go :: [Located Text] -> [Located Lexeme]
---     go xs = case runReaderT rex xs of
---               Nothing             -> []
---               Just (lexeme, rest) -> lexeme : go rest
---
---     rex :: ReaderT [Located Text] Maybe (Located Lexeme, [Located Text])
---     rex = [
---           ] |> asum
+-- FIXME: this is dead code, at least for now
 
 prettyChunks :: (ToJSON t) => [Located t] -> IO ()
 prettyChunks = map Aeson.encode .> mapM_ LBSC8.putStrLn
@@ -186,38 +151,7 @@ computeChunks mpath = Loc.tokenize mpath .> addIndents
                                     then x : rest'
                                     else x : new : rest'
 
-data Token
-  = -- | An indentation; this token is used to distinguish a top-level binding
-    --   from a @rule@ or @build@-scoped binding.
-    TokenIndent
-  | -- | The @=@ symbol.
-    TokenEquals
-  | -- | The @:@ symbol.
-    TokenColon
-  | -- | The @|@ symbol.
-    TokenPipe
-  | -- | The @||@ symbol.
-    TokenDoublePipe
-  | -- | The @include@ keyword.
-    TokenInclude
-  | -- | The @subninja@ keyword.
-    TokenSubninja
-  | -- | The @build@ keyword.
-    TokenBuild
-  | -- | The @rule@ keyword.
-    TokenRule
-  | -- | The @pool@ keyword.
-    TokenPool
-  | -- | The @default@ keyword.
-    TokenDefault
-  | -- | Anything other than the keywords and symbols above are considered to
-    --   be identifiers of some kind.
-    TokenIdentifier !Text
-
 --------------------------------------------------------------------------------
-
----------------------------------------------------------------------
--- LIBRARY BITS
 
 -- A null-terminated strict bytestring.
 newtype Str0 = Str0 Str
@@ -285,8 +219,7 @@ list0 x = (head0 x, tail0 x)
 take0 :: Int -> Str0 -> Str
 take0 i (Str0 x) = BSC8.takeWhile (/= '\0') $ BSC8.take i x
 
----------------------------------------------------------------------
--- ACTUAL LEXER
+--------------------------------------------------------------------------------
 
 -- | FIXME: doc
 lexerFile :: Maybe FilePath -> IO [Lexeme]
@@ -297,7 +230,7 @@ lexer :: Str -> [Lexeme]
 lexer x = lexerLoop (Str0 (BSC8.append x "\n\n\0"))
 
 lexerLoop :: Str0 -> [Lexeme]
-lexerLoop c_x | (c, x) <- list0 c_x
+lexerLoop c_x
   = case c of
       '\r'                                -> lexerLoop x
       '\n'                                -> lexerLoop x
@@ -312,6 +245,8 @@ lexerLoop c_x | (c, x) <- list0 c_x
       '\0'                                -> []
       _                                   -> lexDefine c_x
   where
+    (c, x) = list0 c_x
+
     strip str (Str0 x) = let b = BSC8.pack str
                          in if b `BSC8.isPrefixOf` x
                             then Just $ Str0 $ BSC8.drop (BSC8.length b) x
@@ -328,15 +263,15 @@ lexBind c_x | (c, x) <- list0 c_x
 
 lexBuild :: Str0 -> [Lexeme]
 lexBuild x
-    | (outputs, x) <- lexxExprs True x
-    , (rule,    x) <- span0 isVarDot $ dropSpace x
-    , (deps,    x) <- lexxExprs False $ dropSpace x
-    = LexBuild outputs rule deps : lexerLoop x
+  | (outputs, x) <- lexxExprs True x
+  , (rule,    x) <- span0 isVarDot $ dropSpace x
+  , (deps,    x) <- lexxExprs False $ dropSpace x
+  = LexBuild outputs rule deps : lexerLoop x
 
 lexDefault :: Str0 -> [Lexeme]
 lexDefault x
-    | (files, x) <- lexxExprs False x
-    = LexDefault files : lexerLoop x
+  | (files, x) <- lexxExprs False x
+  = LexDefault files : lexerLoop x
 
 lexRule, lexPool, lexInclude, lexSubninja, lexDefine :: Str0 -> [Lexeme]
 lexRule     = lexxName LexRule
@@ -347,17 +282,17 @@ lexDefine   = lexxBind LexDefine
 
 lexxBind :: (Str -> PExpr -> Lexeme) -> Str0 -> [Lexeme]
 lexxBind ctor x
-  | (var, x) <- span0 isVarDot x
-  , ('=', x) <- list0 $ dropSpace x
-  , (exp, x) <- lexxExpr False False $ dropSpace x
-  = ctor var exp : lexerLoop x
+  | (var,  x) <- span0 isVarDot x
+  , ('=',  x) <- list0 $ dropSpace x
+  , (expr, x) <- lexxExpr False False $ dropSpace x
+  = ctor var expr : lexerLoop x
 lexxBind _ x
   = error $ show ("parse failed when parsing binding", take0 100 x)
 
 lexxFile :: (PExpr -> Lexeme) -> Str0 -> [Lexeme]
 lexxFile ctor x
-  | (exp, rest) <- lexxExpr False False $ dropSpace x
-  = ctor exp : lexerLoop rest
+  | (expr, rest) <- lexxExpr False False $ dropSpace x
+  = ctor expr : lexerLoop rest
 
 lexxName :: (Str -> Lexeme) -> Str0 -> [Lexeme]
 lexxName ctor x
@@ -366,69 +301,73 @@ lexxName ctor x
 
 lexxExprs :: Bool -> Str0 -> ([PExpr], Str0)
 lexxExprs sColon x
-  = case lexxExpr sColon True x of
-      (a, c_x)
-        | c <- head0 c_x
-        , x <- tail0 c_x
-          -> case c of -- FIXME: nonexhaustive pattern match
-               ' '           -> first (a:) $ lexxExprs sColon $ dropSpace x
-               ':'  | sColon -> ([a], x)
-               _    | sColon -> error "expected a colon"
-               '\r'          -> a $: dropN x
-               '\n'          -> a $: x
-               '\0'          -> a $: c_x
+  = let (a, c_x) = lexxExpr sColon True x
+        c = head0 c_x
+        x = tail0 c_x
+    in case c of -- FIXME: nonexhaustive pattern match
+         ' '           -> first (a:) $ lexxExprs sColon $ dropSpace x
+         ':'  | sColon -> ([a], x)
+         _    | sColon -> error "expected a colon"
+         '\r'          -> a $: dropN x
+         '\n'          -> a $: x
+         '\0'          -> a $: c_x
   where
     ($:) :: PExpr -> Str0 -> ([PExpr], Str0)
     (PExprs []) $: s = ([],  s)
     a           $: s = ([a], s)
 
 {-# NOINLINE lexxExpr #-}
-lexxExpr :: Bool -> Bool -> Str0 -> (PExpr, Str0) -- snd will start with one of " :\n\r" or be empty
+lexxExpr :: Bool -> Bool -> Str0
+         -> (PExpr, Str0) -- snd will start with one of " :\n\r" or be empty
 lexxExpr stopColon stopSpace = first exprs . f
   where
+    exprs :: [PExpr] -> PExpr
     exprs [x] = x
     exprs xs  = PExprs xs
 
-    special = case (stopColon, stopSpace) of
-                (True , True ) -> \x -> (x <= ':') && (x == ':' || x == ' ' || x == '$' || x == '\r' || x == '\n' || x == '\0')
-                (True , False) -> \x -> (x <= ':') && (x == ':'             || x == '$' || x == '\r' || x == '\n' || x == '\0')
-                (False, True ) -> \x -> (x <= '$') && (            x == ' ' || x == '$' || x == '\r' || x == '\n' || x == '\0')
-                (False, False) -> \x -> (x <= '$') && (                        x == '$' || x == '\r' || x == '\n' || x == '\0')
+    special :: Char -> Bool
+    special x = let b = x `elem` ['$', '\r', '\n', '\0']
+                in case (stopColon, stopSpace) of
+                     (True , True ) -> (x <= ':') && (x == ':' || x == ' ' || b)
+                     (True , False) -> (x <= ':') && (x == ':'             || b)
+                     (False, True ) -> (x <= '$') && (            x == ' ' || b)
+                     (False, False) -> (x <= '$') && (                        b)
 
-    f x = case break00 special x of
-      (a, x) -> if BSC8.null a then g x else PLit (T.decodeUtf8 a) $: g x
+    f :: Str0 -> ([PExpr], Str0)
+    f (break00 special -> (a, x))
+      = if BSC8.null a then g x else PLit (T.decodeUtf8 a) $: g x
 
-    x $: (xs,y) = (x:xs,y)
+    ($:) :: a -> ([a], b) -> ([a], b)
+    x $: (xs, y) = (x:xs, y)
 
-    g x
-      | head0 x /= '$'
-      = ([], x)
-      | c_x <- tail0 x, (c, x) <- list0 c_x
-      = case c of
-          '$'   -> PLit (T.singleton '$') $: f x
-          ' '   -> PLit (T.singleton ' ') $: f x
-          ':'   -> PLit (T.singleton ':') $: f x
-          '\n'  -> f $ dropSpace x
-          '\r'  -> f $ dropSpace $ dropN x
-          '{' | (name, x) <- span0 isVarDot x
-              , not $ BSC8.null name
-              , ('}', x) <- list0 x
-                -> PVar (T.decodeUtf8 name) $: f x
-          _   | (name, x) <- span0 isVar c_x
-              , not $ BSC8.null name
-                -> PVar (T.decodeUtf8 name) $: f x
-          _     -> error "Unexpect $ followed by unexpected stuff"
+    g :: Str0 -> ([PExpr], Str0)
+    g x | (head0 x /= '$') = ([], x)
+    g (tail0 -> c_x)       = let (c, x) = list0 c_x
+                             in case c of
+                                  '$'   -> PLit (T.singleton '$') $: f x
+                                  ' '   -> PLit (T.singleton ' ') $: f x
+                                  ':'   -> PLit (T.singleton ':') $: f x
+                                  '\n'  -> f $ dropSpace x
+                                  '\r'  -> f $ dropSpace $ dropN x
+                                  '{' | (name, x) <- span0 isVarDot x
+                                      , ('}',  x) <- list0 x
+                                      , not (BSC8.null name)
+                                        -> PVar (T.decodeUtf8 name) $: f x
+                                  _   | (name, x) <- span0 isVar c_x
+                                      , not $ BSC8.null name
+                                        -> PVar (T.decodeUtf8 name) $: f x
+                                  _     -> unexpectedDollar
 
+    unexpectedDollar :: a
+    unexpectedDollar = error "Unexpect $ followed by unexpected stuff"
 
 splitLineCont :: Str0 -> (Str, Str0)
 splitLineCont = first BSC8.concat . f
   where
-    f x = if not (endsDollar a)
-          then ([a], b)
-          else let (c, d) = f (dropSpace b)
-               in (BSC8.init a : c, d)
-      where
-        (a, b) = splitLineCR x
+    f (splitLineCR -> (a, b)) = if not (endsDollar a)
+                                then ([a], b)
+                                else let (c, d) = f (dropSpace b)
+                                     in (BSC8.init a : c, d)
 
 splitLineCR :: Str0 -> (Str, Str0)
 splitLineCR x = if BSC8.isSuffixOf (BSC8.singleton '\r') a
@@ -438,21 +377,25 @@ splitLineCR x = if BSC8.isSuffixOf (BSC8.singleton '\r') a
     (a, b) = break0 (== '\n') x
 
 isVar :: Char -> Bool
-isVar x = (    (x == '-')
-            || (x == '_')
-            || isAsciiLower x
-            || isAsciiUpper x
-            || isDigit x
-          )
+isVar x = [ (x == '-')
+          , (x == '_')
+          , isAsciiLower x
+          , isAsciiUpper x
+          , isDigit x
+          ] |> or
 
 isVarDot :: Char -> Bool
-isVarDot x = x == '.' || isVar x
+isVarDot x = [ x == '.'
+             , isVar x
+             ] |> or
 
 endsDollar :: Str -> Bool
 endsDollar = BSC8.isSuffixOf (BSC8.singleton '$')
 
 dropN :: Str0 -> Str0
-dropN x = if head0 x == '\n' then tail0 x else x
+dropN x = if (head0 x == '\n') then tail0 x else x
 
 dropSpace :: Str0 -> Str0
 dropSpace = dropWhile0 (== ' ')
+
+--------------------------------------------------------------------------------

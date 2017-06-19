@@ -64,6 +64,9 @@ import           Data.Text                (Text)
 import qualified Data.Text                as T
 import qualified Data.Text.IO             as T
 
+import           Data.Map.Strict          (Map)
+import qualified Data.Map.Strict          as Map
+
 import           Data.Aeson               as Aeson
 import           Data.Aeson.Types         as Aeson
 
@@ -101,6 +104,10 @@ tokenizeFile path = tokenize (Just path)
 -- | This function is equivalent to @tokenize Nothing@.
 tokenizeText :: Text -> [Located Text]
 tokenizeText = tokenize Nothing
+
+-- | FIXME: doc
+untokenize :: [Located Text] -> Map Path Text
+untokenize = undefined -- FIXME: implement
 
 -- | The position of this located value.
 locatedPos :: Lens' (Located t) Position
