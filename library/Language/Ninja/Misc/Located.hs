@@ -33,11 +33,12 @@
 --   Maintainer  : opensource@awakenetworks.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   Tokenize text into a list of non-whitespace chunks, each of which is
+--   annotated with its source location.
 module Language.Ninja.Misc.Located
   ( -- * @Located@
     Located, tokenize, tokenizeFile, tokenizeText
-  , locatedPosition, locatedValue
+  , locatedPos, locatedVal
 
     -- * @Position@
   , Position, makePosition
@@ -72,13 +73,17 @@ import           Language.Ninja.Misc.Path
 
 --------------------------------------------------------------------------------
 
--- | FIXME: doc
+-- | This datatype represents a value annotated with a source location.
 data Located t
   = MkLocated
-    { _locatedPosition :: {-# UNPACK #-} !Position
-    , _locatedValue    ::                !t
+    { _locatedPos :: {-# UNPACK #-} !Position
+    , _locatedVal ::                !t
     }
   deriving (Eq, Show, Functor)
+
+-- | Construct a 'Located' value directly.
+makeLocated :: Position -> t -> Located t
+makeLocated = MkLocated
 
 -- | Given @path :: Maybe Path@ and a @text :: Text@, do the following:
 --   * Remove all @'\r'@ characters from the @text@.
@@ -98,26 +103,27 @@ tokenizeText :: Text -> [Located Text]
 tokenizeText = tokenize Nothing
 
 -- | The position of this located value.
-locatedPosition :: Getter (Located t) Position
-locatedPosition = to _locatedPosition
+locatedPos :: Lens' (Located t) Position
+locatedPos = lens _locatedPos
+             $ \(MkLocated {..}) x -> MkLocated { _locatedPos = x, .. }
 
 -- | The value underlying this located value.
-locatedValue :: Lens' (Located t) t
-locatedValue = lens _locatedValue
-               $ \(MkLocated {..}) x -> MkLocated { _locatedValue = x, .. }
+locatedVal :: Lens' (Located t) t
+locatedVal = lens _locatedVal
+             $ \(MkLocated {..}) x -> MkLocated { _locatedVal = x, .. }
 
 -- | Converts to @{position: …, value: …}@.
 instance (ToJSON t) => ToJSON (Located t) where
   toJSON (MkLocated {..})
-    = [ "position" .= _locatedPosition
-      , "value"    .= _locatedValue
+    = [ "pos" .= _locatedPos
+      , "val" .= _locatedVal
       ] |> object
 
 -- | Inverse of the 'ToJSON' instance.
 instance (FromJSON t) => FromJSON (Located t) where
   parseJSON = (withObject "Located" $ \o -> do
-                  _locatedPosition <- (o .: "position") >>= pure
-                  _locatedValue    <- (o .: "value")    >>= pure
+                  _locatedPos <- (o .: "pos") >>= pure
+                  _locatedVal <- (o .: "val") >>= pure
                   pure (MkLocated {..}))
 
 --------------------------------------------------------------------------------
@@ -168,10 +174,10 @@ instance FromJSON Position where
 
 --------------------------------------------------------------------------------
 
--- | FIXME: doc
+-- | A line number.
 type Line = Int
 
--- | FIXME: doc
+-- | A column number.
 type Column = Int
 
 --------------------------------------------------------------------------------
@@ -228,6 +234,6 @@ removeWhitespace (file, initLine, initCol) = go .> catMaybes .> map makeLoc
                          pure (Just (line, column, t))
 
     makeLoc :: (Line, Column, Text) -> Located Text
-    makeLoc (line, col, text) = MkLocated (MkPosition file line col) text
+    makeLoc (line, col, text) = makeLocated (MkPosition file line col) text
 
 --------------------------------------------------------------------------------
