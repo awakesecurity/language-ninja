@@ -1,7 +1,7 @@
 { mkDerivation, aeson, aeson-diff, aeson-pretty, base, bytestring
-, containers, cryptonite, deepseq, directory, exceptions, extra
-, flow, hashable, hspec, HUnit, intern, lens, makefile, megaparsec
-, mtl, QuickCheck, quickcheck-instances, shake, stdenv
+, containers, cryptonite, deepseq, directory, Earley, exceptions
+, extra, flow, hashable, hspec, HUnit, intern, lens, makefile
+, megaparsec, mtl, QuickCheck, quickcheck-instances, shake, stdenv
 , system-filepath, text, transformers, turtle, unordered-containers
 , versions
 }:
@@ -13,9 +13,9 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson aeson-pretty base bytestring containers deepseq directory
-    exceptions extra flow hashable intern lens makefile megaparsec mtl
-    QuickCheck quickcheck-instances shake system-filepath text
-    transformers unordered-containers versions
+    Earley exceptions extra flow hashable intern lens makefile
+    megaparsec mtl QuickCheck quickcheck-instances shake
+    system-filepath text transformers unordered-containers versions
   ];
   executableHaskellDepends = [
     aeson aeson-pretty base bytestring containers cryptonite flow
