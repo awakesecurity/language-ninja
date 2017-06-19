@@ -40,6 +40,7 @@ library
                         , megaparsec            >= 5.2   && < 5.3
                         , mtl                   >= 2.2   && < 2.3
                         , lens                  >= 4.15  && < 4.16
+                        , QuickCheck            >= 2.9   && < 2.10
                         , shake                 >= 0.15  && < 0.16
                         , system-filepath       >= 0.4   && < 0.5
                         , text                  >= 1.2   && < 1.3
@@ -110,6 +111,7 @@ executable ninja2nix
                         , hashable              -any
                         , lens                  -any
                         , makefile              -any
+                        , QuickCheck            >= 2.9   && < 2.10
                         , text                  -any
                         , unordered-containers  -any
     default-language:     Haskell2010
