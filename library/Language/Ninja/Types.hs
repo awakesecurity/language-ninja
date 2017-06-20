@@ -228,7 +228,7 @@ pninjaRules = lens _pninjaRules
 -- | The set of build declarations with precisely one output.
 pninjaSingles :: Lens' PNinja (HashMap FileText PBuild)
 pninjaSingles = lens _pninjaSingles
-              $ \(MkPNinja {..}) x -> MkPNinja { _pninjaSingles = x, .. }
+                $ \(MkPNinja {..}) x -> MkPNinja { _pninjaSingles = x, .. }
 
 -- | The set of build declarations with two or more outputs.
 pninjaMultiples :: Lens' PNinja (HashMap (HashSet FileText) PBuild)
@@ -318,7 +318,7 @@ pbuildRule = lens _pbuildRule
 -- | A lens into the environment associated with a 'PBuild'.
 pbuildEnv :: Lens' PBuild (Env Text Text)
 pbuildEnv = lens _pbuildEnv
-             $ \(MkPBuild {..}) x -> MkPBuild { _pbuildEnv = x, .. }
+            $ \(MkPBuild {..}) x -> MkPBuild { _pbuildEnv = x, .. }
 
 -- | A lens into the dependencies associated with a 'PBuild'.
 pbuildDeps :: Lens' PBuild PDeps
