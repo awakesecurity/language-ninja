@@ -71,16 +71,16 @@ import           Control.Lens.Getter
 import           Control.Lens.Lens
 import           Control.Lens.Setter
 
-import qualified Data.ByteString.Char8       as BSC8
-import qualified Data.ByteString.Internal    as BS.Internal
-import qualified Data.ByteString.Unsafe      as BS.Unsafe
+import qualified Data.ByteString.Char8        as BSC8
+import qualified Data.ByteString.Internal     as BS.Internal
+import qualified Data.ByteString.Unsafe       as BS.Unsafe
 
-import qualified Data.ByteString.Lazy        as LBS
-import qualified Data.ByteString.Lazy.Char8  as LBSC8
+import qualified Data.ByteString.Lazy         as LBS
+import qualified Data.ByteString.Lazy.Char8   as LBSC8
 
-import           Data.Text                   (Text)
-import qualified Data.Text                   as T
-import qualified Data.Text.Encoding          as T
+import           Data.Text                    (Text)
+import qualified Data.Text                    as T
+import qualified Data.Text.Encoding           as T
 
 import           Data.Char
 import           Data.Tuple.Extra
@@ -93,12 +93,14 @@ import           System.IO.Unsafe
 
 import           Flow
 
-import           Data.Aeson                  as Aeson
+import           Data.Aeson                   as Aeson
 
 import           Language.Ninja.Types
 
-import           Language.Ninja.Misc.Located as Loc
+import           Language.Ninja.Misc.Located  as Loc
 import           Language.Ninja.Misc.Path
+
+import           Language.Ninja.Internal.Str0
 
 --------------------------------------------------------------------------------
 
@@ -153,81 +155,13 @@ computeChunks mpath = Loc.tokenize mpath .> addIndents
 
 --------------------------------------------------------------------------------
 
--- A null-terminated strict bytestring.
-newtype Str0 = Str0 Str
-
-type S = Ptr Word8
-
-char :: S -> Char
-char x = BS.Internal.w2c $ unsafePerformIO $ peek x
-
-next :: S -> S
-next x = x `plusPtr` 1
-
-{-# INLINE dropWhile0 #-}
-dropWhile0 :: (Char -> Bool) -> Str0 -> Str0
-dropWhile0 f x = snd $ span0 f x
-
-{-# INLINE span0 #-}
-span0 :: (Char -> Bool) -> Str0 -> (Str, Str0)
-span0 f = break0 (not . f)
-
-{-# INLINE break0 #-}
-break0 :: (Char -> Bool) -> Str0 -> (Str, Str0)
-break0 f (Str0 bs) = (initial, rest)
-  where
-    initial = BS.Unsafe.unsafeTake i bs
-    rest    = Str0 (BS.Unsafe.unsafeDrop i bs)
-
-    i = unsafePerformIO $ BS.Unsafe.unsafeUseAsCString bs $ \ptr -> do
-      let start = castPtr ptr :: S
-      let end = go start
-      pure $! Ptr end `minusPtr` start
-
-    go s@(Ptr a) | ((c == '\0') || (f c)) = a
-                 | otherwise              = go (next s)
-      where
-        c = char s
-
-{-# INLINE break00 #-}
--- The predicate must return true for '\0'
-break00 :: (Char -> Bool) -> Str0 -> (Str, Str0)
-break00 f (Str0 bs) = (initial, rest)
-  where
-    initial = BS.Unsafe.unsafeTake i bs
-    rest    = Str0 $ BS.Unsafe.unsafeDrop i bs
-
-    i = unsafePerformIO $ BS.Unsafe.unsafeUseAsCString bs $ \ptr -> do
-      let start = castPtr ptr :: S
-      let end = go start
-      pure $! Ptr end `minusPtr` start
-
-    go s@(Ptr a) | f c       = a
-                 | otherwise = go (next s)
-      where
-        c = char s
-
-head0 :: Str0 -> Char
-head0 (Str0 x) = BS.Internal.w2c $ BS.Unsafe.unsafeHead x
-
-tail0 :: Str0 -> Str0
-tail0 (Str0 x) = Str0 $ BS.Unsafe.unsafeTail x
-
-list0 :: Str0 -> (Char, Str0)
-list0 x = (head0 x, tail0 x)
-
-take0 :: Int -> Str0 -> Str
-take0 i (Str0 x) = BSC8.takeWhile (/= '\0') $ BSC8.take i x
-
---------------------------------------------------------------------------------
-
 -- | FIXME: doc
 lexerFile :: Maybe FilePath -> IO [Lexeme]
 lexerFile file = lexer <$> maybe BSC8.getContents BSC8.readFile file
 
 -- | FIXME: doc
 lexer :: Str -> [Lexeme]
-lexer x = lexerLoop (Str0 (BSC8.append x "\n\n\0"))
+lexer x = lexerLoop (MkStr0 (BSC8.append x "\n\n\0"))
 
 lexerLoop :: Str0 -> [Lexeme]
 lexerLoop c_x
@@ -249,10 +183,10 @@ lexerLoop c_x
 
     (c, x0) = list0 c_x
 
-    strip str (Str0 x) = let b = BSC8.pack str
-                         in if b `BSC8.isPrefixOf` x
-                            then Just $ Str0 $ BSC8.drop (BSC8.length b) x
-                            else Nothing
+    strip str (MkStr0 x) = let b = BSC8.pack str
+                           in if b `BSC8.isPrefixOf` x
+                              then Just $ MkStr0 $ BSC8.drop (BSC8.length b) x
+                              else Nothing
 
 lexBind :: Str0 -> [Lexeme]
 lexBind c_x | (c, x) <- list0 c_x

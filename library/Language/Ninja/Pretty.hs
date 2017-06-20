@@ -94,8 +94,6 @@ prettySingle (output, build) = prettyMultiple (HS.singleton output, build)
 
 prettyMultiple :: (HashSet FileText, PBuild) -> Text
 prettyMultiple (outputs, build) = do
-  let stack = Ninja.getEnvStack (build ^. pbuildEnv)
-
   let prefixIfThere :: Text -> Text -> Text
       prefixIfThere pfx rest = if T.all isSpace rest then "" else pfx <> rest
 
