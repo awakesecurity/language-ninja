@@ -60,6 +60,7 @@ module Language.Ninja.Types
   , pninjaPhonys
   , pninjaDefaults
   , pninjaPools
+  , pninjaSpecials
 
     -- * @PBuild@
   , PBuild, makePBuild
@@ -162,11 +163,13 @@ addBinds bs e = map (second (askExpr e) .> uncurry addEnv .> Endo) bs
                 |> mconcat
                 |> (\endo -> appEndo endo e)
 
+-- | FIXME: doc
 instance ToJSON PExpr where
   toJSON (PExprs xs) = toJSON xs
   toJSON (PLit  str) = toJSON str
   toJSON (PVar  var) = object ["var" .= var]
 
+-- | FIXME: doc
 instance FromJSON PExpr where
   parseJSON = [ \v -> PExprs <$> parseJSON v
               , \v -> PLit   <$> parseJSON v
@@ -176,6 +179,7 @@ instance FromJSON PExpr where
       choice :: [Value -> Aeson.Parser a] -> (Value -> Aeson.Parser a)
       choice = flip (\v -> map (\f -> f v)) .> fmap asum
 
+-- | FIXME: doc
 instance Arbitrary PExpr where
   arbitrary = sized go
     where
@@ -200,12 +204,13 @@ instance Arbitrary PExpr where
 -- | A parsed Ninja file.
 data PNinja
   = MkPNinja
-    { _pninjaRules     :: HashMap Text PRule
-    , _pninjaSingles   :: HashMap FileText PBuild
-    , _pninjaMultiples :: HashMap (HashSet FileText) PBuild
-    , _pninjaPhonys    :: HashMap Text (HashSet FileText)
-    , _pninjaDefaults  :: HashSet FileText
-    , _pninjaPools     :: HashMap Text Int
+    { _pninjaRules     :: !(HashMap Text PRule)
+    , _pninjaSingles   :: !(HashMap FileText PBuild)
+    , _pninjaMultiples :: !(HashMap (HashSet FileText) PBuild)
+    , _pninjaPhonys    :: !(HashMap Text (HashSet FileText))
+    , _pninjaDefaults  :: !(HashSet FileText)
+    , _pninjaPools     :: !(HashMap Text Int)
+    , _pninjaSpecials  :: !(HashMap Text Text)
     }
   deriving (Eq, Show, Generic)
 
@@ -218,6 +223,7 @@ makePNinja = MkPNinja
              , _pninjaPhonys    = mempty
              , _pninjaDefaults  = mempty
              , _pninjaPools     = mempty
+             , _pninjaSpecials  = mempty
              }
 
 -- | The rules defined in a parsed Ninja file.
@@ -250,6 +256,12 @@ pninjaPools :: Lens' PNinja (HashMap Text Int)
 pninjaPools = lens _pninjaPools
               $ \(MkPNinja {..}) x -> MkPNinja { _pninjaPools = x, .. }
 
+-- | A map from "special" top-level variables to their values.
+pninjaSpecials :: Lens' PNinja (HashMap Text Text)
+pninjaSpecials = lens _pninjaSpecials
+                 $ \(MkPNinja {..}) x -> MkPNinja { _pninjaSpecials = x, .. }
+
+-- | FIXME: doc
 instance ToJSON PNinja where
   toJSON (MkPNinja {..})
     = [ "rules"     .= _pninjaRules
@@ -258,6 +270,7 @@ instance ToJSON PNinja where
       , "phonys"    .= _pninjaPhonys
       , "defaults"  .= _pninjaDefaults
       , "pools"     .= _pninjaPools
+      , "specials"  .= _pninjaPools
       ] |> object
     where
       fixMultiples :: HashMap (HashSet FileText) PBuild -> Value
@@ -266,6 +279,7 @@ instance ToJSON PNinja where
       printPair :: HashSet FileText -> PBuild -> Value
       printPair outputs build = object ["outputs" .= outputs, "build" .= build]
 
+-- | FIXME: doc
 instance FromJSON PNinja where
   parseJSON = (withObject "PNinja" $ \o -> do
                   _pninjaRules     <- (o .: "rules")     >>= pure
@@ -274,6 +288,7 @@ instance FromJSON PNinja where
                   _pninjaPhonys    <- (o .: "phonys")    >>= pure
                   _pninjaDefaults  <- (o .: "defaults")  >>= pure
                   _pninjaPools     <- (o .: "pools")     >>= pure
+                  _pninjaSpecials  <- (o .: "specials")  >>= pure
                   pure (MkPNinja {..}))
     where
       fixMultiples :: Value -> Aeson.Parser (HashMap (HashSet FileText) PBuild)
@@ -330,6 +345,7 @@ pbuildBind :: Lens' PBuild (HashMap Text Text)
 pbuildBind = lens _pbuildBind
              $ \(MkPBuild {..}) x -> MkPBuild { _pbuildBind = x, .. }
 
+-- | FIXME: doc
 instance ToJSON PBuild where
   toJSON (MkPBuild {..})
     = [ "rule" .= _pbuildRule
@@ -338,6 +354,7 @@ instance ToJSON PBuild where
       , "bind" .= _pbuildBind
       ] |> object
 
+-- | FIXME: doc
 instance FromJSON PBuild where
   parseJSON = (withObject "PBuild" $ \o -> do
                   _pbuildRule <- (o .: "rule") >>= pure
@@ -380,6 +397,7 @@ pdepsOrderOnly :: Lens' PDeps (HashSet FileText)
 pdepsOrderOnly = lens _pdepsOrderOnly
                  $ \(MkPDeps {..}) x -> MkPDeps { _pdepsOrderOnly = x, .. }
 
+-- | FIXME: doc
 instance ToJSON PDeps where
   toJSON (MkPDeps {..})
     = [ "normal"     .= _pdepsNormal
@@ -387,6 +405,7 @@ instance ToJSON PDeps where
       , "order-only" .= _pdepsOrderOnly
       ] |> object
 
+-- | FIXME: doc
 instance FromJSON PDeps where
   parseJSON = (withObject "PDeps" $ \o -> do
                   _pdepsNormal    <- (o .: "normal")     >>= pure
@@ -413,9 +432,11 @@ makePRule = MkPRule
 pruleBind :: Lens' PRule (HashMap Text PExpr)
 pruleBind = lens _pruleBind (const MkPRule)
 
+-- | FIXME: doc
 instance ToJSON PRule where
   toJSON = _pruleBind .> toJSON
 
+-- | FIXME: doc
 instance FromJSON PRule where
   parseJSON = parseJSON .> fmap MkPRule
 

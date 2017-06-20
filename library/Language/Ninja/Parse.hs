@@ -97,14 +97,31 @@ parseFile file (ninja, env) = do
     |> map applyStmt
     |> foldr (>=>) pure
     |> (\f -> f (ninja, env))
+    |> fmap addSpecialVars
+
+addSpecialVars :: (PNinja, Env Text Text) -> (PNinja, Env Text Text)
+addSpecialVars (ninja, env) = (mutator ninja, env)
+  where
+    specialVars :: [Text]
+    specialVars = ["ninja_required_version", "builddir"]
+
+    addVariable :: Text -> (PNinja -> PNinja)
+    addVariable name = case askEnv env name of
+                         (Just val) -> pninjaSpecials %~ HM.insert name val
+                         Nothing    -> id
+
+    mutator :: PNinja -> PNinja
+    mutator = map addVariable specialVars |> map Endo |> mconcat |> appEndo
 
 withBinds :: [Lexeme] -> [(Lexeme, [(Text, PExpr)])]
-withBinds []     = []
-withBinds (x:xs) = let (a, b) = f xs
-                   in (x, a) : withBinds b
+withBinds = go
   where
+    go []     = []
+    go (x:xs) = let (a, b) = f xs
+                in (x, a) : withBinds b
+
     f ((LexBind a b) : rest) = let (as, bs) = f rest
-                               in (((T.decodeUtf8 a, b):as), bs)
+                               in ((T.decodeUtf8 a, b) : as, bs)
     f xs                     = ([], xs)
 
 applyStmt :: (Lexeme, [(Text, PExpr)])
@@ -134,8 +151,8 @@ applyStmt (lexKey, lexBinds) (ninja, env) = case lexKey of
     let rule = makePRule |> pruleBind .~ HM.fromList lexBinds
     pure (ninja |> pninjaRules %~ HM.insert (T.decodeUtf8 lexName) rule, env)
   (LexDefault lexDefaults) -> do
-    let set = HS.fromList (map (askExpr env) lexDefaults)
-    pure (ninja |> pninjaDefaults %~ (set <>), env)
+    let defaults = HS.fromList (map (askExpr env) lexDefaults)
+    pure (ninja |> pninjaDefaults %~ (defaults <>), env)
   (LexPool lexName) -> do
     depth <- getDepth env lexBinds
     pure (ninja |> pninjaPools %~ HM.insert (T.decodeUtf8 lexName) depth, env)
@@ -145,10 +162,10 @@ applyStmt (lexKey, lexBinds) (ninja, env) = case lexKey of
   (LexSubninja lexExpr) -> do
     let file = askExpr env lexExpr
     parseFile (T.unpack file) (ninja, scopeEnv env)
-  (LexDefine a b) -> do
-    pure (ninja, addBind (T.decodeUtf8 a) b env)
-  (LexBind a _) -> [ "Unexpected binding defining ", a
-                   ] |> mconcat |> BSC8.unpack |> error
+  (LexDefine var value) -> do
+    pure (ninja, addBind (T.decodeUtf8 var) value env)
+  (LexBind var _) -> [ "Unexpected binding defining ", var
+                     ] |> mconcat |> BSC8.unpack |> error
 
 splitDeps :: HashSet Text -> (HashSet Text, HashSet Text, HashSet Text)
 splitDeps = HS.toList

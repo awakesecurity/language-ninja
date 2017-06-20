@@ -150,18 +150,18 @@ ninjaDispatch (NinjaOptionsUnknown tool)  = [ "Unknown tool: ", tool
                                             ] |> mconcat |> T.unpack |> errorIO
 
 computeRuleEnv :: HashSet Text -> PBuild -> PRule -> Env Text Text
-computeRuleEnv out b r = do
+computeRuleEnv outputs b r = do
   let deps = b ^. pbuildDeps . pdepsNormal
   -- the order of adding new environment variables matters
 
-  let compose :: [a -> a] -> (a -> a)
-      compose = map Endo .> mconcat .> appEndo
+  let composeList :: [a -> a] -> (a -> a)
+      composeList = map Endo .> mconcat .> appEndo
 
   Ninja.scopeEnv (b ^. pbuildEnv)
-    |> Ninja.addEnv "out"        (T.unwords (map quote (HS.toList out)))
+    |> Ninja.addEnv "out"        (T.unwords (map quote (HS.toList outputs)))
     |> Ninja.addEnv "in"         (T.unwords (map quote (HS.toList deps)))
     |> Ninja.addEnv "in_newline" (T.unlines (HS.toList deps))
-    |> compose (map (uncurry Ninja.addEnv) (HM.toList (b ^. pbuildBind)))
+    |> composeList (map (uncurry Ninja.addEnv) (HM.toList (b ^. pbuildBind)))
     |> Ninja.addBinds (HM.toList (r ^. pruleBind))
 
 ninjaCompDB :: PNinja -> [Text] -> IO (Maybe (Rules ()))
@@ -185,8 +185,8 @@ ninjaCompDB ninja args = do
         (file:_) <- [build ^. pbuildDeps . pdepsNormal . to HS.toList]
         pure (outputs, build, file, rule)
 
-  compDB <- forM itemsToBuild $ \(out, build, file, rule) -> do
-    let env = computeRuleEnv out build rule
+  compDB <- forM itemsToBuild $ \(outputs, build, _, rule) -> do
+    let env = computeRuleEnv outputs build rule
     let commandLine = T.unpack (Ninja.askVar env "command")
     let deps = build ^. pbuildDeps . pdepsNormal
     pure $ MkCompDB dir commandLine (T.unpack (head (HS.toList deps)))
@@ -201,8 +201,6 @@ ninjaBuild ninja args = pure $ Just $ do
                       ^. pninjaMultiples
                       .  to HM.toList
                       .  to (fmap (first (HS.map filepathNormalise)))
-
-  let poolToResource (name, depth) = Shake.newResource name depth
 
   poolList <- HM.traverseWithKey
               (\k v -> Shake.newResource (T.unpack k) v)
@@ -273,7 +271,7 @@ runBuild :: (PBuild -> [Text] -> Action ())
          -> HashSet Text
          -> PBuild
          -> Action ()
-runBuild needD phonys rules pools out build = do
+runBuild needD phonys rules pools outputs build = do
   let errorA :: Text -> Action a
       errorA = T.unpack .> errorIO .> liftIO
 
@@ -290,12 +288,12 @@ runBuild needD phonys rules pools out build = do
 
   let ruleNotFound = [ "Ninja rule named ", ruleName
                      , " is missing, required to build "
-                     , T.unwords (HS.toList out)
+                     , T.unwords (HS.toList outputs)
                      ] |> mconcat |> errorA
 
   rule <- HM.lookup ruleName rules |> maybe ruleNotFound pure
 
-  let env = computeRuleEnv out build rule
+  let env = computeRuleEnv outputs build rule
 
   applyRspfile env $ do
     let askVarString :: Text -> String
@@ -312,7 +310,7 @@ runBuild needD phonys rules pools out build = do
                        else case HM.lookup pool pools of
                               Nothing -> [ "Ninja pool named ", pool
                                          , " not found, required to build "
-                                         , T.unwords (HS.toList out)
+                                         , T.unwords (HS.toList outputs)
                                          ] |> mconcat |> errorA
                               (Just r) -> Shake.withResource r 1 act
 
@@ -352,9 +350,9 @@ needDeps ninja = \build xs -> do
     neededT xs
     -- now try and statically validate needed will never fail
     -- first find which dependencies are generated files
-    xs <- pure $ filter (\b -> HM.member b builds) xs
+    let generated = filter (\b -> HM.member b builds) xs
     -- now try and find them as dependencies
-    let bad = xs `difference` allDependencies build
+    let bad = generated `difference` allDependencies build
     case bad of
       []    -> pure ()
       (x:_) -> [ "Lint checking error in ", x, ": "
@@ -378,13 +376,15 @@ needDeps ninja = \build xs -> do
     -- do list difference, assuming a small initial set, most of which occurs
     -- early in the list
     difference :: [Text] -> [Text] -> [Text]
-    difference [] ys = []
-    difference xs ys = f (HS.fromList xs) ys
+    difference = go
       where
+        go [] _  = []
+        go xs ys = f (HS.fromList xs) ys
+
         f xs []              = HS.toList xs
         f xs (y:ys) | y ∈ xs = let xs2 = HS.delete y xs
                                in (if HS.null xs2 then [] else f xs2 ys)
-        f xs (y:ys)          = f xs ys
+        f xs (_:ys)          = f xs ys
 
     -- find all dependencies of a rule, no duplicates, with all dependencies of
     -- this rule listed first

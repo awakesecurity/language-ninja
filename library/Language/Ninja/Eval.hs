@@ -106,6 +106,9 @@ data EvaluationError
     }
   deriving (Eq, Show, Generic)
 
+-- FIXME: more granular exception type
+-- FIXME: split off into Errors.hs
+
 instance Exception EvaluationError
 
 throwEvaluationError :: (MonadThrow m) => Text -> m a
