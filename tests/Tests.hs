@@ -37,8 +37,8 @@ import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.ByteString.Lazy.Char8 as LBSC8
 
-import qualified Data.Text.Encoding         as T
-import qualified Data.Text.IO               as T
+import qualified Data.Text.Encoding         as Text
+import qualified Data.Text.IO               as Text
 
 import           Control.Exception
 import           Control.Monad
@@ -48,8 +48,11 @@ import           Control.Monad.Trans.Except
 import qualified Language.Ninja             as Ninja
 import qualified Language.Ninja.Eval        as Ninja
 
-import qualified Test.Hspec                 as H
-import qualified Test.HUnit                 as H
+import qualified Test.Tasty                 as T
+import qualified Test.Tasty.Golden          as T
+import qualified Test.Tasty.HUnit           as T
+import qualified Test.Tasty.Ingredients     as T
+import qualified Test.Tasty.Runners.Html    as T
 
 import           Filesystem.Path.CurrentOS  ((</>))
 import qualified Filesystem.Path.CurrentOS  as FP
@@ -57,6 +60,8 @@ import qualified Filesystem.Path.CurrentOS  as FP
 import qualified Data.Aeson                 as Aeson
 import qualified Data.Aeson.Diff            as Aeson
 import qualified Data.Aeson.Encode.Pretty   as Aeson
+
+import           Flow
 
 import qualified Turtle
 
@@ -88,7 +93,7 @@ parseTestNinja name = do
   Turtle.cd old
   pure result
 
-roundtripTest :: Ninja.PNinja -> H.Expectation
+roundtripTest :: Ninja.PNinja -> IO ()
 roundtripTest pninja = do
   let withTempDir = Turtle.with (Turtle.mktempdir "." "test")
 
@@ -100,6 +105,8 @@ roundtripTest pninja = do
     let prettyOutput = Ninja.prettyNinja output
     pure (prettyInput, prettyOutput)
 
+  -- T.assertEqual "foobar" 1 5
+
   unless (actual == expected) $ do
     -- let actualJ   = Aeson.toJSON actual
     -- let expectedJ = Aeson.toJSON expected
@@ -107,23 +114,38 @@ roundtripTest pninja = do
     -- LBSC8.putStrLn (Aeson.encodePretty expectedJ)
     -- LBSC8.putStrLn (Aeson.encodePretty actualJ)
     -- Aeson.encode actualJ `H.shouldBe` Aeson.encode expectedJ
-    actual `H.shouldBe` expected
+    T.assertEqual "prefix" expected actual
 
-evaluateTest :: Ninja.PNinja -> H.Expectation
+evaluateTest :: Ninja.PNinja -> IO ()
 evaluateTest pninja = do
   Ninja.evaluate pninja
   pure ()
 
-pninjaTests :: String -> Ninja.PNinja -> H.Spec
-pninjaTests name pninja = do
-  H.describe ("Testing " <> name <> ".ninja") $ do
-    H.it "roundtrip through parser and pretty-printer" (roundtripTest pninja)
-    H.it "evaluate to Ninja" (evaluateTest pninja)
+pninjaTests :: String -> Ninja.PNinja -> T.TestTree
+pninjaTests name pninja
+  = T.testGroup ("Testing " <> name <> ".ninja")
+    [ T.testCase "roundtrip through parser and pretty-printer" $ do
+        roundtripTest pninja
+    , T.testCase "evaluate to Ninja" $ do
+        evaluateTest pninja
+    ]
+
+ingredients :: IO [T.Ingredient]
+ingredients = [ [T.htmlRunner]
+              , T.defaultIngredients
+              ] |> mconcat |> pure
+
+testTree :: IO T.TestTree
+testTree = do
+  ninjas <- forM testFiles parseTestNinja
+  let tests = fmap (uncurry pninjaTests) (zip testFiles ninjas)
+  pure (T.testGroup "Language.Ninja" tests)
 
 test :: IO ()
-test = H.hspec $ do
-  ninjas <- H.runIO (forM testFiles parseTestNinja)
-  forM_ (zip testFiles ninjas) (uncurry pninjaTests)
+test = do
+  is <- ingredients
+  tree <- testTree
+  T.defaultMainWithIngredients is tree
 
 main :: IO ()
 main = do

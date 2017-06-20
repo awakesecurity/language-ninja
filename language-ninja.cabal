@@ -89,16 +89,23 @@ test-suite tests
                         , aeson-diff            -any
                         , aeson-pretty          -any
                         , bytestring            -any
-                        , hspec                 -any
-                        , HUnit                 -any
+                        , flow                  -any
+                        , HUnit                 >= 1.5   && < 1.6
+                        , QuickCheck            >= 2.9   && < 2.10
+                        , quickcheck-instances  >= 0.3   && < 0.4
                         , system-filepath       -any
+                        , tasty                 >= 0.11  && < 0.12
+                        , tasty-quickcheck      >= 0.8   && < 0.9
+                        , tasty-golden          >= 2.3   && < 2.4
+                        , tasty-html            >= 0.4   && < 0.5
+                        , tasty-hunit           >= 0.9   && < 0.10
                         , text                  -any
                         , transformers          -any
                         , turtle                -any
     default-language:     Haskell2010
     other-extensions:     OverloadedStrings
                           -- FIXME: add the rest of the extensions used
-    ghc-options:          -Wall
+    ghc-options:          -threaded -Wall
 
 executable ninja2nix
     hs-source-dirs:       executables
@@ -115,8 +122,6 @@ executable ninja2nix
                         , hashable              -any
                         , lens                  -any
                         , makefile              -any
-                        , QuickCheck            >= 2.9   && < 2.10
-                        , quickcheck-instances  >= 0.3   && < 0.4
                         , text                  -any
                         , unordered-containers  -any
     default-language:     Haskell2010

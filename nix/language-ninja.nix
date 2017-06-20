@@ -1,9 +1,10 @@
 { mkDerivation, aeson, aeson-diff, aeson-pretty, base, bytestring
 , containers, cryptonite, deepseq, directory, Earley, exceptions
-, extra, flow, hashable, hspec, HUnit, intern, lens, makefile
-, megaparsec, mtl, QuickCheck, quickcheck-instances, shake, stdenv
-, system-filepath, text, transformers, turtle, unordered-containers
-, versions
+, extra, flow, hashable, HUnit, intern, lens, makefile, megaparsec
+, mtl, QuickCheck, quickcheck-instances, shake, stdenv
+, system-filepath, tasty, tasty-golden, tasty-html, tasty-hunit
+, tasty-quickcheck, text, transformers, turtle
+, unordered-containers, versions
 }:
 mkDerivation {
   pname = "language-ninja";
@@ -19,12 +20,12 @@ mkDerivation {
   ];
   executableHaskellDepends = [
     aeson aeson-pretty base bytestring containers cryptonite flow
-    hashable lens makefile QuickCheck quickcheck-instances text
-    unordered-containers
+    hashable lens makefile text unordered-containers
   ];
   testHaskellDepends = [
-    aeson aeson-diff aeson-pretty base bytestring hspec HUnit
-    system-filepath text transformers turtle
+    aeson aeson-diff aeson-pretty base bytestring flow HUnit QuickCheck
+    quickcheck-instances system-filepath tasty tasty-golden tasty-html
+    tasty-hunit tasty-quickcheck text transformers turtle
   ];
   homepage = "https://github.com/awakenetworks/language-ninja";
   description = "A Haskell library for parsing, pretty-printing, and evaluating the Ninja build language";
