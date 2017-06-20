@@ -301,8 +301,7 @@ lexxName ctor x
 
 lexxExprs :: Bool -> Str0 -> ([PExpr], Str0)
 lexxExprs sColon x
-  = let (a, c_x) = lexxExpr sColon True x
-        c = head0 c_x
+  = let c = head0 c_x
         x = tail0 c_x
     in case c of -- FIXME: nonexhaustive pattern match
          ' '           -> first (a:) $ lexxExprs sColon $ dropSpace x
@@ -312,9 +311,10 @@ lexxExprs sColon x
          '\n'          -> a $: x
          '\0'          -> a $: c_x
   where
+    (a, c_x) = lexxExpr sColon True x
     ($:) :: PExpr -> Str0 -> ([PExpr], Str0)
-    (PExprs []) $: s = ([],  s)
-    a           $: s = ([a], s)
+    (PExprs []) $: s = ([],     s)
+    expr        $: s = ([expr], s)
 
 {-# NOINLINE lexxExpr #-}
 lexxExpr :: Bool -> Bool -> Str0
