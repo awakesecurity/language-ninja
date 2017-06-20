@@ -113,7 +113,7 @@ data Lexeme
     LexInclude PExpr
   | -- | @subninja file@
     LexSubninja PExpr
-  | -- | @build foo: bar | baz || qux@ (@|@ and @||@ are represented as 'Expr')
+  | -- | @build foo: bar | baz || qux@ (@|@ and @||@ are represented as 'PExpr')
     LexBuild [PExpr] Str [PExpr]
   | -- | @rule name@
     LexRule Str

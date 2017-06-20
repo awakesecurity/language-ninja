@@ -83,6 +83,8 @@ import           Prelude
 
 import           Flow
 
+type PNinjaWithEnv = (PNinja, Env Text Text)
+
 -- | FIXME: doc
 parse :: FilePath -> IO PNinja
 parse file = parseWithEnv file makeEnv
@@ -91,17 +93,16 @@ parse file = parseWithEnv file makeEnv
 parseWithEnv :: FilePath -> Env Text Text -> IO PNinja
 parseWithEnv file env = fst <$> parseFile file (makePNinja, env)
 
-parseFile :: FilePath
-          -> (PNinja, Env Text Text) -> IO (PNinja, Env Text Text)
+parseFile :: FilePath -> PNinjaWithEnv -> IO PNinjaWithEnv
 parseFile file (ninja, env) = do
   lexes <- lexerFile $ if file == "-" then Nothing else Just file
   withBinds lexes
-    |> map applyStmt
+    |> map (uncurry applyStmt)
     |> foldr (>=>) pure
     |> (\f -> f (ninja, env))
     |> fmap addSpecialVars
 
-addSpecialVars :: (PNinja, Env Text Text) -> (PNinja, Env Text Text)
+addSpecialVars :: PNinjaWithEnv -> PNinjaWithEnv
 addSpecialVars (ninja, env) = (mutator ninja, env)
   where
     specialVars :: [Text]
@@ -126,48 +127,74 @@ withBinds = go
                                in ((T.decodeUtf8 a, b) : as, bs)
     f xs                     = ([], xs)
 
-applyStmt :: (Lexeme, [(Text, PExpr)])
-          -> (PNinja, Env Text Text) -> IO (PNinja, Env Text Text)
-applyStmt (lexKey, lexBinds) (ninja, env) = case lexKey of
-  (LexBuild lexOutputs lexRule lexDeps) -> do
-    let outputs = map (askExpr env) lexOutputs
-    let deps    = HS.fromList (map (askExpr env) lexDeps)
-    let binds   = HM.fromList (map (second (askExpr env)) lexBinds)
-    let (normal, implicit, orderOnly) = splitDeps deps
-    let build = makePBuild (T.decodeUtf8 lexRule) env
-                |> (pbuildDeps . pdepsNormal    .~ normal)
-                |> (pbuildDeps . pdepsImplicit  .~ implicit)
-                |> (pbuildDeps . pdepsOrderOnly .~ orderOnly)
-                |> (pbuildBind                  .~ binds)
-    let allDeps = normal <> implicit <> orderOnly
-    let addP = \p -> [(x, allDeps) | x <- outputs] <> (HM.toList p)
-                     |> HM.fromList
-    let addS = HM.insert (head outputs) build
-    let addM = HM.insert (HS.fromList outputs) build
-    let newNinja
-          = if      lexRule == "phony"  then ninja |> pninjaPhonys    %~ addP
-            else if length outputs == 1 then ninja |> pninjaSingles   %~ addS
-            else                             ninja |> pninjaMultiples %~ addM
-    pure (newNinja, env)
-  (LexRule lexName) -> do
-    let rule = makePRule |> pruleBind .~ HM.fromList lexBinds
-    pure (ninja |> pninjaRules %~ HM.insert (T.decodeUtf8 lexName) rule, env)
-  (LexDefault lexDefaults) -> do
-    let defaults = HS.fromList (map (askExpr env) lexDefaults)
-    pure (ninja |> pninjaDefaults %~ (defaults <>), env)
-  (LexPool lexName) -> do
-    depth <- getDepth env lexBinds
-    pure (ninja |> pninjaPools %~ HM.insert (T.decodeUtf8 lexName) depth, env)
-  (LexInclude lexExpr) -> do
-    let file = askExpr env lexExpr
-    parseFile (T.unpack file) (ninja, env)
-  (LexSubninja lexExpr) -> do
-    let file = askExpr env lexExpr
-    parseFile (T.unpack file) (ninja, scopeEnv env)
-  (LexDefine var value) -> do
-    pure (ninja, addBind (T.decodeUtf8 var) value env)
-  (LexBind var _) -> [ "Unexpected binding defining ", var
-                     ] |> mconcat |> BSC8.unpack |> error
+type ApplyFun = [(Text, PExpr)] -> PNinjaWithEnv -> IO PNinjaWithEnv
+
+applyStmt :: Lexeme -> ApplyFun
+applyStmt lexeme binds (ninja, env)
+  = (case lexeme of
+       (LexBuild outputs rule deps) -> applyBuild    (outputs, rule, deps)
+       (LexRule name)               -> applyRule     name
+       (LexDefault defaults)        -> applyDefault  defaults
+       (LexPool name)               -> applyPool     name
+       (LexInclude expr)            -> applyInclude  expr
+       (LexSubninja expr)           -> applySubninja expr
+       (LexDefine var value)        -> applyDefine   (var, value)
+       (LexBind var _)              -> (\_ _ -> throwUnexpectedBinding var))
+    |> (\f -> f binds (ninja, env))
+
+applyBuild :: ([PExpr], Str, [PExpr]) -> ApplyFun
+applyBuild (lexOutputs, lexRule, lexDeps) lexBinds (ninja, env) = do
+  let outputs = map (askExpr env) lexOutputs
+  let deps    = HS.fromList (map (askExpr env) lexDeps)
+  let binds   = HM.fromList (map (second (askExpr env)) lexBinds)
+  let (normal, implicit, orderOnly) = splitDeps deps
+  let build = makePBuild (T.decodeUtf8 lexRule) env
+              |> (pbuildDeps . pdepsNormal    .~ normal)
+              |> (pbuildDeps . pdepsImplicit  .~ implicit)
+              |> (pbuildDeps . pdepsOrderOnly .~ orderOnly)
+              |> (pbuildBind                  .~ binds)
+  let allDeps = normal <> implicit <> orderOnly
+  let addP = \p -> [(x, allDeps) | x <- outputs] <> (HM.toList p)
+                   |> HM.fromList
+  let addS = HM.insert (head outputs) build
+  let addM = HM.insert (HS.fromList outputs) build
+  let ninja' = if      lexRule == "phony"  then ninja |> pninjaPhonys    %~ addP
+               else if length outputs == 1 then ninja |> pninjaSingles   %~ addS
+               else                             ninja |> pninjaMultiples %~ addM
+  pure (ninja', env)
+
+applyRule :: Str -> ApplyFun
+applyRule name binds (ninja, env) = do
+  let rule = makePRule |> pruleBind .~ HM.fromList binds
+  pure (ninja |> pninjaRules %~ HM.insert (T.decodeUtf8 name) rule, env)
+
+applyDefault :: [PExpr] -> ApplyFun
+applyDefault lexDefaults _ (ninja, env) = do
+  let defaults = HS.fromList (map (askExpr env) lexDefaults)
+  pure (ninja |> pninjaDefaults %~ (defaults <>), env)
+
+applyPool :: Str -> ApplyFun
+applyPool lexName binds (ninja, env) = do
+  depth <- getDepth env binds
+  pure (ninja |> pninjaPools %~ HM.insert (T.decodeUtf8 lexName) depth, env)
+
+applyInclude :: PExpr -> ApplyFun
+applyInclude lexExpr _ (ninja, env) = do
+  let file = askExpr env lexExpr
+  parseFile (T.unpack file) (ninja, env)
+
+applySubninja :: PExpr -> ApplyFun
+applySubninja lexExpr _ (ninja, env) = do
+  let file = askExpr env lexExpr
+  parseFile (T.unpack file) (ninja, scopeEnv env)
+
+applyDefine :: (Str, PExpr) -> ApplyFun
+applyDefine (var, value) _ (ninja, env) = do
+  pure (ninja, addBind (T.decodeUtf8 var) value env)
+
+throwUnexpectedBinding :: Str -> IO a
+throwUnexpectedBinding var = [ "Unexpected binding defining ", var
+                             ] |> mconcat |> BSC8.unpack |> error
 
 splitDeps :: HashSet Text -> (HashSet Text, HashSet Text, HashSet Text)
 splitDeps = HS.toList
