@@ -269,9 +269,8 @@ lexBuild x
   = LexBuild outputs rule deps : lexerLoop x
 
 lexDefault :: Str0 -> [Lexeme]
-lexDefault x
-  | (files, x) <- lexxExprs False x
-  = LexDefault files : lexerLoop x
+lexDefault x = let (files, x') = lexxExprs False x
+               in LexDefault files : lexerLoop x'
 
 lexRule, lexPool, lexInclude, lexSubninja, lexDefine :: Str0 -> [Lexeme]
 lexRule     = lexxName LexRule
@@ -281,37 +280,36 @@ lexSubninja = lexxFile LexSubninja
 lexDefine   = lexxBind LexDefine
 
 lexxBind :: (Str -> PExpr -> Lexeme) -> Str0 -> [Lexeme]
-lexxBind ctor x
-  | (var,  x) <- span0 isVarDot x
-  , ('=',  x) <- list0 $ dropSpace x
-  , (expr, x) <- lexxExpr False False $ dropSpace x
-  = ctor var expr : lexerLoop x
-lexxBind _ x
-  = error $ show ("parse failed when parsing binding", take0 100 x)
+lexxBind ctor x0 = let (var,  x1) = span0 isVarDot x0
+                       (eq,   x2) = list0 $ dropSpace x1
+                       (expr, x3) = lexxExpr False False $ dropSpace x2
+                   in if eq == '='
+                      then ctor var expr : lexerLoop x3
+                      else [ "parse failed when parsing binding: "
+                           , show (take0 100 x0)
+                           ] |> mconcat |> error
 
 lexxFile :: (PExpr -> Lexeme) -> Str0 -> [Lexeme]
-lexxFile ctor x
-  | (expr, rest) <- lexxExpr False False $ dropSpace x
-  = ctor expr : lexerLoop rest
+lexxFile ctor x = let (expr, rest) = lexxExpr False False $ dropSpace x
+                  in ctor expr : lexerLoop rest
 
 lexxName :: (Str -> Lexeme) -> Str0 -> [Lexeme]
-lexxName ctor x
-  | (name, rest) <- splitLineCont x
-  = ctor name : lexerLoop rest
+lexxName ctor x = let (name, rest) = splitLineCont x
+                  in ctor name : lexerLoop rest
 
 lexxExprs :: Bool -> Str0 -> ([PExpr], Str0)
-lexxExprs sColon x
+lexxExprs sColon x0
   = let c = head0 c_x
-        x = tail0 c_x
+        x1 = tail0 c_x
     in case c of -- FIXME: nonexhaustive pattern match
-         ' '           -> first (a:) $ lexxExprs sColon $ dropSpace x
-         ':'  | sColon -> ([a], x)
+         ' '           -> first (a:) $ lexxExprs sColon $ dropSpace x1
+         ':'  | sColon -> ([a], x1)
          _    | sColon -> error "expected a colon"
-         '\r'          -> a $: dropN x
-         '\n'          -> a $: x
+         '\r'          -> a $: dropN x1
+         '\n'          -> a $: x1
          '\0'          -> a $: c_x
   where
-    (a, c_x) = lexxExpr sColon True x
+    (a, c_x) = lexxExpr sColon True x0
     ($:) :: PExpr -> Str0 -> ([PExpr], Str0)
     (PExprs []) $: s = ([],     s)
     expr        $: s = ([expr], s)
@@ -328,10 +326,10 @@ lexxExpr stopColon stopSpace = first exprs . f
     special :: Char -> Bool
     special x = let b = x `elem` ['$', '\r', '\n', '\0']
                 in case (stopColon, stopSpace) of
-                     (True , True ) -> (x <= ':') && (x == ':' || x == ' ' || b)
-                     (True , False) -> (x <= ':') && (x == ':'             || b)
-                     (False, True ) -> (x <= '$') && (            x == ' ' || b)
-                     (False, False) -> (x <= '$') && (                        b)
+                     (True , True ) -> (x <= ':') && or [x == ':', x == ' ', b]
+                     (True , False) -> (x <= ':') && or [x == ':',           b]
+                     (False, True ) -> (x <= '$') && or [          x == ' ', b]
+                     (False, False) -> (x <= '$') && or [                    b]
 
     f :: Str0 -> ([PExpr], Str0)
     f (break00 special -> (a, x))
@@ -341,22 +339,22 @@ lexxExpr stopColon stopSpace = first exprs . f
     x $: (xs, y) = (x:xs, y)
 
     g :: Str0 -> ([PExpr], Str0)
-    g x | (head0 x /= '$') = ([], x)
-    g (tail0 -> c_x)       = let (c, x) = list0 c_x
-                             in case c of
-                                  '$'   -> PLit (T.singleton '$') $: f x
-                                  ' '   -> PLit (T.singleton ' ') $: f x
-                                  ':'   -> PLit (T.singleton ':') $: f x
-                                  '\n'  -> f $ dropSpace x
-                                  '\r'  -> f $ dropSpace $ dropN x
-                                  '{' | (name, x) <- span0 isVarDot x
-                                      , ('}',  x) <- list0 x
-                                      , not (BSC8.null name)
-                                        -> PVar (T.decodeUtf8 name) $: f x
-                                  _   | (name, x) <- span0 isVar c_x
-                                      , not $ BSC8.null name
-                                        -> PVar (T.decodeUtf8 name) $: f x
-                                  _     -> unexpectedDollar
+    g x0 | (head0 x0 /= '$') = ([], x0)
+    g (tail0 -> c_x)         = let (c, x0) = list0 c_x
+                               in case c of
+                                    '$'   -> PLit (T.singleton '$') $: f x0
+                                    ' '   -> PLit (T.singleton ' ') $: f x0
+                                    ':'   -> PLit (T.singleton ':') $: f x0
+                                    '\n'  -> f $ dropSpace x0
+                                    '\r'  -> f $ dropSpace $ dropN x0
+                                    '{' | (name, x1) <- span0 isVarDot x0
+                                        , ('}',  x2) <- list0 x1
+                                        , not (BSC8.null name)
+                                          -> PVar (T.decodeUtf8 name) $: f x2
+                                    _   | (name, x1) <- span0 isVar c_x
+                                        , not $ BSC8.null name
+                                          -> PVar (T.decodeUtf8 name) $: f x1
+                                    _     -> unexpectedDollar
 
     unexpectedDollar :: a
     unexpectedDollar = error "Unexpect $ followed by unexpected stuff"
