@@ -139,7 +139,7 @@ data EvalMetaError
   = -- | Generic catch-all error constructor. Avoid using this.
     GenericEvalMetaError !Text
   | -- | @Failed to parse `ninja_required_version`: …@
-    SemVerParseError     !Ver.ParsingError
+    VersionParseError    !Ver.ParsingError
   deriving (Eq, Show, Generic)
 
 -- | FIXME: doc
@@ -151,8 +151,8 @@ throwGenericEvalMetaError :: (MonadThrow m) => Text -> m a
 throwGenericEvalMetaError = GenericEvalMetaError .> throwEvalMetaError
 
 -- | FIXME: doc
-throwSemVerParseError :: (MonadThrow m) => Ver.ParsingError -> m a
-throwSemVerParseError pe = throwEvalMetaError (SemVerParseError pe)
+throwVersionParseError :: (MonadThrow m) => Ver.ParsingError -> m a
+throwVersionParseError pe = throwEvalMetaError (VersionParseError pe)
 
 --------------------------------------------------------------------------------
 
@@ -293,11 +293,11 @@ evaluate pninja = result
       let getSpecial :: Text -> Maybe Text
           getSpecial name = HM.lookup name (pninja ^. pninjaSpecials)
 
-      let parseSemVer :: Text -> m Ver.SemVer
-          parseSemVer = Ver.semver .> either throwSemVerParseError pure
+      let parseVersion :: Text -> m Ver.Version
+          parseVersion = Ver.version .> either throwVersionParseError pure
 
       reqversion <- getSpecial "ninja_required_version"
-                    |> fmap parseSemVer
+                    |> fmap parseVersion
                     |> sequenceA
       builddir   <- getSpecial "builddir"
                     |> fmap makePath

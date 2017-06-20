@@ -45,7 +45,7 @@ import           Data.Text                (Text)
 import           Data.Hashable            (Hashable (..))
 import           GHC.Generics             (Generic)
 
-import qualified Data.Versions            as V
+import qualified Data.Versions            as Ver
 
 import qualified Text.Megaparsec          as Mega
 
@@ -61,7 +61,7 @@ import           Flow
 --   <https://ninja-build.org/manual.html#ref_toplevel here>.
 data Meta
   = MkMeta
-    { _metaReqVersion :: !(Maybe V.SemVer)
+    { _metaReqVersion :: !(Maybe Ver.Version)
     , _metaBuildDir   :: !(Maybe Path)
     }
   deriving (Eq, Ord, Show, Generic)
@@ -74,7 +74,7 @@ makeMeta = MkMeta
            }
 
 -- | Corresponds to the @ninja_required_version@ top-level variable.
-metaReqVersion :: Lens' Meta (Maybe V.SemVer)
+metaReqVersion :: Lens' Meta (Maybe Ver.Version)
 metaReqVersion = lens _metaReqVersion
                  $ \(MkMeta {..}) x -> MkMeta { _metaReqVersion = x, .. }
 
@@ -86,28 +86,28 @@ metaBuildDir = lens _metaBuildDir
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable Meta
 
--- | Converts to @{required-version: …, build-directory: …}@.
+-- | Converts to @{req-version: …, build-dir: …}@.
 instance ToJSON Meta where
   toJSON (MkMeta {..})
-    = [ "req-version" .= fmap semverJ _metaReqVersion
+    = [ "req-version" .= fmap versionJ _metaReqVersion
       , "build-dir"   .= _metaBuildDir
       ] |> object
     where
-      semverJ :: V.SemVer -> Value
-      semverJ = V.prettySemVer .> toJSON
+      versionJ :: Ver.Version -> Value
+      versionJ = Ver.prettyVer .> toJSON
 
 -- | Inverse of the 'ToJSON' instance.
 instance FromJSON Meta where
   parseJSON = (withObject "Meta" $ \o -> do
-                  _metaReqVersion <- (o .: "req-version") >>= maybeSemverP
+                  _metaReqVersion <- (o .: "req-version") >>= maybeVersionP
                   _metaBuildDir   <- (o .: "build-dir")   >>= pure
                   pure (MkMeta {..}))
     where
-      maybeSemverP :: Maybe Value -> Aeson.Parser (Maybe V.SemVer)
-      maybeSemverP = fmap semverP .> sequenceA
+      maybeVersionP :: Maybe Value -> Aeson.Parser (Maybe Ver.Version)
+      maybeVersionP = fmap versionP .> sequenceA
 
-      semverP :: Value -> Aeson.Parser V.SemVer
-      semverP = withText "SemVer" (megaparsecToAeson V.semver')
+      versionP :: Value -> Aeson.Parser Ver.Version
+      versionP = withText "Version" (megaparsecToAeson Ver.version')
 
 --------------------------------------------------------------------------------
 
