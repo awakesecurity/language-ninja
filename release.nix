@@ -6,24 +6,24 @@ with rec {
   inherit (pkgs) haskell;
 
   # Compute, e.g.: "x86_64-linux-ghc-8.0.2"
-  computeHaskellDir = ghc: pkg: "${pkg.system}-${ghc.name}";
+  computeHaskellDir = hp: pkg: "${pkg.system}-${hp.ghc.name}";
   
-  addHydraHaddock = ghc: pkg: (
+  addHydraHaddock = hp: pkg: (
     with rec {
-      suffix = "share/doc/${computeHaskellDir ghc pkg}/${pkg.name}/html";
+      suffix = "share/doc/${computeHaskellDir hp pkg}/${pkg.name}/html";
     };
 
     haskell.lib.overrideCabal pkg (old: rec {
       postInstall = ((old.postInstall or "") + ''
         mkdir -p "$out/nix-support"
-        echo "doc haddock $out/${suffix} index.html" \
+        echo "doc Haddock $out/${suffix} index.html" \
             >> "$out/nix-support/hydra-build-products"
       '');
     }));
 
-  addHydraTasty = ghc: pkg: (
+  addHydraTasty = hp: pkg: (
     with rec {
-      dir = computeHaskellDir ghc pkg;
+      dir = computeHaskellDir hp hp.tasty-html;
       data = "${hp.tasty-html}/share/${dir}/${hp.tasty-html.name}/data/";
       static = pkgs.runCommand "tasty-html-static" {} ''
         mkdir -pv "$out"
@@ -37,9 +37,20 @@ with rec {
       testTarget = "--test-options=\"--html tasty.html --assets static\"";
       postInstall = ((old.postInstall or "") + ''
         mkdir -pv "$out/nix-support/test-results"
-        mv -v tasty.html "$out/nix-support/test-results/"
+        mv -v tasty.html "$out/nix-support/test-results/index.html"
         ln -sv ${static} "$out/nix-support/test-results/static"
-        echo "report Tests $out/nix-support/test-results tasty.html" \
+        echo "report Tests $out/nix-support/test-results index.html" \
+            >> "$out/nix-support/hydra-build-products"
+      '');
+    }));
+
+  addHydraHPC = hp: pkg: (
+    haskell.lib.overrideCabal pkg (old: rec {
+      doCoverage = true;
+      
+      postInstall = ((old.postInstall or "") + ''
+        mkdir -pv "$out/nix-support"
+        echo "report coverage $out/share/hpc/dyn/html/${pkg.name} hpc_index.html" \
             >> "$out/nix-support/hydra-build-products"
       '');
     }));
@@ -55,5 +66,7 @@ with rec {
 
 {
   language-ninja = (
-    addHydraTasty hp.ghc (addHydraHaddock hp.ghc hp.language-ninja));
+    addHydraHaddock hp
+    (addHydraHPC hp
+    (addHydraTasty hp hp.language-ninja)));
 }
