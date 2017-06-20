@@ -39,7 +39,6 @@
 
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
 
 -- |
 --   Module      : Language.Ninja.Env
@@ -48,10 +47,10 @@
 --   Maintainer  : opensource@awakenetworks.com
 --   Stability   : experimental
 --
---   A Ninja-style environment, basically a linked-list of mutable hash tables.
+--   A Ninja-style environment, basically a linked-list of hash tables.
 module Language.Ninja.Env
   ( Env, makeEnv, fromEnv, headEnv, tailEnv
-  , scopeEnv, addEnv, askEnv, getEnvStack
+  , scopeEnv, addEnv, askEnv
   ) where
 
 import           Control.Applicative
@@ -75,49 +74,48 @@ import qualified Data.Aeson.Types    as Aeson
 
 import           Flow
 
--- | FIXME: doc
+-- | A Ninja-style environment, basically a linked-list of hash tables.
 newtype Env k v
   = MkEnv
     { _fromEnv :: NonEmpty (HashMap k v)
     }
   deriving (Eq, Show, Generic)
 
--- | FIXME: doc
+-- | Construct an empty environment.
 makeEnv :: Env k v
 makeEnv = MkEnv (HM.empty :| [])
 
--- | FIXME: doc
+-- | An isomorphism between an 'Env' and a nonempty list of 'HashMap's.
 fromEnv :: Iso' (Env k v) (NonEmpty (HashMap k v))
 fromEnv = iso _fromEnv MkEnv
 
--- | FIXME: doc
+-- | Get the first 'HashMap' in the underlying nonempty list.
 headEnv :: Env k v -> HashMap k v
 headEnv (MkEnv (m :| _)) = m
 
--- | FIXME: doc
+-- | If the remainder of the underlying nonempty list is nonempty, return
+--   the remainder after 'Env' wrapping. Otherwise, return 'Nothing'.
 tailEnv :: Env k v -> Maybe (Env k v)
 tailEnv (MkEnv (_ :| e)) = MkEnv <$> NE.nonEmpty e
 
--- | FIXME: doc
+-- | Push a new 'Env' onto the stack.
 scopeEnv :: Env k v -> Env k v
 scopeEnv e = MkEnv (NE.cons HM.empty (_fromEnv e))
 
--- | FIXME: doc
+-- | Add the given key and value to the given 'Env'.
 addEnv :: (Eq k, Hashable k) => k -> v -> Env k v -> Env k v
 addEnv k v (MkEnv (m :| rest)) = MkEnv (HM.insert k v m :| rest)
 
--- | FIXME: doc
+-- | Look up the given key in the given 'Env'.
 askEnv :: (Eq k, Hashable k) => Env k v -> k -> Maybe v
 askEnv env k = HM.lookup k (headEnv env)
                <|> (tailEnv env >>= (`askEnv` k))
 
--- | FIXME: doc
-getEnvStack :: Env k v -> [HashMap k v]
-getEnvStack = _fromEnv .> NE.toList
-
+-- | Converts to a (non-empty) array of JSON objects.
 instance (ToJSONKey k, ToJSON v) => ToJSON (Env k v) where
   toJSON = _fromEnv .> NE.toList .> toJSON
 
+-- | Inverse of the 'ToJSON' instance.
 instance (Eq k, Hashable k, FromJSONKey k, FromJSON v) =>
          FromJSON (Env k v) where
   parseJSON = parseJSON
