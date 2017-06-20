@@ -55,7 +55,6 @@
 --   Lexing is a slow point, the code below is optimised.
 module Language.Ninja.Lexer
   ( Lexeme (..), lexerFile, lexer
-  , computeChunks
   ) where
 
 import           Control.Applicative
@@ -123,35 +122,6 @@ data Lexeme
   | -- | @default foo bar@
     LexDefault [PExpr]
   deriving (Eq, Show)
-
---------------------------------------------------------------------------------
-
--- FIXME: this is dead code, at least for now
-
-prettyChunks :: (ToJSON t) => [Located t] -> IO ()
-prettyChunks = map Aeson.encode .> mapM_ LBSC8.putStrLn
-
-computeChunks :: Maybe Path -> Text -> [Located Text]
-computeChunks mpath = Loc.tokenize mpath .> addIndents
-  where
-    addIndents :: [Located Text] -> [Located Text]
-    addIndents []         = []
-    addIndents [x]        = [x]
-    addIndents (x:y:rest) = let toLine :: Located t -> Line
-                                toLine l = l ^. locatedPos . positionLine
-                                toCol :: Located t -> Column
-                                toCol l = l ^. locatedPos . positionCol
-                                new :: Located Text
-                                new = y
-                                      |> (locatedPos . positionCol .~ 0)
-                                      |> (locatedVal               .~ "\t")
-                                rest' :: [Located Text]
-                                rest' = addIndents (y:rest)
-                            in if toLine x == toLine y
-                               then x : rest'
-                               else if toCol y == 0
-                                    then x : rest'
-                                    else x : new : rest'
 
 --------------------------------------------------------------------------------
 
