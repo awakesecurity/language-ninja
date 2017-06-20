@@ -32,7 +32,16 @@
 --
 --   FIXME: doc
 module Language.Ninja.Pretty
-  ( module Language.Ninja.Pretty -- FIXME: specific export list
+  ( -- * Pretty-printers
+    prettyNinja
+  , prettyExpr
+  , prettyRule
+  , prettySingle
+  , prettyMultiple
+  , prettyPhony
+  , prettyDefault
+  , prettyPool
+  , prettyBind
   ) where
 
 import qualified Control.Arrow         as Arr
@@ -64,6 +73,7 @@ import           Data.Monoid
 
 import           Flow
 
+-- | FIXME: doc
 prettyNinja :: PNinja -> Text
 prettyNinja ninja
   = [ map prettyRule     (HM.toList (ninja ^. pninjaRules))
@@ -74,6 +84,15 @@ prettyNinja ninja
     , map prettyPool     (HM.toList (ninja ^. pninjaPools))
     ] |> mconcat |> mconcat
 
+-- | FIXME: doc
+prettyExpr :: Ninja.PExpr -> Text
+prettyExpr = go .> mconcat
+  where
+    go (Ninja.PExprs es) = map prettyExpr es
+    go (Ninja.PLit  str) = [str]
+    go (Ninja.PVar name) = ["${", name, "}"]
+
+-- | FIXME: doc
 prettyRule :: (Text, PRule) -> Text
 prettyRule (name, rule) = do
   let binds = rule ^. pruleBind
@@ -82,16 +101,11 @@ prettyRule (name, rule) = do
               |> mconcat
   mconcat ["rule ", name, "\n", binds]
 
-prettyExpr :: Ninja.PExpr -> Text
-prettyExpr = go .> mconcat
-  where
-    go (Ninja.PExprs es) = map prettyExpr es
-    go (Ninja.PLit  str) = [str]
-    go (Ninja.PVar name) = ["${", name, "}"]
-
+-- | FIXME: doc
 prettySingle :: (FileText, PBuild) -> Text
 prettySingle (output, build) = prettyMultiple (HS.singleton output, build)
 
+-- | FIXME: doc
 prettyMultiple :: (HashSet FileText, PBuild) -> Text
 prettyMultiple (outputs, build) = do
   let prefixIfThere :: Text -> Text -> Text
@@ -111,26 +125,29 @@ prettyMultiple (outputs, build) = do
     , ruleName, " ", unwordsSet normal
     , prefixIfThere " | "  (unwordsSet implicit)
     , prefixIfThere " || " (unwordsSet orderOnly), "\n"
-    -- , "    # environment: ", tshow (map HM.toList stack), "\n"
     , HM.toList binds |> map prettyBind |> mconcat
     ]
 
+-- | FIXME: doc
 prettyPhony :: (Text, HashSet FileText) -> Text
 prettyPhony (name, inputs)
   = [ ["build ", name, ": phony ", T.unwords (HS.toList inputs)]
     ] |> map mconcat |> T.unlines
 
+-- | FIXME: doc
 prettyDefault :: FileText -> Text
 prettyDefault target
   = [ ["default ", target]
     ] |> map mconcat |> T.unlines
 
+-- | FIXME: doc
 prettyPool :: (Text, Int) -> Text
 prettyPool (name, depth)
   = [ ["pool ", name]
     , ["    depth = ", tshow depth]
     ] |> map mconcat |> T.unlines
 
+-- | FIXME: doc
 prettyBind :: (Text, Text) -> Text
 prettyBind (name, value) = mconcat ["    ", name, " = ", value, "\n"]
 

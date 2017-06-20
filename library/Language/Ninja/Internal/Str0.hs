@@ -71,23 +71,28 @@ import           System.IO.Unsafe
 newtype Str0
   = MkStr0 ByteString
 
+-- | FIXME: doc
 type S = Ptr Word8
 
 -- | FIXME: doc
 char :: S -> Char
 char x = BS.Internal.w2c $ unsafePerformIO $ peek x
 
+-- | FIXME: doc
 next :: S -> S
 next x = x `plusPtr` 1
 
+-- | FIXME: doc
 {-# INLINE dropWhile0 #-}
 dropWhile0 :: (Char -> Bool) -> Str0 -> Str0
 dropWhile0 f x = snd $ span0 f x
 
+-- | FIXME: doc
 {-# INLINE span0 #-}
 span0 :: (Char -> Bool) -> Str0 -> (ByteString, Str0)
 span0 f = break0 (not . f)
 
+-- | FIXME: doc
 {-# INLINE break0 #-}
 break0 :: (Char -> Bool) -> Str0 -> (ByteString, Str0)
 break0 f (MkStr0 bs) = (initial, rest)
@@ -105,6 +110,7 @@ break0 f (MkStr0 bs) = (initial, rest)
       where
         c = char s
 
+-- | FIXME: doc
 {-# INLINE break00 #-}
 -- The predicate must return true for '\0'
 break00 :: (Char -> Bool) -> Str0 -> (ByteString, Str0)
@@ -123,15 +129,19 @@ break00 f (MkStr0 bs) = (initial, rest)
       where
         c = char s
 
+-- | FIXME: doc
 head0 :: Str0 -> Char
 head0 (MkStr0 x) = BS.Internal.w2c $ BS.Unsafe.unsafeHead x
 
+-- | FIXME: doc
 tail0 :: Str0 -> Str0
 tail0 (MkStr0 x) = MkStr0 $ BS.Unsafe.unsafeTail x
 
+-- | FIXME: doc
 list0 :: Str0 -> (Char, Str0)
 list0 x = (head0 x, tail0 x)
 
+-- | FIXME: doc
 take0 :: Int -> Str0 -> ByteString
 take0 i (MkStr0 x) = BSC8.takeWhile (/= '\0') $ BSC8.take i x
 

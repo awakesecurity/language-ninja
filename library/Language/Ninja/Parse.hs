@@ -83,9 +83,11 @@ import           Prelude
 
 import           Flow
 
+-- | FIXME: doc
 parse :: FilePath -> IO PNinja
 parse file = parseWithEnv file makeEnv
 
+-- | FIXME: doc
 parseWithEnv :: FilePath -> Env Text Text -> IO PNinja
 parseWithEnv file env = fst <$> parseFile file (makePNinja, env)
 

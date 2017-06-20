@@ -116,6 +116,7 @@ throwEvaluationError msg = throwM (MkEvaluationError msg)
 
 --------------------------------------------------------------------------------
 
+-- | FIXME: doc
 evaluate :: forall m. (MonadThrow m) => PNinja -> m Ninja
 evaluate pninja = result
   where
