@@ -82,7 +82,7 @@ library
 test-suite tests
     type:                 exitcode-stdio-1.0
     hs-source-dirs:       tests
-    main-is:              Main.hs
+    main-is:              Tests.hs
     build-depends:        language-ninja
                         , base                  >= 4.8   && < 5.0
                         , aeson                 -any

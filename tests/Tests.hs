@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: tests/Main.hs
+-- File: tests/Tests.hs
 --
 -- License:
 --     Copyright 2017 Awake Networks
@@ -19,6 +19,14 @@
 
 {-# LANGUAGE OverloadedStrings #-}
 
+-- |
+--   Module      : Main
+--   Copyright   : Copyright 2017 Awake Networks
+--   License     : Apache-2.0
+--   Maintainer  : opensource@awakenetworks.com
+--   Stability   : experimental
+--
+--   FIXME: doc
 module Main (main) where
 
 import           Data.Monoid
