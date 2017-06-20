@@ -80,6 +80,8 @@ import           Flow
 import           Data.Hashable              (Hashable)
 import           GHC.Generics               (Generic)
 
+import qualified Data.Versions              as Ver
+
 import           Language.Ninja.AST
 import           Language.Ninja.Env
 import qualified Language.Ninja.Parse       as Ninja
@@ -97,22 +99,172 @@ testEval = void $ do
   LBSC8.putStrLn (Aeson.encodePretty ninja)
   -- print ninja
 
+-------------------------------------------------------------------------------
+
+-- FIXME: split off into Errors.hs
+
+-- | FIXME: doc
+data EvalError
+  = -- | Generic catch-all error constructor. Avoid using this.
+    GenericEvalError !Text
+  | -- | Errors encountered while computing a 'Meta'.
+    EvalMetaError    !EvalMetaError
+  | -- | Errors encountered while computing a 'Build'.
+    EvalBuildError   !EvalBuildError
+  | -- | Errors encountered while computing a 'Rule'.
+    EvalRuleError    !EvalRuleError
+  | -- | Errors encountered while computing the phony 'HashMap'.
+    EvalPhonyError   !EvalPhonyError
+  | -- | Errors encountered while computing the default target 'HashSet'.
+    EvalDefaultError !EvalDefaultError
+  | -- | Errors encountered while computing a 'Pool'.
+    EvalPoolError    !EvalPoolError
+  deriving (Eq, Show, Generic)
+
+-- | FIXME: doc
+instance Exception EvalError
+
+-- | FIXME: doc
+throwEvalError :: (MonadThrow m) => EvalError -> m a
+throwEvalError = throwM
+
+-- | FIXME: doc
+throwGenericEvalError :: (MonadThrow m) => Text -> m a
+throwGenericEvalError msg = throwM (GenericEvalError msg)
+
 --------------------------------------------------------------------------------
 
 -- | FIXME: doc
-data EvaluationError
-  = MkEvaluationError
-    { _evalErrorMessage :: !Text
-    }
+data EvalMetaError
+  = -- | Generic catch-all error constructor. Avoid using this.
+    GenericEvalMetaError !Text
+  | -- | @Failed to parse `ninja_required_version`: …@
+    SemVerParseError     !Ver.ParsingError
   deriving (Eq, Show, Generic)
 
--- FIXME: more granular exception type
--- FIXME: split off into Errors.hs
+-- | FIXME: doc
+throwEvalMetaError :: (MonadThrow m) => EvalMetaError -> m a
+throwEvalMetaError = EvalMetaError .> throwM
 
-instance Exception EvaluationError
+-- | FIXME: doc
+throwGenericEvalMetaError :: (MonadThrow m) => Text -> m a
+throwGenericEvalMetaError = GenericEvalMetaError .> throwEvalMetaError
 
-throwEvaluationError :: (MonadThrow m) => Text -> m a
-throwEvaluationError msg = throwM (MkEvaluationError msg)
+-- | FIXME: doc
+throwSemVerParseError :: (MonadThrow m) => Ver.ParsingError -> m a
+throwSemVerParseError pe = throwEvalMetaError (SemVerParseError pe)
+
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
+data EvalPhonyError
+  = -- | Generic catch-all error constructor. Avoid using this.
+    GenericEvalPhonyError !Text
+  deriving (Eq, Show, Generic)
+
+-- | FIXME: doc
+throwEvalPhonyError :: (MonadThrow m) => EvalPhonyError -> m a
+throwEvalPhonyError = EvalPhonyError .> throwM
+
+-- | FIXME: doc
+throwGenericEvalPhonyError :: (MonadThrow m) => Text -> m a
+throwGenericEvalPhonyError = GenericEvalPhonyError .> throwEvalPhonyError
+
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
+data EvalDefaultError
+  = -- | Generic catch-all error constructor. Avoid using this.
+    GenericEvalDefaultError !Text
+  deriving (Eq, Show, Generic)
+
+-- | FIXME: doc
+throwEvalDefaultError :: (MonadThrow m) => EvalDefaultError -> m a
+throwEvalDefaultError = EvalDefaultError .> throwM
+
+-- | FIXME: doc
+throwGenericEvalDefaultError :: (MonadThrow m) => Text -> m a
+throwGenericEvalDefaultError = GenericEvalDefaultError .> throwEvalDefaultError
+
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
+data EvalBuildError
+  = -- | Generic catch-all error constructor. Avoid using this.
+    GenericEvalBuildError !Text
+  | -- | @Rule not found: <text>@
+    BuildRuleNotFound     !Text
+  deriving (Eq, Show, Generic)
+
+-- | FIXME: doc
+throwEvalBuildError :: (MonadThrow m) => EvalBuildError -> m a
+throwEvalBuildError = EvalBuildError .> throwM
+
+-- | FIXME: doc
+throwGenericEvalBuildError :: (MonadThrow m) => Text -> m a
+throwGenericEvalBuildError = GenericEvalBuildError .> throwEvalBuildError
+
+-- | FIXME: doc
+throwBuildRuleNotFound :: (MonadThrow m) => Text -> m a
+throwBuildRuleNotFound name = throwEvalBuildError (BuildRuleNotFound name)
+
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
+data EvalRuleError
+  = -- | Generic catch-all error constructor. Avoid using this.
+    GenericEvalRuleError !Text
+  | -- | @Lookup failed on rule variable: <text>@
+    RuleLookupFailure    !Text
+  | -- | @Unknown `deps` value: <text>@
+    UnknownDepsValue     !Text
+  | -- | @Unexpected `msvc_deps_prefix` for `deps = "<text>"`@
+    UnexpectedMSVCPrefix !Text
+  deriving (Eq, Show, Generic)
+
+-- | FIXME: doc
+throwEvalRuleError :: (MonadThrow m) => EvalRuleError -> m a
+throwEvalRuleError = EvalRuleError .> throwM
+
+-- | FIXME: doc
+throwGenericEvalRuleError :: (MonadThrow m) => Text -> m a
+throwGenericEvalRuleError = GenericEvalRuleError .> throwEvalRuleError
+
+-- | FIXME: doc
+throwLookupError :: (MonadThrow m) => Text -> m a
+throwLookupError v = throwEvalRuleError (RuleLookupFailure v)
+
+-- | FIXME: doc
+throwUnknownDeps :: (MonadThrow m) => Text -> m a
+throwUnknownDeps deps = throwEvalRuleError (UnknownDepsValue deps)
+
+--------------------------------------------------------------------------------
+
+-- | FIXME: doc
+data EvalPoolError
+  = -- | Generic catch-all error constructor. Avoid using this.
+    GenericEvalPoolError !Text
+  | -- | @Invalid pool depth for console: <int>@
+    InvalidPoolDepth     !Int
+  | -- | @Pool name is an empty string@
+    EmptyPoolName
+  deriving (Eq, Show, Generic)
+
+-- | FIXME: doc
+throwEvalPoolError :: (MonadThrow m) => EvalPoolError -> m a
+throwEvalPoolError = EvalPoolError .> throwM
+
+-- | FIXME: doc
+throwGenericEvalPoolError :: (MonadThrow m) => Text -> m a
+throwGenericEvalPoolError = GenericEvalPoolError .> throwEvalPoolError
+
+-- | FIXME: doc
+throwInvalidPoolDepth :: (MonadThrow m) => Int -> m a
+throwInvalidPoolDepth d = throwEvalPoolError (InvalidPoolDepth d)
+
+-- | FIXME: doc
+throwEmptyPoolName :: (MonadThrow m) => m a
+throwEmptyPoolName = throwEvalPoolError EmptyPoolName
 
 --------------------------------------------------------------------------------
 
@@ -127,17 +279,34 @@ evaluate pninja = result
       phonys   <- phonysM
       defaults <- defaultsM
       pools    <- poolsM
-      pure (makeNinja
-            & ninjaMeta     .~ meta
-            & ninjaBuilds   .~ builds
-            & ninjaPhonys   .~ phonys
-            & ninjaDefaults .~ defaults
-            & ninjaPools    .~ pools)
+
+      makeNinja
+        |> ninjaMeta     .~ meta
+        |> ninjaBuilds   .~ builds
+        |> ninjaPhonys   .~ phonys
+        |> ninjaDefaults .~ defaults
+        |> ninjaPools    .~ pools
+        |> pure
 
     metaM :: m Meta
     metaM = do
-      -- FIXME: implement this
-      pure makeMeta
+      let getSpecial :: Text -> Maybe Text
+          getSpecial name = HM.lookup name (pninja ^. pninjaSpecials)
+
+      let parseSemVer :: Text -> m Ver.SemVer
+          parseSemVer = Ver.semver .> either throwSemVerParseError pure
+
+      reqversion <- getSpecial "ninja_required_version"
+                    |> fmap parseSemVer
+                    |> sequenceA
+      builddir   <- getSpecial "builddir"
+                    |> fmap makePath
+                    |> pure
+
+      makeMeta
+        |> metaReqVersion .~ reqversion
+        |> metaBuildDir   .~ builddir
+        |> pure
 
     buildsM :: m (HashSet Build)
     buildsM = (pmultiples <> onHM (first HS.singleton) psingles)
@@ -166,9 +335,10 @@ evaluate pninja = result
                  <*> mapM (evalDep ImplicitDependency)  implicitDeps
                  <*> mapM (evalDep OrderOnlyDependency) orderOnlyDeps
 
-      pure (makeBuild rule
-            |> buildOuts .~ outs
-            |> buildDeps .~ deps)
+      makeBuild rule
+        |> buildOuts .~ outs
+        |> buildDeps .~ deps
+        |> pure
 
     evaluatePhony :: (Text, HashSet FileText)
                   -> m (Target, HashSet Target)
@@ -182,19 +352,13 @@ evaluate pninja = result
 
     evaluatePool :: (Text, Int) -> m Pool
     evaluatePool ("console", 1) = pure poolConsole
-    evaluatePool ("console", d) = ["Invalid pool depth for console: ", show d]
-                                  |> mconcat |> T.pack |> throwEvaluationError
-    evaluatePool ("",        _) = ["Pool name is an empty string!"]
-                                  |> mconcat |> T.pack |> throwEvaluationError
+    evaluatePool ("console", d) = throwInvalidPoolDepth d
+    evaluatePool ("",        _) = throwEmptyPoolName
     evaluatePool (name,  depth) = pure (poolCustom name depth)
 
     evaluateRule :: (HashSet FileText, PBuild) -> m Rule
     evaluateRule (outputs, pbuild) = do
       (name, prule) <- lookupRule pbuild
-
-      let throwLookupError :: Text -> m a
-          throwLookupError v = ["Lookup failed on rule variable: ", v]
-                               |> mconcat |> throwEvaluationError
 
       let orLookupError :: Text -> Maybe a -> m a
           orLookupError var = maybe (throwLookupError var) pure
@@ -226,14 +390,15 @@ evaluate pninja = result
                          >>= (\(ma, mb) -> pure ((,) <$> ma <*> mb))
                          >>= fmap evaluateResponseFile .> sequenceA
 
-      pure (makeRule name command
-            |> ruleDescription  .~ description
-            |> rulePool         .~ pool
-            |> ruleDepfile      .~ depfile
-            |> ruleSpecialDeps  .~ specialDeps
-            |> ruleGenerator    .~ generator
-            |> ruleRestat       .~ restat
-            |> ruleResponseFile .~ responseFile)
+      makeRule name command
+        |> ruleDescription  .~ description
+        |> rulePool         .~ pool
+        |> ruleDepfile      .~ depfile
+        |> ruleSpecialDeps  .~ specialDeps
+        |> ruleGenerator    .~ generator
+        |> ruleRestat       .~ restat
+        |> ruleResponseFile .~ responseFile
+        |> pure
 
     evaluateSpecialDeps :: (Maybe Text, Maybe Text) -> m (Maybe SpecialDeps)
     evaluateSpecialDeps = go
@@ -242,10 +407,6 @@ evaluate pninja = result
         go (Just "gcc",        _) = pure (Just makeSpecialDepsGCC)
         go (Just "msvc", mprefix) = pure (Just (makeSpecialDepsMSVC mprefix))
         go (Just owise,        _) = throwUnknownDeps owise
-
-        throwUnknownDeps :: Text -> m a
-        throwUnknownDeps deps = ["Unknown `deps` value: ", deps]
-                                |> mconcat |> throwEvaluationError
 
     evaluateResponseFile :: (Text, Text) -> m ResponseFile
     evaluateResponseFile (file, content)
@@ -270,9 +431,7 @@ evaluate pninja = result
     lookupRule :: PBuild -> m (Text, PRule)
     lookupRule pbuild = do
       let name = pbuild ^. pbuildRule
-      let throwRuleNotFound = ["Rule not found: ", name]
-                              |> mconcat |> throwEvaluationError
-      prule <- maybe throwRuleNotFound pure (HM.lookup name prules)
+      prule <- maybe (throwBuildRuleNotFound name) pure (HM.lookup name prules)
       pure (name, prule)
 
     computeRuleEnv :: (HashSet Text, PBuild)
