@@ -54,7 +54,12 @@
 --
 --   Lexing is a slow point, the code below is optimised.
 module Language.Ninja.Lexer
-  ( Lexeme (..), lexerFile, lexer
+  ( Lexeme (..)
+  , LName (..)
+  , LFile (..)
+  , LBinding (..)
+  , LBuild (..)
+  , lexerFile, lexer
   ) where
 
 import           Control.Applicative
@@ -106,21 +111,52 @@ import           Language.Ninja.Internal.Str0
 -- | Lex each line separately, rather than each lexeme
 data Lexeme
   = -- | @foo = bar@
-    LexDefine Str PExpr
+    LexDefine   !LBinding
   | -- | @[indent]foo = bar@
-    LexBind Str PExpr
+    LexBind     !LBinding
   | -- | @include file@
-    LexInclude PExpr
+    LexInclude  !LFile
   | -- | @subninja file@
-    LexSubninja PExpr
+    LexSubninja !LFile
   | -- | @build foo: bar | baz || qux@ (@|@ and @||@ are represented as 'PExpr')
-    LexBuild [PExpr] Str [PExpr]
+    LexBuild    !LBuild
   | -- | @rule name@
-    LexRule Str
+    LexRule     !LName
   | -- | @pool name@
-    LexPool Str
+    LexPool     !LName
   | -- | @default foo bar@
-    LexDefault [PExpr]
+    LexDefault  ![PExpr]
+  deriving (Eq, Show)
+
+-- | FIXME: doc
+newtype LName
+  = MkLName
+    { _lnameStr :: Str
+    }
+  deriving (Eq, Show)
+
+-- | FIXME: doc
+newtype LFile
+  = MkLFile
+    { _lfileExpr :: PExpr
+    }
+  deriving (Eq, Show)
+
+-- | FIXME: doc
+data LBinding
+  = MkLBinding
+    { _lbindingName  :: !LName
+    , _lbindingValue :: !PExpr
+    }
+  deriving (Eq, Show)
+
+-- | FIXME: doc
+data LBuild
+  = MkLBuild
+    { _lbuildOuts :: ![PExpr]
+    , _lbuildRule :: !Str
+    , _lbuildDeps :: ![PExpr]
+    }
   deriving (Eq, Show)
 
 --------------------------------------------------------------------------------
@@ -172,7 +208,7 @@ lexBuild x0
   = let (outputs, x1) = lexxExprs True x0
         (rule,    x2) = span0 isVarDot $ dropSpace x1
         (deps,    x3) = lexxExprs False $ dropSpace x2
-    in LexBuild outputs rule deps : lexerLoop x3
+    in LexBuild (MkLBuild outputs rule deps) : lexerLoop x3
 
 lexDefault :: Str0 -> [Lexeme]
 lexDefault x = let (files, x') = lexxExprs False x
@@ -185,23 +221,23 @@ lexInclude  = lexxFile LexInclude
 lexSubninja = lexxFile LexSubninja
 lexDefine   = lexxBind LexDefine
 
-lexxBind :: (Str -> PExpr -> Lexeme) -> Str0 -> [Lexeme]
+lexxBind :: (LBinding -> Lexeme) -> Str0 -> [Lexeme]
 lexxBind ctor x0 = let (var,  x1) = span0 isVarDot x0
                        (eq,   x2) = list0 $ dropSpace x1
                        (expr, x3) = lexxExpr False False $ dropSpace x2
                    in if eq == '='
-                      then ctor var expr : lexerLoop x3
+                      then ctor (MkLBinding (MkLName var) expr) : lexerLoop x3
                       else [ "parse failed when parsing binding: "
                            , show (take0 100 x0)
                            ] |> mconcat |> error
 
-lexxFile :: (PExpr -> Lexeme) -> Str0 -> [Lexeme]
+lexxFile :: (LFile -> Lexeme) -> Str0 -> [Lexeme]
 lexxFile ctor x = let (expr, rest) = lexxExpr False False $ dropSpace x
-                  in ctor expr : lexerLoop rest
+                  in ctor (MkLFile expr) : lexerLoop rest
 
-lexxName :: (Str -> Lexeme) -> Str0 -> [Lexeme]
+lexxName :: (LName -> Lexeme) -> Str0 -> [Lexeme]
 lexxName ctor x = let (name, rest) = splitLineCont x
-                  in ctor name : lexerLoop rest
+                  in ctor (MkLName name) : lexerLoop rest
 
 lexxExprs :: Bool -> Str0 -> ([PExpr], Str0)
 lexxExprs sColon x0

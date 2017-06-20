@@ -123,27 +123,28 @@ withBinds = go
     go (x:xs) = let (a, b) = f xs
                 in (x, a) : withBinds b
 
-    f ((LexBind a b) : rest) = let (as, bs) = f rest
-                               in ((T.decodeUtf8 a, b) : as, bs)
-    f xs                     = ([], xs)
+    f (LexBind binding : rest) = let MkLBinding (MkLName a) b = binding
+                                     (as, bs) = f rest
+                                 in ((T.decodeUtf8 a, b) : as, bs)
+    f xs                       = ([], xs)
 
 type ApplyFun = [(Text, PExpr)] -> PNinjaWithEnv -> IO PNinjaWithEnv
 
 applyStmt :: Lexeme -> ApplyFun
 applyStmt lexeme binds (ninja, env)
   = (case lexeme of
-       (LexBuild outputs rule deps) -> applyBuild    (outputs, rule, deps)
-       (LexRule name)               -> applyRule     name
-       (LexDefault defaults)        -> applyDefault  defaults
-       (LexPool name)               -> applyPool     name
-       (LexInclude expr)            -> applyInclude  expr
-       (LexSubninja expr)           -> applySubninja expr
-       (LexDefine var value)        -> applyDefine   (var, value)
-       (LexBind var _)              -> (\_ _ -> throwUnexpectedBinding var))
+       (LexBuild       lbuild) -> applyBuild    lbuild
+       (LexRule         lname) -> applyRule     lname
+       (LexDefault   defaults) -> applyDefault  defaults
+       (LexPool         lname) -> applyPool     lname
+       (LexInclude      lfile) -> applyInclude  lfile
+       (LexSubninja     lfile) -> applySubninja lfile
+       (LexDefine    lbinding) -> applyDefine   lbinding
+       (LexBind      lbinding) -> (\_ _ -> throwUnexpectedBinding lbinding))
     |> (\f -> f binds (ninja, env))
 
-applyBuild :: ([PExpr], Str, [PExpr]) -> ApplyFun
-applyBuild (lexOutputs, lexRule, lexDeps) lexBinds (ninja, env) = do
+applyBuild :: LBuild -> ApplyFun
+applyBuild (MkLBuild lexOutputs lexRule lexDeps) lexBinds (ninja, env) = do
   let outputs = map (askExpr env) lexOutputs
   let deps    = HS.fromList (map (askExpr env) lexDeps)
   let binds   = HM.fromList (map (second (askExpr env)) lexBinds)
@@ -163,8 +164,8 @@ applyBuild (lexOutputs, lexRule, lexDeps) lexBinds (ninja, env) = do
                else                             ninja |> pninjaMultiples %~ addM
   pure (ninja', env)
 
-applyRule :: Str -> ApplyFun
-applyRule name binds (ninja, env) = do
+applyRule :: LName -> ApplyFun
+applyRule (MkLName name) binds (ninja, env) = do
   let rule = makePRule |> pruleBind .~ HM.fromList binds
   pure (ninja |> pninjaRules %~ HM.insert (T.decodeUtf8 name) rule, env)
 
@@ -173,28 +174,29 @@ applyDefault lexDefaults _ (ninja, env) = do
   let defaults = HS.fromList (map (askExpr env) lexDefaults)
   pure (ninja |> pninjaDefaults %~ (defaults <>), env)
 
-applyPool :: Str -> ApplyFun
-applyPool lexName binds (ninja, env) = do
+applyPool :: LName -> ApplyFun
+applyPool (MkLName name) binds (ninja, env) = do
   depth <- getDepth env binds
-  pure (ninja |> pninjaPools %~ HM.insert (T.decodeUtf8 lexName) depth, env)
+  pure (ninja |> pninjaPools %~ HM.insert (T.decodeUtf8 name) depth, env)
 
-applyInclude :: PExpr -> ApplyFun
-applyInclude lexExpr _ (ninja, env) = do
-  let file = askExpr env lexExpr
+applyInclude :: LFile -> ApplyFun
+applyInclude (MkLFile expr) _ (ninja, env) = do
+  let file = askExpr env expr
   parseFile (T.unpack file) (ninja, env)
 
-applySubninja :: PExpr -> ApplyFun
-applySubninja lexExpr _ (ninja, env) = do
-  let file = askExpr env lexExpr
+applySubninja :: LFile -> ApplyFun
+applySubninja (MkLFile expr) _ (ninja, env) = do
+  let file = askExpr env expr
   parseFile (T.unpack file) (ninja, scopeEnv env)
 
-applyDefine :: (Str, PExpr) -> ApplyFun
-applyDefine (var, value) _ (ninja, env) = do
+applyDefine :: LBinding -> ApplyFun
+applyDefine (MkLBinding (MkLName var) value) _ (ninja, env) = do
   pure (ninja, addBind (T.decodeUtf8 var) value env)
 
-throwUnexpectedBinding :: Str -> IO a
-throwUnexpectedBinding var = [ "Unexpected binding defining ", var
-                             ] |> mconcat |> BSC8.unpack |> error
+throwUnexpectedBinding :: LBinding -> IO a
+throwUnexpectedBinding (MkLBinding (MkLName var) _)
+  = [ "Unexpected binding defining ", var
+    ] |> mconcat |> BSC8.unpack |> fail
 
 splitDeps :: HashSet Text -> (HashSet Text, HashSet Text, HashSet Text)
 splitDeps = HS.toList
