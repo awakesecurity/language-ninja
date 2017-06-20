@@ -232,20 +232,22 @@ lexer x = lexerLoop (Str0 (BSC8.append x "\n\n\0"))
 lexerLoop :: Str0 -> [Lexeme]
 lexerLoop c_x
   = case c of
-      '\r'                                -> lexerLoop x
-      '\n'                                -> lexerLoop x
-      '#'                                 -> lexerLoop $ dropWhile0 (/= '\n') x
-      ' '                                 -> lexBind     $ dropSpace x
-      'b'  | Just x <- strip "uild "    x -> lexBuild    $ dropSpace x
-      'r'  | Just x <- strip "ule "     x -> lexRule     $ dropSpace x
-      'd'  | Just x <- strip "efault "  x -> lexDefault  $ dropSpace x
-      'p'  | Just x <- strip "ool "     x -> lexPool     $ dropSpace x
-      'i'  | Just x <- strip "nclude "  x -> lexInclude  $ dropSpace x
-      's'  | Just x <- strip "ubninja " x -> lexSubninja $ dropSpace x
+      '\r'                                  -> lexerLoop x0
+      '\n'                                  -> lexerLoop x0
+      '#'                                   -> lexerLoop $ removeComment x0
+      ' '                                   -> lexBind     $ dropSpace x0
+      'b'  | Just x1 <- strip "uild "    x0 -> lexBuild    $ dropSpace x1
+      'r'  | Just x1 <- strip "ule "     x0 -> lexRule     $ dropSpace x1
+      'd'  | Just x1 <- strip "efault "  x0 -> lexDefault  $ dropSpace x1
+      'p'  | Just x1 <- strip "ool "     x0 -> lexPool     $ dropSpace x1
+      'i'  | Just x1 <- strip "nclude "  x0 -> lexInclude  $ dropSpace x1
+      's'  | Just x1 <- strip "ubninja " x0 -> lexSubninja $ dropSpace x1
       '\0'                                -> []
       _                                   -> lexDefine c_x
   where
-    (c, x) = list0 c_x
+    removeComment = dropWhile0 (/= '\n')
+
+    (c, x0) = list0 c_x
 
     strip str (Str0 x) = let b = BSC8.pack str
                          in if b `BSC8.isPrefixOf` x
@@ -262,11 +264,11 @@ lexBind c_x | (c, x) <- list0 c_x
       _    -> lexxBind LexBind c_x
 
 lexBuild :: Str0 -> [Lexeme]
-lexBuild x
-  | (outputs, x) <- lexxExprs True x
-  , (rule,    x) <- span0 isVarDot $ dropSpace x
-  , (deps,    x) <- lexxExprs False $ dropSpace x
-  = LexBuild outputs rule deps : lexerLoop x
+lexBuild x0
+  = let (outputs, x1) = lexxExprs True x0
+        (rule,    x2) = span0 isVarDot $ dropSpace x1
+        (deps,    x3) = lexxExprs False $ dropSpace x2
+    in LexBuild outputs rule deps : lexerLoop x3
 
 lexDefault :: Str0 -> [Lexeme]
 lexDefault x = let (files, x') = lexxExprs False x
