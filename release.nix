@@ -7,16 +7,17 @@ with rec {
 
   # Compute, e.g.: "x86_64-linux-ghc-8.0.2"
   computeHaskellDir = hp: pkg: "${pkg.system}-${hp.ghc.name}";
-  
+
   addHydraHaddock = hp: pkg: (
     with rec {
       suffix = "share/doc/${computeHaskellDir hp pkg}/${pkg.name}/html";
     };
 
     haskell.lib.overrideCabal pkg (old: rec {
+      doHaddock = true;
       postInstall = ((old.postInstall or "") + ''
-        mkdir -p "$out/nix-support"
-        echo "doc Haddock $out/${suffix} index.html" \
+        mkdir -pv "$out/nix-support"
+        echo "doc haddock $out/${suffix} index.html" \
             >> "$out/nix-support/hydra-build-products"
       '');
     }));
@@ -27,9 +28,9 @@ with rec {
       data = "${hp.tasty-html}/share/${dir}/${hp.tasty-html.name}/data/";
       static = pkgs.runCommand "tasty-html-static" {} ''
         mkdir -pv "$out"
-        ln -sv  ${data}/jquery-*.min.js                      "$out/"
-        ln -sv  ${data}/bootstrap/dist/css/bootstrap.min.css "$out/"
-        ln -sv  ${data}/bootstrap/dist/js/bootstrap.min.js   "$out/"
+        ln -sv ${data}/jquery-*.min.js                      "$out/"
+        ln -sv ${data}/bootstrap/dist/css/bootstrap.min.css "$out/"
+        ln -sv ${data}/bootstrap/dist/js/bootstrap.min.js   "$out/"
       '';
     };
 
@@ -39,7 +40,7 @@ with rec {
         mkdir -pv "$out/nix-support/test-results"
         mv -v tasty.html "$out/nix-support/test-results/index.html"
         ln -sv ${static} "$out/nix-support/test-results/static"
-        echo "report Tests $out/nix-support/test-results index.html" \
+        echo "report tests $out/nix-support/test-results index.html" \
             >> "$out/nix-support/hydra-build-products"
       '');
     }));
@@ -47,10 +48,10 @@ with rec {
   addHydraHPC = hp: pkg: (
     haskell.lib.overrideCabal pkg (old: rec {
       doCoverage = true;
-      
+
       postInstall = ((old.postInstall or "") + ''
         mkdir -pv "$out/nix-support"
-        echo "report coverage $out/share/hpc/dyn/html/${pkg.name} hpc_index.html" \
+        echo "report hpc $out/share/hpc/dyn/html/${pkg.name} hpc_index.html" \
             >> "$out/nix-support/hydra-build-products"
       '');
     }));
