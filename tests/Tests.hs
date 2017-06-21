@@ -17,7 +17,9 @@
 --     See the License for the specific language governing permissions and
 --     limitations under the License.
 
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
 
 -- |
 --   Module      : Main
@@ -37,6 +39,8 @@ import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.ByteString.Lazy.Char8 as LBSC8
 
+import           Data.Text                  (Text)
+import qualified Data.Text                  as Text
 import qualified Data.Text.Encoding         as Text
 import qualified Data.Text.IO               as Text
 
@@ -47,12 +51,19 @@ import           Control.Monad.Trans.Except
 
 import qualified Language.Ninja             as Ninja
 import qualified Language.Ninja.Eval        as Ninja
+import qualified Language.Ninja.Misc.IText  as Ninja
+import qualified Language.Ninja.Misc.Path   as Ninja
 
 import qualified Test.Tasty                 as T
 import qualified Test.Tasty.Golden          as T
 import qualified Test.Tasty.HUnit           as T
 import qualified Test.Tasty.Ingredients     as T
 import qualified Test.Tasty.Runners.Html    as T
+
+import qualified Test.Tasty.Lens.Iso        as T.Iso
+import qualified Test.Tasty.Lens.Lens       as T.Lens
+
+import           Test.SmallCheck.Series     as SC
 
 import           Filesystem.Path.CurrentOS  ((</>))
 import qualified Filesystem.Path.CurrentOS  as FP
@@ -105,8 +116,6 @@ roundtripTest pninja = do
     let prettyOutput = Ninja.prettyNinja output
     pure (prettyInput, prettyOutput)
 
-  -- T.assertEqual "foobar" 1 5
-
   unless (actual == expected) $ do
     -- let actualJ   = Aeson.toJSON actual
     -- let expectedJ = Aeson.toJSON expected
@@ -117,9 +126,8 @@ roundtripTest pninja = do
     T.assertEqual "prefix" expected actual
 
 evaluateTest :: Ninja.PNinja -> IO ()
-evaluateTest pninja = do
+evaluateTest pninja = void $ do
   Ninja.evaluate pninja
-  pure ()
 
 pninjaTests :: String -> Ninja.PNinja -> T.TestTree
 pninjaTests name pninja
@@ -130,6 +138,18 @@ pninjaTests name pninja
         evaluateTest pninja
     ]
 
+opticsTests :: T.TestTree
+opticsTests
+  = T.testGroup "Testing optics with SmallCheck"
+    [ T.testGroup "Language.Ninja.Misc.IText"
+      [ T.Iso.test Ninja.itext
+      ]
+    , T.testGroup "Language.Ninja.Misc.Path"
+      [ T.Iso.test Ninja.pathIText
+      , T.Iso.test Ninja.pathText
+      ]
+    ]
+
 ingredients :: IO [T.Ingredient]
 ingredients = [ [T.htmlRunner]
               , T.defaultIngredients
@@ -138,7 +158,9 @@ ingredients = [ [T.htmlRunner]
 testTree :: IO T.TestTree
 testTree = do
   ninjas <- forM testFiles parseTestNinja
-  let tests = fmap (uncurry pninjaTests) (zip testFiles ninjas)
+  let tests = [ fmap (uncurry pninjaTests) (zip testFiles ninjas)
+              , [opticsTests]
+              ] |> mconcat
   pure (T.testGroup "Language.Ninja" tests)
 
 test :: IO ()
@@ -150,3 +172,15 @@ test = do
 main :: IO ()
 main = do
   test
+
+--------------------------------------------------------------------------------
+
+-- Orphan instances
+
+instance (Monad m) => SC.Serial m Text where
+  series = SC.series |> fmap Text.pack
+
+instance (Monad m) => SC.CoSerial m Text where
+  coseries = SC.coseries .> fmap (\f -> Text.unpack .> f)
+
+--------------------------------------------------------------------------------

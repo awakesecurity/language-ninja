@@ -20,9 +20,14 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE StandaloneDeriving    #-}
 
 -- |
 --   Module      : Language.Ninja.AST.Meta
@@ -41,9 +46,11 @@ import           Data.Aeson               as Aeson
 import qualified Data.Aeson.Types         as Aeson
 
 import           Data.Text                (Text)
+import qualified Data.Text                as T
 
 import           Data.Hashable            (Hashable (..))
 import           GHC.Generics             (Generic)
+import           Test.SmallCheck.Series   as SC
 
 import qualified Data.Versions            as Ver
 
@@ -86,6 +93,9 @@ metaBuildDir = lens _metaBuildDir
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable Meta
 
+-- -- | Default 'Serial' instance via 'Generic'.
+-- instance (Monad m) => SC.Serial m Meta
+
 -- | Converts to @{req-version: …, build-dir: …}@.
 instance ToJSON Meta where
   toJSON (MkMeta {..})
@@ -121,5 +131,30 @@ megaparsecToAeson :: Mega.Parsec Mega.Dec Text t
 megaparsecToAeson parser text = case Mega.runParser parser "" text of
                                   Left  e -> fail (Mega.parseErrorPretty e)
                                   Right x -> pure x
+
+-- FIXME: orphan instances
+
+-- instance (Monad m) => SC.Serial m Ver.Version where
+--   series = Ver.Version <$> series <*> series <*> series
+--
+-- instance (Monad m) => SC.Serial m Ver.VUnit where
+--   series = series |> fmap (either Ver.Digits (T.pack .> Ver.Str))
+--
+-- instance (Monad m) => SC.CoSerial m Ver.Version where
+--   coseries = coseries .> _ -- FIXME
+--
+-- instance (Monad m) => SC.CoSerial m Ver.VUnit where
+--   coseries = coseries
+--              .> fmap (\f -> \case (Ver.Digits i) -> f (Right i)
+--                                   (Ver.Str    s) -> f (Left  (T.unpack s)))
+
+-- seriesVChunks :: (Monad m) => SC.Series m [Ver.VChunk]
+-- seriesVChunks = SC.generate $ \depth -> SC.list depth seriesVChunk
+--
+-- seriesVChunk :: (Monad m) => SC.Series m Ver.VChunk
+-- seriesVChunk = SC.generate $ \depth -> SC.list depth seriesVUnit
+--
+-- seriesVUnit :: (Monad m) => SC.Series m Ver.VUnit
+-- seriesVUnit = series |> fmap (either Ver.Digits (T.pack .> Ver.Str))
 
 --------------------------------------------------------------------------------

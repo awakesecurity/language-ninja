@@ -21,7 +21,9 @@
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 
 -- |
@@ -36,25 +38,26 @@ module Language.Ninja.Misc.IText
   ( IText, uninternText, internText, itext
   ) where
 
-import           Data.Text           (Text)
-import qualified Data.Text           as T
-import qualified Data.Text.Encoding  as T
+import           Data.Text              (Text)
+import qualified Data.Text              as T
+import qualified Data.Text.Encoding     as T
 
-import           Data.Aeson          as Aeson
-import qualified Data.Aeson.Types    as Aeson
+import           Data.Aeson             as Aeson
+import qualified Data.Aeson.Types       as Aeson
 
-import qualified Data.Interned       as Interned
-import qualified Data.Interned.Text  as Interned (InternedText)
+import qualified Data.Interned          as Interned
+import qualified Data.Interned.Text     as Interned (InternedText)
 
-import           Data.Data           (Data)
-import           Data.Hashable       (Hashable (..))
-import           Data.String         (IsString (..))
-import           GHC.Generics        (Generic)
+import           Data.Data              (Data)
+import           Data.Hashable          (Hashable (..))
+import           Data.String            (IsString (..))
+import           GHC.Generics           (Generic)
+import           Test.SmallCheck.Series as SC
 
 import           Control.Lens.Getter
 import           Control.Lens.Iso
 
-import           Control.Arrow       (first)
+import           Control.Arrow          (first)
 import           Flow
 
 --------------------------------------------------------------------------------
@@ -67,6 +70,8 @@ newtype IText
 
 -- | Get the 'Text' corresponding to the given 'IText' value.
 --
+--   prop> internText (uninternText x) = x
+--
 --   >>> uninternText ("foobar" :: IText)
 --   "foobar"
 uninternText :: IText -> Text
@@ -74,12 +79,16 @@ uninternText (MkIText i) = Interned.unintern i
 
 -- | Intern a 'Text' value, resulting in an 'IText' value.
 --
+--   prop> uninternText (internText x) = x
+--
 --   >>> internText ("foobar" :: Text)
 --   "foobar"
 internText :: Text -> IText
 internText = Interned.intern .> MkIText
 
 -- | An 'Iso' between 'Text' and 'IText'.
+--
+--   prop> ((fromString x) ^. itext) = T.pack x
 --
 --   >>> (("foobar" :: Text) ^. itext) :: IText
 --   "foobar"
@@ -116,5 +125,13 @@ instance ToJSONKey IText where
 -- | Inverse of the 'ToJSONKey' instance.
 instance FromJSONKey IText where
   fromJSONKey = Aeson.mapFromJSONKeyFunction internText fromJSONKey
+
+-- | Uses the 'String' instance.
+instance (Monad m) => SC.Serial m IText where
+  series = SC.series |> fmap (T.pack .> internText)
+
+-- | Uses the 'String' instance.
+instance (Monad m) => SC.CoSerial m IText where
+  coseries = SC.coseries .> fmap (\f int -> f (T.unpack (uninternText int)))
 
 --------------------------------------------------------------------------------

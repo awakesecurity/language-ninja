@@ -21,7 +21,10 @@
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 
 -- |
 --   Module      : Language.Ninja.Misc.Path
@@ -38,12 +41,15 @@ module Language.Ninja.Misc.Path
 import           Language.Ninja.Misc.IText
 
 import           Data.Text                 (Text)
+import qualified Data.Text                 as T
 
 import           Data.Aeson                as Aeson
 
 import           Data.Hashable             (Hashable (..))
 import           Data.String               (IsString (..))
 import           GHC.Generics              (Generic)
+import           Test.SmallCheck.Series    ((>>-))
+import qualified Test.SmallCheck.Series    as SC
 
 import           Control.Lens.Getter
 import           Control.Lens.Iso
@@ -59,6 +65,14 @@ newtype Path
     }
   deriving ( Eq, Ord, Show, Read, IsString, Generic, Hashable
            , ToJSON, FromJSON, ToJSONKey, FromJSONKey )
+
+-- | Uses the 'IText' instance.
+instance (Monad m) => SC.Serial m Path where
+  series = SC.newtypeCons MkPath
+
+-- | Uses the 'IText' instance.
+instance (Monad m) => SC.CoSerial m Path where
+  coseries rs = SC.newtypeAlts rs >>- \f -> pure (_pathIText .> f)
 
 -- | Construct a 'Path' from some 'Text'.
 makePath :: Text -> Path
