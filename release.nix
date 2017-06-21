@@ -58,9 +58,11 @@ with rec {
 
   hp = haskell.packages.${compiler}.override {
     overrides = self: super: {
-      makefile       = self.callPackage ./nix/makefile.nix {};
-      versions       = self.callPackage ./nix/versions.nix {};
-      language-ninja = self.callPackage ./nix/language-ninja.nix {};
+      makefile        = self.callPackage ./nix/makefile.nix {};
+      versions        = self.callPackage ./nix/versions.nix {};
+      smallcheck-lens = haskell.lib.doJailbreak super.smallcheck-lens;
+      tasty-lens      = haskell.lib.doJailbreak super.tasty-lens;
+      language-ninja  = self.callPackage ./nix/language-ninja.nix {};
     };
   };
 };
