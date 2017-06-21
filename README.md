@@ -55,6 +55,14 @@ variables. It also "monomorphizes" Ninja `rule`s, since rule-level `$out`
 references are a kind of parametric polymorphism. This `Ninja` type is thus
 far more suitable for processing than the `PNinja` type.
 
+## Miscellaneous
+
+The `staging` branch is used for active development; i.e.: forced pushes may
+happen on `staging` but will not happen on `master`.
+
+[This issue](https://github.com/awakesecurity/language-ninja/issues/2) tracks
+the progress towards initial release (`v0.1.0`) on Hackage.
+
 <!----------------------------------------------------------------------------->
 
 [hackage-badge]:
