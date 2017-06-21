@@ -4,13 +4,13 @@ stability:                Experimental
 build-type:               Simple
 cabal-version:            >= 1.10
 category:                 Language
-copyright:                2017 Awake Networks <opensource@awakenetworks.com>
-author:                   Awake Networks
-maintainer:               opensource@awakenetworks.com
+copyright:                2017 Awake Security <opensource@awakesecurity.com>
+author:                   Awake Security
+maintainer:               opensource@awakesecurity.com
 license:                  Apache-2.0
 license-file:             LICENSE.md
-homepage:                 https://github.com/awakenetworks/language-ninja
-bug-reports:              https://github.com/awakenetworks/language-ninja/issues
+homepage:                 https://github.com/awakesecurity/language-ninja
+bug-reports:              https://github.com/awakesecurity/language-ninja/issues
 category:                 Build, Language
 synopsis:                 A Haskell library for parsing, pretty-printing, and
                           evaluating the Ninja build language.
@@ -20,7 +20,7 @@ description:              A Haskell library for parsing, pretty-printing, and
 source-repository head
     type:                 git
     branch:               master
-    location:             https://github.com/awakenetworks/haskell-ninja.git
+    location:             https://github.com/awakesecurity/language-ninja.git
 
 library
     hs-source-dirs:       library

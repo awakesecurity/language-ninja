@@ -41,7 +41,7 @@
 --   Module      : Language.Ninja.Internal.Str0
 --   Copyright   : Copyright 2011-2017 Neil Mitchell
 --   License     : BSD3
---   Maintainer  : opensource@awakenetworks.com
+--   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
 --   FIXME: doc

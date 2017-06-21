@@ -28,7 +28,7 @@ mkDerivation {
     tasty tasty-golden tasty-html tasty-hunit tasty-lens
     tasty-quickcheck text transformers turtle
   ];
-  homepage = "https://github.com/awakenetworks/language-ninja";
+  homepage = "https://github.com/awakesecurity/language-ninja";
   description = "A Haskell library for parsing, pretty-printing, and evaluating the Ninja build language";
   license = stdenv.lib.licenses.asl20;
 }

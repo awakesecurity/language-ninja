@@ -44,7 +44,7 @@
 --   Module      : Language.Ninja.Env
 --   Copyright   : Copyright 2011-2017 Neil Mitchell
 --   License     : BSD3
---   Maintainer  : opensource@awakenetworks.com
+--   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
 --   A Ninja-style environment, basically a linked-list of hash tables.

@@ -49,7 +49,7 @@
 --   Module      : Language.Ninja.Lexer
 --   Copyright   : Copyright 2011-2017 Neil Mitchell
 --   License     : BSD3
---   Maintainer  : opensource@awakenetworks.com
+--   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
 --   Lexing is a slow point, the code below is optimised.

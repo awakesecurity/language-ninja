@@ -3,7 +3,7 @@
 -- File: library/Language/Ninja/AST/Pool.hs
 --
 -- License:
---     Copyright 2017 Awake Networks
+--     Copyright 2017 Awake Security
 --
 --     Licensed under the Apache License, Version 2.0 (the "License");
 --     you may not use this file except in compliance with the License.
@@ -27,9 +27,9 @@
 
 -- |
 --   Module      : Language.Ninja.AST.Pool
---   Copyright   : Copyright 2017 Awake Networks
+--   Copyright   : Copyright 2017 Awake Security
 --   License     : Apache-2.0
---   Maintainer  : opensource@awakenetworks.com
+--   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
 --   Types relating to Ninja @pool@s.

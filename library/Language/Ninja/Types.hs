@@ -46,7 +46,7 @@
 --   Module      : Language.Ninja.Types
 --   Copyright   : Copyright 2011-2017 Neil Mitchell
 --   License     : BSD3
---   Maintainer  : opensource@awakenetworks.com
+--   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
 --   The IO in this module is only to evaluate an environment variable,
