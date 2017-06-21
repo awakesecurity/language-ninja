@@ -4,9 +4,9 @@ stability:                Experimental
 build-type:               Simple
 cabal-version:            >= 1.10
 category:                 Language
-copyright:                2017 Awake Security <opensource@awakesecurity.com>
+copyright:                Copyright 2017 Awake Security
 author:                   Awake Security
-maintainer:               opensource@awakesecurity.com
+maintainer:               Awake Security <opensource@awakesecurity.com>
 license:                  Apache-2.0
 license-file:             LICENSE.md
 homepage:                 https://github.com/awakesecurity/language-ninja
