@@ -46,9 +46,9 @@ module Language.Ninja.Pretty
 
 import qualified Control.Arrow         as Arr
 
-import           Control.Lens.Getter
+import           Control.Lens.Getter   ((^.))
 
-import           Language.Ninja.Types
+import           Language.Ninja.Types  (FileText, PBuild, PNinja, PRule)
 
 import qualified Language.Ninja.Env    as Ninja
 import qualified Language.Ninja.Types  as Ninja
@@ -63,25 +63,26 @@ import qualified Data.HashMap.Strict   as HM
 import           Data.HashSet          (HashSet)
 import qualified Data.HashSet          as HS
 
+import           Data.Text             (Text)
 import qualified Data.Text             as T
 import qualified Data.Text.Encoding    as T
 
 import qualified Data.HashMap.Strict   as HM
 
-import           Data.Char
-import           Data.Monoid
+import           Data.Char             (isSpace)
+import           Data.Monoid           ((<>))
 
-import           Flow
+import           Flow                  ((|>), (.>))
 
 -- | FIXME: doc
 prettyNinja :: PNinja -> Text
 prettyNinja ninja
-  = [ map prettyRule     (HM.toList (ninja ^. pninjaRules))
-    , map prettySingle   (HM.toList (ninja ^. pninjaSingles))
-    , map prettyMultiple (HM.toList (ninja ^. pninjaMultiples))
-    , map prettyPhony    (HM.toList (ninja ^. pninjaPhonys))
-    , map prettyDefault  (HS.toList (ninja ^. pninjaDefaults))
-    , map prettyPool     (HM.toList (ninja ^. pninjaPools))
+  = [ map prettyRule     (HM.toList (ninja ^. Ninja.pninjaRules))
+    , map prettySingle   (HM.toList (ninja ^. Ninja.pninjaSingles))
+    , map prettyMultiple (HM.toList (ninja ^. Ninja.pninjaMultiples))
+    , map prettyPhony    (HM.toList (ninja ^. Ninja.pninjaPhonys))
+    , map prettyDefault  (HS.toList (ninja ^. Ninja.pninjaDefaults))
+    , map prettyPool     (HM.toList (ninja ^. Ninja.pninjaPools))
     ] |> mconcat |> mconcat
 
 -- | FIXME: doc
@@ -95,7 +96,7 @@ prettyExpr = go .> mconcat
 -- | FIXME: doc
 prettyRule :: (Text, PRule) -> Text
 prettyRule (name, rule) = do
-  let binds = rule ^. pruleBind
+  let binds = rule ^. Ninja.pruleBind
               |> HM.toList
               |> map (Arr.second prettyExpr .> prettyBind)
               |> mconcat
@@ -114,11 +115,11 @@ prettyMultiple (outputs, build) = do
   let unwordsSet :: HashSet Text -> Text
       unwordsSet = HS.toList .> T.unwords
 
-  let ruleName  = build ^. pbuildRule
-  let normal    = build ^. pbuildDeps . pdepsNormal
-  let implicit  = build ^. pbuildDeps . pdepsImplicit
-  let orderOnly = build ^. pbuildDeps . pdepsOrderOnly
-  let binds     = build ^. pbuildBind
+  let ruleName  = build ^. Ninja.pbuildRule
+  let normal    = build ^. Ninja.pbuildDeps . Ninja.pdepsNormal
+  let implicit  = build ^. Ninja.pbuildDeps . Ninja.pdepsImplicit
+  let orderOnly = build ^. Ninja.pbuildDeps . Ninja.pdepsOrderOnly
+  let binds     = build ^. Ninja.pbuildBind
 
   mconcat
     [ "build ", T.unwords (HS.toList outputs), ": "

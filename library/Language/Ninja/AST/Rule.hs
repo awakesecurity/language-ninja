@@ -47,9 +47,9 @@ module Language.Ninja.AST.Rule
   , ResponseFile, makeResponseFile, responseFilePath, responseFileContent
   ) where
 
-import           Language.Ninja.AST.Pool
-import           Language.Ninja.Misc.Command
-import           Language.Ninja.Misc.Path
+import           Language.Ninja.AST.Pool     (PoolName, poolNameDefault)
+import           Language.Ninja.Misc.Command (Command)
+import           Language.Ninja.Misc.Path    (Path)
 
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
@@ -59,10 +59,10 @@ import           Data.Aeson                  as Aeson
 import           Data.Hashable               (Hashable (..))
 import           GHC.Generics                (Generic)
 
-import           Control.Lens.Lens
-import           Control.Lens.Prism
+import           Control.Lens.Lens           (Lens', lens)
+import           Control.Lens.Prism          (Prism', prism)
 
-import           Flow
+import           Flow                        ((|>))
 
 --------------------------------------------------------------------------------
 

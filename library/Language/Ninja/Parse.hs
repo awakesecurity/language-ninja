@@ -54,18 +54,16 @@ module Language.Ninja.Parse
   ( parse, parseWithEnv
   ) where
 
-import           Control.Applicative
-import           Control.Arrow
-import           Control.Monad
+import           Control.Arrow         (second)
+import           Control.Monad         ((>=>))
 
-import           Control.Lens.Getter
-import           Control.Lens.Lens
-import           Control.Lens.Setter
+import           Control.Lens.Setter   ((%~), (.~))
 
-import           Data.Monoid
+import           Data.Monoid           (Endo(..), (<>))
 
 import qualified Data.ByteString.Char8 as BSC8
 
+import           Data.Text             (Text)
 import qualified Data.Text             as T
 import qualified Data.Text.Encoding    as T
 
@@ -75,23 +73,23 @@ import qualified Data.HashMap.Strict   as HM
 import           Data.HashSet          (HashSet)
 import qualified Data.HashSet          as HS
 
-import           Language.Ninja.Env
-import           Language.Ninja.Lexer
-import           Language.Ninja.Types
+import           Language.Ninja.Env    (askEnv)
+import           Language.Ninja.Lexer  (Lexeme(..), LBinding(..), LBuild(..),
+                                        LFile(..), LName(..), lexerFile)
+import           Language.Ninja.Types  (Env, PExpr, PNinja)
+import qualified Language.Ninja.Types  as Ninja
 
-import           Prelude
-
-import           Flow
+import           Flow                  ((|>), (.>))
 
 type PNinjaWithEnv = (PNinja, Env Text Text)
 
 -- | FIXME: doc
 parse :: FilePath -> IO PNinja
-parse file = parseWithEnv file makeEnv
+parse file = parseWithEnv file Ninja.makeEnv
 
 -- | FIXME: doc
 parseWithEnv :: FilePath -> Env Text Text -> IO PNinja
-parseWithEnv file env = fst <$> parseFile file (makePNinja, env)
+parseWithEnv file env = fst <$> parseFile file (Ninja.makePNinja, env)
 
 parseFile :: FilePath -> PNinjaWithEnv -> IO PNinjaWithEnv
 parseFile file (ninja, env) = do
@@ -110,8 +108,8 @@ addSpecialVars (ninja, env) = (mutator ninja, env)
 
     addVariable :: Text -> (PNinja -> PNinja)
     addVariable name = case askEnv env name of
-                         (Just val) -> pninjaSpecials %~ HM.insert name val
-                         Nothing    -> id
+      (Just val) -> Ninja.pninjaSpecials %~ HM.insert name val
+      Nothing    -> id
 
     mutator :: PNinja -> PNinja
     mutator = map addVariable specialVars |> map Endo |> mconcat |> appEndo
@@ -145,53 +143,55 @@ applyStmt lexeme binds (ninja, env)
 
 applyBuild :: LBuild -> ApplyFun
 applyBuild (MkLBuild lexOutputs lexRule lexDeps) lexBinds (ninja, env) = do
-  let outputs = map (askExpr env) lexOutputs
-  let deps    = HS.fromList (map (askExpr env) lexDeps)
-  let binds   = HM.fromList (map (second (askExpr env)) lexBinds)
+  let outputs = map (Ninja.askExpr env) lexOutputs
+  let deps    = HS.fromList (map (Ninja.askExpr env) lexDeps)
+  let binds   = HM.fromList (map (second (Ninja.askExpr env)) lexBinds)
   let (normal, implicit, orderOnly) = splitDeps deps
-  let build = makePBuild (T.decodeUtf8 lexRule) env
-              |> (pbuildDeps . pdepsNormal    .~ normal)
-              |> (pbuildDeps . pdepsImplicit  .~ implicit)
-              |> (pbuildDeps . pdepsOrderOnly .~ orderOnly)
-              |> (pbuildBind                  .~ binds)
+  let build = Ninja.makePBuild (T.decodeUtf8 lexRule) env
+              |>  (Ninja.pbuildDeps . Ninja.pdepsNormal    .~ normal   )
+              |>  (Ninja.pbuildDeps . Ninja.pdepsImplicit  .~ implicit )
+              |>  (Ninja.pbuildDeps . Ninja.pdepsOrderOnly .~ orderOnly)
+              |>  (Ninja.pbuildBind                        .~ binds    )
   let allDeps = normal <> implicit <> orderOnly
   let addP = \p -> [(x, allDeps) | x <- outputs] <> (HM.toList p)
                    |> HM.fromList
   let addS = HM.insert (head outputs) build
   let addM = HM.insert (HS.fromList outputs) build
-  let ninja' = if      lexRule == "phony"  then ninja |> pninjaPhonys    %~ addP
-               else if length outputs == 1 then ninja |> pninjaSingles   %~ addS
-               else                             ninja |> pninjaMultiples %~ addM
+  let ninja' = if lexRule == "phony"
+               then ninja |> Ninja.pninjaPhonys %~ addP
+               else if length outputs == 1
+               then ninja |> Ninja.pninjaSingles   %~ addS
+               else ninja |> Ninja.pninjaMultiples %~ addM
   pure (ninja', env)
 
 applyRule :: LName -> ApplyFun
 applyRule (MkLName name) binds (ninja, env) = do
-  let rule = makePRule |> pruleBind .~ HM.fromList binds
-  pure (ninja |> pninjaRules %~ HM.insert (T.decodeUtf8 name) rule, env)
+  let rule = Ninja.makePRule |> Ninja.pruleBind .~ HM.fromList binds
+  pure (ninja |> Ninja.pninjaRules %~ HM.insert (T.decodeUtf8 name) rule, env)
 
 applyDefault :: [PExpr] -> ApplyFun
 applyDefault lexDefaults _ (ninja, env) = do
-  let defaults = HS.fromList (map (askExpr env) lexDefaults)
-  pure (ninja |> pninjaDefaults %~ (defaults <>), env)
+  let defaults = HS.fromList (map (Ninja.askExpr env) lexDefaults)
+  pure (ninja |> Ninja.pninjaDefaults %~ (defaults <>), env)
 
 applyPool :: LName -> ApplyFun
 applyPool (MkLName name) binds (ninja, env) = do
   depth <- getDepth env binds
-  pure (ninja |> pninjaPools %~ HM.insert (T.decodeUtf8 name) depth, env)
+  pure (ninja |> Ninja.pninjaPools %~ HM.insert (T.decodeUtf8 name) depth, env)
 
 applyInclude :: LFile -> ApplyFun
 applyInclude (MkLFile expr) _ (ninja, env) = do
-  let file = askExpr env expr
+  let file = Ninja.askExpr env expr
   parseFile (T.unpack file) (ninja, env)
 
 applySubninja :: LFile -> ApplyFun
 applySubninja (MkLFile expr) _ (ninja, env) = do
-  let file = askExpr env expr
-  parseFile (T.unpack file) (ninja, scopeEnv env)
+  let file = Ninja.askExpr env expr
+  parseFile (T.unpack file) (ninja, Ninja.scopeEnv env)
 
 applyDefine :: LBinding -> ApplyFun
 applyDefine (MkLBinding (MkLName var) value) _ (ninja, env) = do
-  pure (ninja, addBind (T.decodeUtf8 var) value env)
+  pure (ninja, Ninja.addBind (T.decodeUtf8 var) value env)
 
 throwUnexpectedBinding :: LBinding -> IO a
 throwUnexpectedBinding (MkLBinding (MkLName var) _)
@@ -215,7 +215,7 @@ getDepth :: Env Text Text -> [(Text, PExpr)] -> IO Int
 getDepth env xs = do
   let poolDepthError x = [ "Could not parse depth field in pool, got: ", x
                          ] |> mconcat |> T.unpack |> error
-  case askExpr env <$> lookup "depth" xs of
+  case Ninja.askExpr env <$> lookup "depth" xs of
     Nothing -> pure 1
     Just x  -> case BSC8.readInt (T.encodeUtf8 x) of
                  (Just (i, n)) | BSC8.null n -> pure i

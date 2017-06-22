@@ -62,19 +62,6 @@ module Language.Ninja.Lexer
   , lexerFile, lexer
   ) where
 
-import           Control.Applicative
-
-import           Control.Monad.Catch
-import           Control.Monad.Trans.Except
-import           Control.Monad.Trans.Reader
-
-import           Control.Monad.ST
-import           Data.STRef
-
-import           Control.Lens.Getter
-import           Control.Lens.Lens
-import           Control.Lens.Setter
-
 import qualified Data.ByteString.Char8        as BSC8
 import qualified Data.ByteString.Internal     as BS.Internal
 import qualified Data.ByteString.Unsafe       as BS.Unsafe
@@ -86,25 +73,20 @@ import           Data.Text                    (Text)
 import qualified Data.Text                    as T
 import qualified Data.Text.Encoding           as T
 
-import           Data.Char
-import           Data.Tuple.Extra
-import           Data.Word
-import           Foreign.Ptr
-import           Foreign.Storable
-import           GHC.Exts
-import           Prelude
-import           System.IO.Unsafe
+import           Data.Char                    (isAsciiLower, isAsciiUpper,
+                                               isDigit)
+import           Data.Tuple.Extra             (first)
 
-import           Flow
+import           Flow                         ((|>))
 
-import           Data.Aeson                   as Aeson
+import qualified Data.Aeson                   as Aeson
 
-import           Language.Ninja.Types
+import           Language.Ninja.Types         (PExpr(..), Str)
 
-import           Language.Ninja.Misc.Located  as Loc
-import           Language.Ninja.Misc.Path
+import qualified Language.Ninja.Misc.Located  as Loc
 
-import           Language.Ninja.Internal.Str0
+import           Language.Ninja.Internal.Str0 (Str0(..))
+import qualified Language.Ninja.Internal.Str0
 
 --------------------------------------------------------------------------------
 
@@ -185,9 +167,9 @@ lexerLoop c_x
       '\0'                                -> []
       _                                   -> lexDefine c_x
   where
-    removeComment = dropWhile0 (/= '\n')
+    removeComment = Language.Ninja.Internal.Str0.dropWhile0 (/= '\n')
 
-    (c, x0) = list0 c_x
+    (c, x0) = Language.Ninja.Internal.Str0.list0 c_x
 
     strip str (MkStr0 x) = let b = BSC8.pack str
                            in if b `BSC8.isPrefixOf` x
@@ -195,18 +177,18 @@ lexerLoop c_x
                               else Nothing
 
 lexBind :: Str0 -> [Lexeme]
-lexBind c_x | (c, x) <- list0 c_x
+lexBind c_x | (c, x) <- Language.Ninja.Internal.Str0.list0 c_x
   = case c of
       '\r' -> lexerLoop x
       '\n' -> lexerLoop x
-      '#'  -> lexerLoop $ dropWhile0 (/= '\n') x
+      '#'  -> lexerLoop $ Language.Ninja.Internal.Str0.dropWhile0 (/= '\n') x
       '\0' -> []
       _    -> lexxBind LexBind c_x
 
 lexBuild :: Str0 -> [Lexeme]
 lexBuild x0
   = let (outputs, x1) = lexxExprs True x0
-        (rule,    x2) = span0 isVarDot $ dropSpace x1
+        (rule,    x2) = Language.Ninja.Internal.Str0.span0 isVarDot $ dropSpace x1
         (deps,    x3) = lexxExprs False $ dropSpace x2
     in LexBuild (MkLBuild outputs rule deps) : lexerLoop x3
 
@@ -222,14 +204,15 @@ lexSubninja = lexxFile LexSubninja
 lexDefine   = lexxBind LexDefine
 
 lexxBind :: (LBinding -> Lexeme) -> Str0 -> [Lexeme]
-lexxBind ctor x0 = let (var,  x1) = span0 isVarDot x0
-                       (eq,   x2) = list0 $ dropSpace x1
-                       (expr, x3) = lexxExpr False False $ dropSpace x2
-                   in if eq == '='
-                      then ctor (MkLBinding (MkLName var) expr) : lexerLoop x3
-                      else [ "parse failed when parsing binding: "
-                           , show (take0 100 x0)
-                           ] |> mconcat |> error
+lexxBind ctor x0 =
+  let (var,  x1) = Language.Ninja.Internal.Str0.span0 isVarDot x0
+      (eq,   x2) = Language.Ninja.Internal.Str0.list0 $ dropSpace x1
+      (expr, x3) = lexxExpr False False $ dropSpace x2
+   in if eq == '='
+      then ctor (MkLBinding (MkLName var) expr) : lexerLoop x3
+      else [ "parse failed when parsing binding: "
+           , show (Language.Ninja.Internal.Str0.take0 100 x0)
+           ] |> mconcat |> error
 
 lexxFile :: (LFile -> Lexeme) -> Str0 -> [Lexeme]
 lexxFile ctor x = let (expr, rest) = lexxExpr False False $ dropSpace x
@@ -241,8 +224,8 @@ lexxName ctor x = let (name, rest) = splitLineCont x
 
 lexxExprs :: Bool -> Str0 -> ([PExpr], Str0)
 lexxExprs sColon x0
-  = let c = head0 c_x
-        x1 = tail0 c_x
+  = let c  = Language.Ninja.Internal.Str0.head0 c_x
+        x1 = Language.Ninja.Internal.Str0.tail0 c_x
     in case c of -- FIXME: nonexhaustive pattern match
          ' '           -> first (a:) $ lexxExprs sColon $ dropSpace x1
          ':'  | sColon -> ([a], x1)
@@ -274,29 +257,31 @@ lexxExpr stopColon stopSpace = first exprs . f
                      (False, False) -> (x <= '$') && or [                    b]
 
     f :: Str0 -> ([PExpr], Str0)
-    f (break00 special -> (a, x))
+    f (Language.Ninja.Internal.Str0.break00 special -> (a, x))
       = if BSC8.null a then g x else PLit (T.decodeUtf8 a) $: g x
 
     ($:) :: a -> ([a], b) -> ([a], b)
     x $: (xs, y) = (x:xs, y)
 
     g :: Str0 -> ([PExpr], Str0)
-    g x0 | (head0 x0 /= '$') = ([], x0)
-    g (tail0 -> c_x)         = let (c, x0) = list0 c_x
-                               in case c of
-                                    '$'   -> PLit (T.singleton '$') $: f x0
-                                    ' '   -> PLit (T.singleton ' ') $: f x0
-                                    ':'   -> PLit (T.singleton ':') $: f x0
-                                    '\n'  -> f $ dropSpace x0
-                                    '\r'  -> f $ dropSpace $ dropN x0
-                                    '{' | (name, x1) <- span0 isVarDot x0
-                                        , ('}',  x2) <- list0 x1
-                                        , not (BSC8.null name)
-                                          -> PVar (T.decodeUtf8 name) $: f x2
-                                    _   | (name, x1) <- span0 isVar c_x
-                                        , not $ BSC8.null name
-                                          -> PVar (T.decodeUtf8 name) $: f x1
-                                    _     -> unexpectedDollar
+    g x0 | (Language.Ninja.Internal.Str0.head0 x0 /= '$') =
+      ([], x0)
+    g (Language.Ninja.Internal.Str0.tail0 -> c_x) =
+      let (c, x0) = Language.Ninja.Internal.Str0.list0 c_x
+      in case c of
+            '$'   -> PLit (T.singleton '$') $: f x0
+            ' '   -> PLit (T.singleton ' ') $: f x0
+            ':'   -> PLit (T.singleton ':') $: f x0
+            '\n'  -> f $ dropSpace x0
+            '\r'  -> f $ dropSpace $ dropN x0
+            '{' | (name, x1) <- Language.Ninja.Internal.Str0.span0 isVarDot x0
+                , ('}',  x2) <- Language.Ninja.Internal.Str0.list0 x1
+                , not (BSC8.null name)
+                -> PVar (T.decodeUtf8 name) $: f x2
+            _   | (name, x1) <- Language.Ninja.Internal.Str0.span0 isVar c_x
+                , not $ BSC8.null name
+                -> PVar (T.decodeUtf8 name) $: f x1
+            _   -> unexpectedDollar
 
     unexpectedDollar :: a
     unexpectedDollar = error "Unexpect $ followed by unexpected stuff"
@@ -314,7 +299,7 @@ splitLineCR x = if BSC8.isSuffixOf (BSC8.singleton '\r') a
                 then (BSC8.init a, dropN b)
                 else (a, dropN b)
   where
-    (a, b) = break0 (== '\n') x
+    (a, b) = Language.Ninja.Internal.Str0.break0 (== '\n') x
 
 isVar :: Char -> Bool
 isVar x = [ (x == '-')
@@ -333,9 +318,12 @@ endsDollar :: Str -> Bool
 endsDollar = BSC8.isSuffixOf (BSC8.singleton '$')
 
 dropN :: Str0 -> Str0
-dropN x = if (head0 x == '\n') then tail0 x else x
+dropN x =
+  if (Language.Ninja.Internal.Str0.head0 x == '\n')
+  then Language.Ninja.Internal.Str0.tail0 x
+  else x
 
 dropSpace :: Str0 -> Str0
-dropSpace = dropWhile0 (== ' ')
+dropSpace = Language.Ninja.Internal.Str0.dropWhile0 (== ' ')
 
 --------------------------------------------------------------------------------

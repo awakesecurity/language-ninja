@@ -37,22 +37,19 @@ module Language.Ninja.Eval
   ( module Language.Ninja.Eval -- FIXME: specific export list
   ) where
 
-import           Control.Applicative
-import           Control.Arrow
-import           Control.Monad
+import           Control.Applicative        ((<|>))
+import           Control.Arrow              (first)
 
-import           Control.Lens.Getter
-import           Control.Lens.Lens
-import           Control.Lens.Setter
+import           Control.Lens.Getter        ((^.))
+import           Control.Lens.Setter        ((.~))
 
-import           Control.Exception          hiding (evaluate)
-import           Control.Monad.Catch
-import           Control.Monad.Except
+import           Control.Exception          (Exception)
+import           Control.Monad.Catch        (MonadThrow(..))
 
-import           Data.Char
-import           Data.Either
-import           Data.Maybe
-import           Data.Monoid
+import           Data.Char                  (isSpace)
+import           Data.Functor               (void)
+import           Data.Maybe                 (fromMaybe, isJust)
+import           Data.Monoid                ((<>), Endo(..))
 
 import qualified Data.Aeson                 as Aeson
 import qualified Data.Aeson.Encode.Pretty   as Aeson
@@ -75,17 +72,23 @@ import qualified Data.HashMap.Strict        as HM
 import           Data.HashSet               (HashSet)
 import qualified Data.HashSet               as HS
 
-import           Flow
+import           Flow                       ((.>), (|>))
 
 import           Data.Hashable              (Hashable)
 import           GHC.Generics               (Generic)
 
 import qualified Data.Versions              as Ver
 
-import           Language.Ninja.AST
-import           Language.Ninja.Env
+import           Language.Ninja.AST         (Build, Command, Dependency,
+                                             DependencyType(..), Meta, Ninja,
+                                             Output, OutputType(..), Pool,
+                                             SpecialDeps, ResponseFile, Rule,
+                                             Target)
+import qualified Language.Ninja.AST         as Ninja
+import           Language.Ninja.Env         (askEnv)
 import qualified Language.Ninja.Parse       as Ninja
-import           Language.Ninja.Types
+import           Language.Ninja.Types       (Env, FileText, PNinja, PBuild, PRule)
+import qualified Language.Ninja.Types       as Ninja
 
 --------------------------------------------------------------------------------
 
@@ -280,18 +283,18 @@ evaluate pninja = result
       defaults <- defaultsM
       pools    <- poolsM
 
-      makeNinja
-        |> ninjaMeta     .~ meta
-        |> ninjaBuilds   .~ builds
-        |> ninjaPhonys   .~ phonys
-        |> ninjaDefaults .~ defaults
-        |> ninjaPools    .~ pools
+      Ninja.makeNinja
+        |> Ninja.ninjaMeta     .~ meta
+        |> Ninja.ninjaBuilds   .~ builds
+        |> Ninja.ninjaPhonys   .~ phonys
+        |> Ninja.ninjaDefaults .~ defaults
+        |> Ninja.ninjaPools    .~ pools
         |> pure
 
     metaM :: m Meta
     metaM = do
       let getSpecial :: Text -> Maybe Text
-          getSpecial name = HM.lookup name (pninja ^. pninjaSpecials)
+          getSpecial name = HM.lookup name (pninja ^. Ninja.pninjaSpecials)
 
       let parseVersion :: Text -> m Ver.Version
           parseVersion = Ver.version .> either throwVersionParseError pure
@@ -300,12 +303,12 @@ evaluate pninja = result
                     |> fmap parseVersion
                     |> sequenceA
       builddir   <- getSpecial "builddir"
-                    |> fmap makePath
+                    |> fmap Ninja.makePath
                     |> pure
 
-      makeMeta
-        |> metaReqVersion .~ reqversion
-        |> metaBuildDir   .~ builddir
+      Ninja.makeMeta
+        |> Ninja.metaReqVersion .~ reqversion
+        |> Ninja.metaBuildDir   .~ builddir
         |> pure
 
     buildsM :: m (HashSet Build)
@@ -323,9 +326,12 @@ evaluate pninja = result
 
     evaluateBuild :: (HashSet FileText, PBuild) -> m Build
     evaluateBuild (outputs, pbuild) = do
-      let normalDeps    = HS.toList (pbuild ^. pbuildDeps . pdepsNormal)
-      let implicitDeps  = HS.toList (pbuild ^. pbuildDeps . pdepsImplicit)
-      let orderOnlyDeps = HS.toList (pbuild ^. pbuildDeps . pdepsOrderOnly)
+      let pdepsNormal    = pbuild ^. Ninja.pbuildDeps . Ninja.pdepsNormal
+      let pdepsImplicit  = pbuild ^. Ninja.pbuildDeps . Ninja.pdepsImplicit
+      let pdepsOrderOnly = pbuild ^. Ninja.pbuildDeps . Ninja.pdepsOrderOnly
+      let normalDeps     = HS.toList pdepsNormal
+      let implicitDeps   = HS.toList pdepsImplicit
+      let orderOnlyDeps  = HS.toList pdepsOrderOnly
 
       rule <- evaluateRule (outputs, pbuild)
       outs <- HS.toList outputs |> mapM evaluateOutput |> fmap HS.fromList
@@ -335,9 +341,9 @@ evaluate pninja = result
                  <*> mapM (evalDep ImplicitDependency)  implicitDeps
                  <*> mapM (evalDep OrderOnlyDependency) orderOnlyDeps
 
-      makeBuild rule
-        |> buildOuts .~ outs
-        |> buildDeps .~ deps
+      Ninja.makeBuild rule
+        |> Ninja.buildOuts .~ outs
+        |> Ninja.buildDeps .~ deps
         |> pure
 
     evaluatePhony :: (Text, HashSet FileText)
@@ -351,10 +357,10 @@ evaluate pninja = result
     evaluateDefault = evaluateTarget
 
     evaluatePool :: (Text, Int) -> m Pool
-    evaluatePool ("console", 1) = pure poolConsole
+    evaluatePool ("console", 1) = pure Ninja.poolConsole
     evaluatePool ("console", d) = throwInvalidPoolDepth d
     evaluatePool ("",        _) = throwEmptyPoolName
-    evaluatePool (name,  depth) = pure (poolCustom name depth)
+    evaluatePool (name,  depth) = pure (Ninja.poolCustom name depth)
 
     evaluateRule :: (HashSet FileText, PBuild) -> m Rule
     evaluateRule (outputs, pbuild) = do
@@ -373,13 +379,13 @@ evaluate pninja = result
 
       command      <- lookupBind_ "command" >>= evaluateCommand
       description  <- lookupBind "description"
-      pool         <- let buildBind = pbuild ^. pbuildBind
-                      in (HM.lookup "pool" buildBind <|> askEnv env "pool")
-                         |> fmap parsePoolName
-                         |> fromMaybe poolNameDefault
-                         |> pure
+      pool         <- let buildBind = pbuild ^. Ninja.pbuildBind
+                      in  (HM.lookup "pool" buildBind <|> askEnv env "pool")
+                          |> fmap Ninja.parsePoolName
+                          |> fromMaybe Ninja.poolNameDefault
+                          |> pure
       depfile      <- lookupBind "depfile"
-                      |> fmap (fmap makePath)
+                      |> fmap (fmap Ninja.makePath)
       specialDeps  <- let prefix = "msvc_deps_prefix"
                       in ((,) <$> lookupBind "deps" <*> lookupBind prefix)
                          >>= evaluateSpecialDeps
@@ -390,47 +396,51 @@ evaluate pninja = result
                          >>= (\(ma, mb) -> pure ((,) <$> ma <*> mb))
                          >>= fmap evaluateResponseFile .> sequenceA
 
-      makeRule name command
-        |> ruleDescription  .~ description
-        |> rulePool         .~ pool
-        |> ruleDepfile      .~ depfile
-        |> ruleSpecialDeps  .~ specialDeps
-        |> ruleGenerator    .~ generator
-        |> ruleRestat       .~ restat
-        |> ruleResponseFile .~ responseFile
+      Ninja.makeRule name command
+        |> Ninja.ruleDescription  .~ description
+        |> Ninja.rulePool         .~ pool
+        |> Ninja.ruleDepfile      .~ depfile
+        |> Ninja.ruleSpecialDeps  .~ specialDeps
+        |> Ninja.ruleGenerator    .~ generator
+        |> Ninja.ruleRestat       .~ restat
+        |> Ninja.ruleResponseFile .~ responseFile
         |> pure
 
     evaluateSpecialDeps :: (Maybe Text, Maybe Text) -> m (Maybe SpecialDeps)
     evaluateSpecialDeps = go
       where
-        go (Nothing,           _) = pure Nothing
-        go (Just "gcc",        _) = pure (Just makeSpecialDepsGCC)
-        go (Just "msvc", mprefix) = pure (Just (makeSpecialDepsMSVC mprefix))
-        go (Just owise,        _) = throwUnknownDeps owise
+        go (Nothing,           _) = do
+          pure Nothing
+        go (Just "gcc",        _) = do
+          pure (Just Ninja.makeSpecialDepsGCC)
+        go (Just "msvc", mprefix) = do
+          pure (Just (Ninja.makeSpecialDepsMSVC mprefix))
+        go (Just owise,        _) = do
+          throwUnknownDeps owise
 
     evaluateResponseFile :: (Text, Text) -> m ResponseFile
     evaluateResponseFile (file, content)
-      = pure (makeResponseFile (makePath file) content)
+      = pure (Ninja.makeResponseFile (Ninja.makePath file)content)
 
     evaluateTarget :: Text -> m Target
-    evaluateTarget = makeTarget .> pure
+    evaluateTarget = Ninja.makeTarget .> pure
 
     evaluateOutput :: Text -> m Output
     evaluateOutput name = do
       target <- evaluateTarget name
-      pure (makeOutput target ExplicitOutput)
+      pure (Ninja.makeOutput target ExplicitOutput)
 
     evaluateDependency :: (Text, DependencyType) -> m Dependency
     evaluateDependency (name, ty) = do
       target <- evaluateTarget name
-      pure (makeDependency target ty)
+      pure (Ninja.makeDependency target ty)
 
     evaluateCommand :: Text -> m Command
-    evaluateCommand = makeCommand .> pure
+    evaluateCommand = Ninja.makeCommand .> pure
 
     lookupRule :: PBuild -> m (Text, PRule)
     lookupRule pbuild = do
-      let name = pbuild ^. pbuildRule
+      let name = pbuild ^. Ninja.pbuildRule
       prule <- maybe (throwBuildRuleNotFound name) pure (HM.lookup name prules)
       pure (name, prule)
 
@@ -438,7 +448,7 @@ evaluate pninja = result
                    -> PRule
                    -> Env Text Text
     computeRuleEnv (outs, pbuild) prule = do
-      let deps = pbuild ^. pbuildDeps . pdepsNormal
+      let deps = pbuild ^. Ninja.pbuildDeps . Ninja.pdepsNormal
 
       let composeList :: [a -> a] -> (a -> a)
           composeList = map Endo .> mconcat .> appEndo
@@ -447,13 +457,15 @@ evaluate pninja = result
           quote x | T.any isSpace x = mconcat ["\"", x, "\""]
           quote x                   = x
 
+          pbuildBind = pbuild ^. Ninja.pbuildBind
+
       -- the order of adding new environment variables matters
-      scopeEnv (pbuild ^. pbuildEnv)
-        |> addEnv "out"        (T.unwords (map quote (HS.toList outs)))
-        |> addEnv "in"         (T.unwords (map quote (HS.toList deps)))
-        |> addEnv "in_newline" (T.unlines (HS.toList deps))
-        |> composeList (map (uncurry addEnv) (HM.toList (pbuild ^. pbuildBind)))
-        |> addBinds (HM.toList (prule ^. pruleBind))
+      Ninja.scopeEnv (pbuild ^. Ninja.pbuildEnv)
+        |> Ninja.addEnv "out"        (T.unwords (map quote (HS.toList outs)))
+        |> Ninja.addEnv "in"         (T.unwords (map quote (HS.toList deps)))
+        |> Ninja.addEnv "in_newline" (T.unlines (HS.toList deps))
+        |> composeList (map (uncurry Ninja.addEnv) (HM.toList pbuildBind))
+        |> Ninja.addBinds (HM.toList (prule ^. Ninja.pruleBind))
 
     prules     :: HashMap Text PRule
     psingles   :: HashMap FileText PBuild
@@ -461,12 +473,12 @@ evaluate pninja = result
     pphonys    :: HashMap Text (HashSet FileText)
     pdefaults  :: HashSet FileText
     ppools     :: HashMap Text Int
-    prules     = pninja ^. pninjaRules
-    psingles   = pninja ^. pninjaSingles
-    pmultiples = pninja ^. pninjaMultiples
-    pphonys    = pninja ^. pninjaPhonys
-    pdefaults  = pninja ^. pninjaDefaults
-    ppools     = pninja ^. pninjaPools
+    prules     = pninja ^. Ninja.pninjaRules
+    psingles   = pninja ^. Ninja.pninjaSingles
+    pmultiples = pninja ^. Ninja.pninjaMultiples
+    pphonys    = pninja ^. Ninja.pninjaPhonys
+    pdefaults  = pninja ^. Ninja.pninjaDefaults
+    ppools     = pninja ^. Ninja.pninjaPools
 
     onHM :: (Eq k', Hashable k')
          => ((k, v) -> (k', v')) -> HashMap k v -> HashMap k' v'

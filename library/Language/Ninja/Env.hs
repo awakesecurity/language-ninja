@@ -53,12 +53,10 @@ module Language.Ninja.Env
   , scopeEnv, addEnv, askEnv
   ) where
 
-import           Control.Applicative
-import           Control.Monad
+import           Control.Applicative ((<|>))
+import           Control.Monad       ((>=>))
 
-import           Control.Lens.Iso
-
-import           Data.Maybe
+import           Control.Lens.Iso    (Iso', iso)
 
 import           Data.List.NonEmpty  (NonEmpty (..))
 import qualified Data.List.NonEmpty  as NE
@@ -69,10 +67,12 @@ import qualified Data.HashMap.Strict as HM
 import           Data.Hashable       (Hashable)
 import           GHC.Generics        (Generic)
 
-import           Data.Aeson          as Aeson
+import           Data.Aeson          (FromJSON(..), FromJSONKey(..), ToJSON(..),
+                                      ToJSONKey(..))
+import qualified Data.Aeson          as Aeson
 import qualified Data.Aeson.Types    as Aeson
 
-import           Flow
+import           Flow                ((.>))
 
 -- | A Ninja-style environment, basically a linked-list of hash tables.
 newtype Env k v
