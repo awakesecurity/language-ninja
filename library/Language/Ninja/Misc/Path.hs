@@ -21,10 +21,12 @@
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 -- |
 --   Module      : Language.Ninja.Misc.Path
@@ -69,14 +71,6 @@ newtype Path
   deriving ( Eq, Ord, Show, Read, IsString, Generic, Hashable
            , ToJSON, FromJSON, ToJSONKey, FromJSONKey )
 
--- | Uses the 'IText' instance.
-instance (Monad m) => SC.Serial m Path where
-  series = SC.newtypeCons MkPath
-
--- | Uses the 'IText' instance.
-instance (Monad m) => SC.CoSerial m Path where
-  coseries rs = SC.newtypeAlts rs >>- \f -> pure (_pathIText .> f)
-
 -- | Construct a 'Path' from some 'Text'.
 makePath :: Text -> Path
 makePath = view Ninja.itext .> MkPath
@@ -91,5 +85,18 @@ pathIText = Control.Lens.iso _pathIText MkPath
 --   This is equivalent to @pathIText . from Ninja.itext@.
 pathText :: Iso' Path Text
 pathText = pathIText . Control.Lens.from Ninja.itext
+
+-- | Uses the underlying 'IText' instance.
+instance ( Monad m
+         , SC.Serial m Text
+         ) => SC.Serial m Path where
+  series = SC.newtypeCons MkPath
+
+-- | Uses the underlying 'IText' instance.
+instance ( Monad m
+         , SC.CoSerial m Text
+         ) => SC.CoSerial m Path where
+  coseries rs = SC.newtypeAlts rs
+                >>- \f -> pure (_pathIText .> f)
 
 --------------------------------------------------------------------------------

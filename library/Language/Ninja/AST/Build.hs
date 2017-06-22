@@ -20,9 +20,13 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 -- |
 --   Module      : Language.Ninja.AST.Build
@@ -37,23 +41,26 @@ module Language.Ninja.AST.Build
     Build, makeBuild, buildRule, buildOuts, buildDeps
   ) where
 
-import           Data.Aeson                 (FromJSON,  KeyValue(..), ToJSON,
-                                             (.:))
-import qualified Data.Aeson                 as Aeson
+import           Data.Aeson
+                 (FromJSON, KeyValue (..), ToJSON, (.:))
+import qualified Data.Aeson                as Aeson
 
-import           Data.HashSet               (HashSet)
-import qualified Data.HashSet               as HS
+import           Data.Text                 (Text)
 
-import           Data.Hashable              (Hashable (..))
-import           GHC.Generics               (Generic)
+import           Data.HashSet              (HashSet)
+import qualified Data.HashSet              as HS
 
-import           Language.Ninja.AST.Rule    (Rule)
-import           Language.Ninja.AST.Target  (Dependency, Output)
+import           Data.Hashable             (Hashable (..))
+import           GHC.Generics              (Generic)
+import qualified Test.SmallCheck.Series    as SC
 
-import           Control.Lens.Lens          (Lens')
+import           Language.Ninja.AST.Rule   (Rule)
+import           Language.Ninja.AST.Target (Dependency, Output)
+
 import qualified Control.Lens
+import           Control.Lens.Lens         (Lens')
 
-import           Flow                       ((|>))
+import           Flow                      ((|>))
 
 --------------------------------------------------------------------------------
 
@@ -108,5 +115,19 @@ instance FromJSON Build where
                   _buildOuts <- (o .: "outputs")      >>= pure
                   _buildDeps <- (o .: "dependencies") >>= pure
                   pure (MkBuild {..}))
+
+-- | FIXME: doc
+instance ( Monad m
+         , SC.Serial m Text
+         , SC.Serial m (HashSet Output)
+         , SC.Serial m (HashSet Dependency)
+         ) => SC.Serial m Build
+
+-- | FIXME: doc
+instance ( Monad m
+         , SC.CoSerial m Text
+         , SC.CoSerial m (HashSet Output)
+         , SC.CoSerial m (HashSet Dependency)
+         ) => SC.CoSerial m Build
 
 --------------------------------------------------------------------------------

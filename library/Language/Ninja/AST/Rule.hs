@@ -20,10 +20,14 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 -- |
 --   Module      : Language.Ninja.AST.Rule
@@ -61,6 +65,7 @@ import qualified Data.Aeson                  as Aeson
 
 import           Data.Hashable               (Hashable (..))
 import           GHC.Generics                (Generic)
+import qualified Test.SmallCheck.Series      as SC
 
 import           Control.Lens.Lens           (Lens', lens)
 import           Control.Lens.Prism          (Prism', prism)
@@ -204,6 +209,16 @@ instance FromJSON Rule where
                   _ruleResponseFile <- (o .: "rsp")       >>= pure
                   pure (MkRule {..}))
 
+-- | FIXME: doc
+instance ( Monad m
+         , SC.Serial m Text
+         ) => SC.Serial m Rule
+
+-- | FIXME: doc
+instance ( Monad m
+         , SC.CoSerial m Text
+         ) => SC.CoSerial m Rule
+
 --------------------------------------------------------------------------------
 
 -- | Special dependency information, as described
@@ -232,13 +247,13 @@ makeSpecialDepsMSVC = SpecialDepsMSVC
 
 -- | A prism for the @deps = gcc@ case.
 _SpecialDepsGCC :: Prism' SpecialDeps ()
-_SpecialDepsGCC = prism (const SpecialDepsGCC)
+_SpecialDepsGCC = prism (const makeSpecialDepsGCC)
                   $ \case SpecialDepsGCC -> Right ()
                           owise          -> Left owise
 
 -- | A prism for the @deps = msvc@ / @msvc_deps_prefix = …@ case.
 _SpecialDepsMSVC :: Prism' SpecialDeps (Maybe Text)
-_SpecialDepsMSVC = prism SpecialDepsMSVC
+_SpecialDepsMSVC = prism makeSpecialDepsMSVC
                    $ \case (SpecialDepsMSVC prefix) -> Right prefix
                            owise                    -> Left owise
 
@@ -268,6 +283,16 @@ instance FromJSON SpecialDeps where
       owise  -> ["Invalid deps type ", "\"", owise, "\"; "
                 , "should be one of [\"gcc\", \"msvc\"]."
                 ] |> mconcat |> T.unpack |> fail
+
+-- | FIXME: doc
+instance ( Monad m
+         , SC.Serial m Text
+         ) => SC.Serial m SpecialDeps
+
+-- | FIXME: doc
+instance ( Monad m
+         , SC.CoSerial m Text
+         ) => SC.CoSerial m SpecialDeps
 
 --------------------------------------------------------------------------------
 
@@ -316,5 +341,15 @@ instance FromJSON ResponseFile where
     MkResponseFile
       <$> (o .: "path")
       <*> (o .: "content")
+
+-- | FIXME: doc
+instance ( Monad m
+         , SC.Serial m Text
+         ) => SC.Serial m ResponseFile
+
+-- | FIXME: doc
+instance ( Monad m
+         , SC.CoSerial m Text
+         ) => SC.CoSerial m ResponseFile
 
 --------------------------------------------------------------------------------

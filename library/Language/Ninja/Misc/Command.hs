@@ -21,7 +21,11 @@
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 -- |
 --   Module      : Language.Ninja.Misc.Command
@@ -35,15 +39,18 @@ module Language.Ninja.Misc.Command
   ( Command, makeCommand, commandText
   ) where
 
-import           Data.Text        (Text)
+import           Data.Text              (Text)
 
-import           Data.Aeson       (FromJSON, ToJSON)
+import           Data.Aeson             (FromJSON, ToJSON)
 
-import           Data.Hashable    (Hashable)
-import           GHC.Generics     (Generic)
+import           Data.Hashable          (Hashable)
+import           GHC.Generics           (Generic)
+import           Test.SmallCheck.Series as SC
 
-import           Control.Lens.Iso (Iso')
 import qualified Control.Lens
+import           Control.Lens.Iso       (Iso')
+
+import           Flow
 
 --------------------------------------------------------------------------------
 
@@ -62,5 +69,18 @@ makeCommand = MkCommand
 -- | An isomorphism between a 'Command' and its underlying 'Text'.
 commandText :: Iso' Command Text
 commandText = Control.Lens.iso _commandText MkCommand
+
+-- | Uses the underlying 'Text' instance.
+instance ( Monad m
+         , SC.Serial m Text
+         ) => SC.Serial m Command where
+  series = SC.newtypeCons MkCommand
+
+-- | Uses the underlying 'Text' instance.
+instance ( Monad m
+         , SC.CoSerial m Text
+         ) => SC.CoSerial m Command where
+  coseries rs = SC.newtypeAlts rs
+                >>- \f -> pure (_commandText .> f)
 
 --------------------------------------------------------------------------------

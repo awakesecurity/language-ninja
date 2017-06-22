@@ -21,10 +21,12 @@
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 -- |
 --   Module      : Language.Ninja.Misc.IText
@@ -128,12 +130,12 @@ instance ToJSONKey IText where
 instance FromJSONKey IText where
   fromJSONKey = Aeson.mapFromJSONKeyFunction internText fromJSONKey
 
--- | Uses the 'String' instance.
-instance (Monad m) => SC.Serial m IText where
-  series = SC.series |> fmap (T.pack .> internText)
+-- | Uses the 'Text' instance.
+instance (Monad m, SC.Serial m Text) => SC.Serial m IText where
+  series = SC.series |> fmap internText
 
--- | Uses the 'String' instance.
-instance (Monad m) => SC.CoSerial m IText where
-  coseries = SC.coseries .> fmap (\f int -> f (T.unpack (uninternText int)))
+-- | Uses the 'Text' instance.
+instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m IText where
+  coseries = SC.coseries .> fmap (\f int -> f (uninternText int))
 
 --------------------------------------------------------------------------------

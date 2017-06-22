@@ -21,10 +21,14 @@
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 -- |
 --   Module      : Language.Ninja.AST.Target
@@ -40,9 +44,11 @@ module Language.Ninja.AST.Target
     -- * @Output@
   , Output, makeOutput, outputTarget, outputType
   , OutputType (..)
+  , _ExplicitOutput, _ImplicitOutput
     -- * @Dependency@
   , Dependency, makeDependency, dependencyTarget, dependencyType
   , DependencyType (..)
+  , _NormalDependency, _ImplicitDependency, _OrderOnlyDependency
   ) where
 
 import           Language.Ninja.Misc.IText
@@ -50,21 +56,23 @@ import           Language.Ninja.Misc.IText
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 
-import           Data.Aeson                (FromJSON(..), FromJSONKey,
-                                            KeyValue(..), ToJSON(..), ToJSONKey,
-                                            (.:))
+import           Data.Aeson
+                 (FromJSON (..), FromJSONKey, KeyValue (..), ToJSON (..),
+                 ToJSONKey, (.:))
 import qualified Data.Aeson                as Aeson
 
 import           Data.Hashable             (Hashable (..))
 import           Data.String               (IsString (..))
 import           GHC.Generics              (Generic)
+import           Test.SmallCheck.Series    ((>>-))
+import qualified Test.SmallCheck.Series    as SC
 
 import           Control.Lens.Getter       (view)
-import           Control.Lens.Iso          (Iso')
-import           Control.Lens.Lens         (Lens')
-import qualified Control.Lens
+import           Control.Lens.Iso          (Iso', from, iso)
+import           Control.Lens.Lens         (Lens', lens)
+import           Control.Lens.Prism        (Prism', prism')
 
-import           Flow                      ((|>), (.>))
+import           Flow                      ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
@@ -82,14 +90,33 @@ makeTarget = view itext .> MkTarget
 
 -- | An isomorphism between a 'Target' and its underlying 'IText'.
 targetIText :: Iso' Target IText
-targetIText = Control.Lens.iso _targetIText MkTarget
+targetIText = iso _targetIText MkTarget
 
 -- | An isomorphism that gives access to a 'Text'-typed view of a 'Target',
 --   even though the underlying data has type 'IText'.
 --
---   This is equivalent to @targetIText . Control.Lens.from itext@.
+--   This is equivalent to @targetIText . from itext@.
 targetText :: Iso' Target Text
-targetText = targetIText . Control.Lens.from itext
+targetText = targetIText . from itext
+
+-- | Uses the underlying 'IText' instance.
+instance ( Monad m
+         , SC.Serial m Text
+         ) => SC.Serial m Target where
+  series = SC.newtypeCons MkTarget
+
+-- | Uses the underlying 'IText' instance.
+instance ( Monad m
+         , SC.CoSerial m Text
+         ) => SC.CoSerial m Target where
+  coseries rs = SC.newtypeAlts rs
+                >>- \f -> pure (_targetIText .> f)
+
+-- | FIXME: doc
+instance (Monad m, SC.Serial m Text) => SC.Serial m Output
+
+-- | FIXME: doc
+instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Output
 
 --------------------------------------------------------------------------------
 
@@ -114,12 +141,12 @@ makeOutput = MkOutput
 
 -- | A lens for the 'Target' of an 'Output'.
 outputTarget :: Lens' Output Target
-outputTarget = Control.Lens.lens _outputTarget
+outputTarget = lens _outputTarget
                $ \(MkOutput {..}) new -> MkOutput { _outputTarget = new, .. }
 
 -- | A lens for the 'OutputType' of an 'Output'.
 outputType :: Lens' Output OutputType
-outputType = Control.Lens.lens _outputType
+outputType = lens _outputType
              $ \(MkOutput {..}) new -> MkOutput { _outputType = new, .. }
 
 -- | Default 'Hashable' instance via 'Generic'.
@@ -149,6 +176,18 @@ data OutputType
     ImplicitOutput
   deriving (Eq, Ord, Show, Read, Generic)
 
+-- | A prism for the 'ExplicitOutput' constructor.
+_ExplicitOutput :: Prism' OutputType ()
+_ExplicitOutput = prism' (const ExplicitOutput)
+                   $ \case ExplicitOutput -> Just ()
+                           _              -> Nothing
+
+-- | A prism for the 'ImplicitOutput' constructor.
+_ImplicitOutput :: Prism' OutputType ()
+_ImplicitOutput = prism' (const ImplicitOutput)
+                   $ \case ImplicitOutput -> Just ()
+                           _              -> Nothing
+
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable OutputType
 
@@ -166,6 +205,12 @@ instance FromJSON OutputType where
                                 , "\"", owise, "\"; should be one of "
                                 , "[\"explict\", \"implicit\"]"
                                 ] |> mconcat |> T.unpack |> fail)
+
+-- | FIXME: doc
+instance (Monad m) => SC.Serial m OutputType
+
+-- | FIXME: doc
+instance (Monad m) => SC.CoSerial m OutputType
 
 --------------------------------------------------------------------------------
 
@@ -191,13 +236,13 @@ makeDependency = MkDependency
 -- | A lens for the 'Target' of a 'Dependency'.
 dependencyTarget :: Lens' Dependency Target
 dependencyTarget
-  = Control.Lens.lens _dependencyTarget
+  = lens _dependencyTarget
     $ \(MkDependency {..}) new -> MkDependency { _dependencyTarget = new, .. }
 
 -- | A lens for the 'DependencyType' of a 'Dependency'.
 dependencyType :: Lens' Dependency DependencyType
 dependencyType
-  = Control.Lens.lens _dependencyType
+  = lens _dependencyType
     $ \(MkDependency {..}) new -> MkDependency { _dependencyType = new, .. }
 
 -- | Default 'Hashable' instance via 'Generic'.
@@ -217,6 +262,12 @@ instance FromJSON Dependency where
                   _dependencyType   <- (o .: "type")   >>= pure
                   pure (MkDependency {..}))
 
+-- | FIXME: doc
+instance (Monad m, SC.Serial m Text) => SC.Serial m Dependency
+
+-- | FIXME: doc
+instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Dependency
+
 --------------------------------------------------------------------------------
 
 -- | The type of a 'Dependency': normal, implicit, or order-only.
@@ -234,6 +285,24 @@ data DependencyType
     --   FIXME: double check this interpretation of the Ninja manual
     OrderOnlyDependency
   deriving (Eq, Ord, Show, Read, Generic)
+
+-- | A prism for the 'NormalDependency' constructor.
+_NormalDependency :: Prism' DependencyType ()
+_NormalDependency = prism' (const NormalDependency)
+                    $ \case NormalDependency -> Just ()
+                            _                -> Nothing
+
+-- | A prism for the 'ImplicitDependency' constructor.
+_ImplicitDependency :: Prism' DependencyType ()
+_ImplicitDependency = prism' (const ImplicitDependency)
+                      $ \case ImplicitDependency -> Just ()
+                              _                  -> Nothing
+
+-- | A prism for the 'OrderOnlyDependency' constructor.
+_OrderOnlyDependency :: Prism' DependencyType ()
+_OrderOnlyDependency = prism' (const OrderOnlyDependency)
+                       $ \case OrderOnlyDependency -> Just ()
+                               _                   -> Nothing
 
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable DependencyType
@@ -254,5 +323,11 @@ instance FromJSON DependencyType where
                                   , "\"", owise, "\"; should be one of "
                                   , "[\"normal\", \"implicit\", \"order-only\"]"
                                   ] |> mconcat |> T.unpack |> fail)
+
+-- | FIXME: doc
+instance (Monad m) => SC.Serial m DependencyType
+
+-- | FIXME: doc
+instance (Monad m) => SC.CoSerial m DependencyType
 
 --------------------------------------------------------------------------------

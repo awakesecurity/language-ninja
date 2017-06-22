@@ -20,9 +20,15 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 -- |
 --   Module      : Language.Ninja.AST.Ninja
@@ -38,29 +44,36 @@ module Language.Ninja.AST.Ninja
   , ninjaMeta, ninjaBuilds, ninjaPhonys, ninjaDefaults, ninjaPools
   ) where
 
-import           Language.Ninja.AST.Build   (Build)
-import           Language.Ninja.AST.Meta    (Meta)
-import qualified Language.Ninja.AST.Meta    as Ninja
-import           Language.Ninja.AST.Pool    (Pool)
-import           Language.Ninja.AST.Target  (Target)
+import           Language.Ninja.AST.Build  (Build)
+import           Language.Ninja.AST.Meta   (Meta)
+import qualified Language.Ninja.AST.Meta   as Ninja
+import           Language.Ninja.AST.Pool   (Pool)
+import           Language.Ninja.AST.Target (Target)
 
-import           Data.HashMap.Strict        (HashMap)
-import qualified Data.HashMap.Strict        as HM
+import           Data.Text                 (Text)
 
-import           Data.HashSet               (HashSet)
-import qualified Data.HashSet               as HS
+import           Data.HashMap.Strict       (HashMap)
+import qualified Data.HashMap.Strict       as HM
 
-import           Data.Aeson                 (FromJSON, KeyValue(..), ToJSON,
-                                             (.:))
-import qualified Data.Aeson                 as Aeson
+import           Data.HashSet              (HashSet)
+import qualified Data.HashSet              as HS
 
-import           Data.Hashable              (Hashable)
-import           GHC.Generics               (Generic)
+import           Data.Aeson
+                 (FromJSON, KeyValue (..), ToJSON, (.:))
+import qualified Data.Aeson                as Aeson
 
-import           Control.Lens.Lens          (Lens')
+import qualified Data.Versions             as Ver
+
+import           Data.Hashable             (Hashable)
+import           GHC.Generics              (Generic)
+import qualified Test.SmallCheck.Series    as SC
+
+import           GHC.Exts                  (Constraint)
+
 import qualified Control.Lens
+import           Control.Lens.Lens         (Lens')
 
-import           Flow                       ((|>))
+import           Flow                      ((|>))
 
 --------------------------------------------------------------------------------
 
@@ -134,5 +147,22 @@ instance FromJSON Ninja where
                   _ninjaDefaults <- (o .: "defaults") >>= pure
                   _ninjaPools    <- (o .: "pools")    >>= pure
                   pure (MkNinja {..}))
+
+type NinjaConstraint
+     (constraint :: (* -> *) -> * -> Constraint)
+     (m :: * -> *)
+  = ( constraint m Text
+    , constraint m Ver.Version
+    , constraint m (HashMap Target (HashSet Target))
+    , constraint m (HashSet Build)
+    , constraint m (HashSet Target)
+    , constraint m (HashSet Pool)
+    )
+
+-- | FIXME: doc
+instance (Monad m, NinjaConstraint SC.Serial m) => SC.Serial m Ninja
+
+-- | FIXME: doc
+instance (Monad m, NinjaConstraint SC.CoSerial m) => SC.CoSerial m Ninja
 
 --------------------------------------------------------------------------------

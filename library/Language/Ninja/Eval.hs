@@ -37,58 +37,59 @@ module Language.Ninja.Eval
   ( module Language.Ninja.Eval -- FIXME: specific export list
   ) where
 
-import           Control.Applicative        ((<|>))
-import           Control.Arrow              (first)
+import           Control.Applicative          ((<|>))
+import           Control.Arrow                (first)
 
-import           Control.Lens.Getter        ((^.))
-import           Control.Lens.Setter        ((.~))
+import           Control.Lens.Getter          ((^.))
+import           Control.Lens.Setter          ((.~))
 
-import           Control.Exception          (Exception)
-import           Control.Monad.Catch        (MonadThrow(..))
+import           Control.Exception            (Exception)
+import           Control.Monad.Catch          (MonadThrow (..))
 
-import           Data.Char                  (isSpace)
-import           Data.Functor               (void)
-import           Data.Maybe                 (fromMaybe, isJust)
-import           Data.Monoid                ((<>), Endo(..))
+import           Data.Char                    (isSpace)
+import           Data.Functor                 (void)
+import           Data.Maybe                   (fromMaybe, isJust)
+import           Data.Monoid                  (Endo (..), (<>))
 
-import qualified Data.Aeson                 as Aeson
-import qualified Data.Aeson.Encode.Pretty   as Aeson
-import qualified Data.Aeson.Types           as Aeson
+import qualified Data.Aeson                   as Aeson
+import qualified Data.Aeson.Encode.Pretty     as Aeson
+import qualified Data.Aeson.Types             as Aeson
 
-import           Data.ByteString            (ByteString)
-import qualified Data.ByteString            as BS
-import qualified Data.ByteString.Char8      as BSC8
+import           Data.ByteString              (ByteString)
+import qualified Data.ByteString              as BS
+import qualified Data.ByteString.Char8        as BSC8
 
-import qualified Data.ByteString.Lazy       as LBS
-import qualified Data.ByteString.Lazy.Char8 as LBSC8
+import qualified Data.ByteString.Lazy         as LBS
+import qualified Data.ByteString.Lazy.Char8   as LBSC8
 
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import qualified Data.Text.Encoding         as T
+import           Data.Text                    (Text)
+import qualified Data.Text                    as T
+import qualified Data.Text.Encoding           as T
 
-import           Data.HashMap.Strict        (HashMap)
-import qualified Data.HashMap.Strict        as HM
+import           Data.HashMap.Strict          (HashMap)
+import qualified Data.HashMap.Strict          as HM
 
-import           Data.HashSet               (HashSet)
-import qualified Data.HashSet               as HS
+import           Data.HashSet                 (HashSet)
+import qualified Data.HashSet                 as HS
 
-import           Flow                       ((.>), (|>))
+import           Flow                         ((.>), (|>))
 
-import           Data.Hashable              (Hashable)
-import           GHC.Generics               (Generic)
+import           Data.Hashable                (Hashable)
+import           GHC.Generics                 (Generic)
 
-import qualified Data.Versions              as Ver
+import qualified Data.Versions                as Ver
 
-import           Language.Ninja.AST         (Build, Command, Dependency,
-                                             DependencyType(..), Meta, Ninja,
-                                             Output, OutputType(..), Pool,
-                                             SpecialDeps, ResponseFile, Rule,
-                                             Target)
-import qualified Language.Ninja.AST         as Ninja
-import           Language.Ninja.Env         (askEnv)
-import qualified Language.Ninja.Parse       as Ninja
-import           Language.Ninja.Types       (Env, FileText, PNinja, PBuild, PRule)
-import qualified Language.Ninja.Types       as Ninja
+import           Language.Ninja.AST
+                 (Build, Command, Dependency, DependencyType (..), Meta, Ninja,
+                 Output, OutputType (..), Pool, ResponseFile, Rule,
+                 SpecialDeps, Target)
+import qualified Language.Ninja.AST           as Ninja
+import           Language.Ninja.Env           (askEnv)
+import qualified Language.Ninja.Misc.Positive as Ninja
+import qualified Language.Ninja.Parse         as Ninja
+import           Language.Ninja.Types
+                 (Env, FileText, PBuild, PNinja, PRule)
+import qualified Language.Ninja.Types         as Ninja
 
 --------------------------------------------------------------------------------
 
@@ -360,7 +361,9 @@ evaluate pninja = result
     evaluatePool ("console", 1) = pure Ninja.poolConsole
     evaluatePool ("console", d) = throwInvalidPoolDepth d
     evaluatePool ("",        _) = throwEmptyPoolName
-    evaluatePool (name,  depth) = pure (Ninja.poolCustom name depth)
+    evaluatePool (name,      d) = do dp <- maybe (throwInvalidPoolDepth d) pure
+                                           (Ninja.makePositive d)
+                                     pure (Ninja.poolCustom name dp)
 
     evaluateRule :: (HashSet FileText, PBuild) -> m Rule
     evaluateRule (outputs, pbuild) = do

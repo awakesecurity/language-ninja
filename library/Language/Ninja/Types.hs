@@ -37,10 +37,17 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE TupleSections         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 -- |
 --   Module      : Language.Ninja.Types
@@ -75,7 +82,9 @@ module Language.Ninja.Types
   , pruleBind
 
     -- * @PExpr@
-  , PExpr (..), askVar, askExpr, addBind, addBinds
+  , PExpr (..)
+  , _PExprs, _PLit, _PVar
+  , askVar, askExpr, addBind, addBinds
 
     -- * @Env@
   , Env, Ninja.makeEnv, Ninja.fromEnv, Ninja.addEnv, Ninja.scopeEnv
@@ -87,12 +96,14 @@ module Language.Ninja.Types
 import           Control.Arrow             (second)
 import           Control.Monad             ((>=>))
 
-import           Control.Lens.Lens         (Lens')
 import qualified Control.Lens
+import           Control.Lens.Lens         (Lens')
+import           Control.Lens.Lens
+import           Control.Lens.Prism
 
 import           Data.Foldable             (asum)
 import qualified Data.Maybe
-import           Data.Monoid               (Endo(..))
+import           Data.Monoid               (Endo (..))
 
 import qualified Data.ByteString.Char8     as BSC8
 
@@ -109,19 +120,24 @@ import qualified Data.HashSet              as HS
 import           Data.Hashable             (Hashable)
 import           GHC.Generics              (Generic)
 
-import           Data.Aeson                (FromJSON(..), KeyValue(..),
-                                            ToJSON(..), Value, (.:))
+import           GHC.Exts                  (Constraint)
+
+import           Data.Aeson
+                 (FromJSON (..), KeyValue (..), ToJSON (..), Value, (.:))
+import qualified Data.Aeson                as Aeson
 import qualified Data.Aeson.Types          as Aeson
 
 import qualified Test.QuickCheck           as Q
-import           Test.QuickCheck.Arbitrary (Arbitrary(..))
-import           Test.QuickCheck.Gen       (Gen(..))
+import           Test.QuickCheck.Arbitrary (Arbitrary (..))
+import           Test.QuickCheck.Gen       (Gen (..))
 import           Test.QuickCheck.Instances ()
+
+import qualified Test.SmallCheck.Series    as SC
 
 import           Language.Ninja.Env        (Env)
 import qualified Language.Ninja.Env        as Ninja
 
-import           Flow                      ((|>), (.>))
+import           Flow                      ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
@@ -145,6 +161,24 @@ data PExpr
   | -- | FIXME: doc
     PVar Text
   deriving (Eq, Show, Generic)
+
+-- | A prism for the 'PExprs' constructor.
+_PExprs :: Prism' PExpr [PExpr]
+_PExprs = prism' PExprs
+          $ \case (PExprs xs) -> Just xs
+                  _           -> Nothing
+
+-- | A prism for the 'PLit' constructor.
+_PLit :: Prism' PExpr Text
+_PLit = prism' PLit
+        $ \case (PLit t) -> Just t
+                _        -> Nothing
+
+-- | A prism for the 'PVar' constructor.
+_PVar :: Prism' PExpr Text
+_PVar = prism' PVar
+        $ \case (PVar t) -> Just t
+                _        -> Nothing
 
 -- | FIXME: doc
 askExpr :: Env Text Text -> PExpr -> Text
@@ -201,6 +235,12 @@ instance Arbitrary PExpr where
       varLength = 10
       maxWidth  = 5
       lossRate  = 2
+
+-- | FIXME: doc
+instance (Monad m, SC.Serial m Text) => SC.Serial m PExpr
+
+-- | FIXME: doc
+instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m PExpr
 
 --------------------------------------------------------------------------------
 
@@ -304,6 +344,24 @@ instance FromJSON PNinja where
                       build   <- (o .: "build")   >>= pure
                       pure (outputs, build))
 
+type PNinjaConstraint (constraint :: (* -> *) -> * -> Constraint) (m :: * -> *)
+  = ( constraint m Text
+    , constraint m (HashSet FileText)
+    , constraint m (HashMap Text Text)
+    , constraint m (Ninja.Maps Text Text)
+    , constraint m (HashMap (HashSet FileText) PBuild)
+    , constraint m (HashMap Text (HashSet FileText))
+    , constraint m (HashMap Text PRule)
+    , constraint m (HashMap FileText PBuild)
+    , constraint m (HashMap Text Int)
+    )
+
+-- | FIXME: doc
+instance (Monad m, PNinjaConstraint SC.Serial m) => SC.Serial m PNinja
+
+-- | FIXME: doc
+instance (Monad m, PNinjaConstraint SC.CoSerial m) => SC.CoSerial m PNinja
+
 --------------------------------------------------------------------------------
 
 -- | A parsed Ninja @build@ declaration.
@@ -367,6 +425,22 @@ instance FromJSON PBuild where
                   _pbuildBind <- (o .: "bind") >>= pure
                   pure (MkPBuild {..}))
 
+-- | FIXME: doc
+instance ( Monad m
+         , SC.Serial m Text
+         , SC.Serial m (HashSet FileText)
+         , SC.Serial m (HashMap Text Text)
+         , SC.Serial m (Ninja.Maps Text Text)
+         ) => SC.Serial m PBuild
+
+-- | FIXME: doc
+instance ( Monad m
+         , SC.CoSerial m Text
+         , SC.CoSerial m (HashSet FileText)
+         , SC.CoSerial m (HashMap Text Text)
+         , SC.CoSerial m (Ninja.Maps Text Text)
+         ) => SC.CoSerial m PBuild
+
 --------------------------------------------------------------------------------
 
 -- | A set of Ninja build dependencies.
@@ -417,6 +491,14 @@ instance FromJSON PDeps where
                   _pdepsOrderOnly <- (o .: "order-only") >>= pure
                   pure (MkPDeps {..}))
 
+-- | FIXME: doc
+instance ( Monad m, SC.Serial m (HashSet FileText)
+         ) => SC.Serial m PDeps
+
+-- | FIXME: doc
+instance ( Monad m, SC.CoSerial m (HashSet FileText)
+         ) => SC.CoSerial m PDeps
+
 --------------------------------------------------------------------------------
 
 -- | A parsed Ninja @rule@ declaration.
@@ -443,5 +525,13 @@ instance ToJSON PRule where
 -- | FIXME: doc
 instance FromJSON PRule where
   parseJSON = parseJSON .> fmap MkPRule
+
+-- | FIXME: doc
+instance ( Monad m, SC.Serial m (HashMap Text PExpr)
+         ) => SC.Serial m PRule
+
+-- | FIXME: doc
+instance ( Monad m, SC.CoSerial m (HashMap Text PExpr)
+         ) => SC.CoSerial m PRule
 
 --------------------------------------------------------------------------------

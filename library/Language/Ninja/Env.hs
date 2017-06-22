@@ -37,8 +37,13 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 -- |
 --   Module      : Language.Ninja.Env
@@ -47,37 +52,49 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   A Ninja-style environment, basically a linked-list of hash tables.
+--   A Ninja-style environment, basically a nonempty list of hash tables.
 module Language.Ninja.Env
-  ( Env, makeEnv, fromEnv, headEnv, tailEnv
+  ( Key, Maps
+  , Env, makeEnv, fromEnv, headEnv, tailEnv
   , scopeEnv, addEnv, askEnv
   ) where
 
-import           Control.Applicative ((<|>))
-import           Control.Monad       ((>=>))
+import           Control.Applicative    ((<|>))
+import           Control.Monad          ((>=>))
 
-import           Control.Lens.Iso    (Iso', iso)
+import           Control.Lens.Iso       (Iso', iso)
 
-import           Data.List.NonEmpty  (NonEmpty (..))
-import qualified Data.List.NonEmpty  as NE
+import           Data.List.NonEmpty     (NonEmpty (..))
+import qualified Data.List.NonEmpty     as NE
 
-import           Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HM
+import           Data.HashMap.Strict    (HashMap)
+import qualified Data.HashMap.Strict    as HM
 
-import           Data.Hashable       (Hashable)
-import           GHC.Generics        (Generic)
+import           Data.Hashable          (Hashable)
+import           GHC.Generics           (Generic)
+import qualified Test.SmallCheck.Series as SC
 
-import           Data.Aeson          (FromJSON(..), FromJSONKey(..), ToJSON(..),
-                                      ToJSONKey(..))
-import qualified Data.Aeson          as Aeson
-import qualified Data.Aeson.Types    as Aeson
+import           Data.Aeson
+                 (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
+import qualified Data.Aeson             as Aeson
+import qualified Data.Aeson.Types       as Aeson
 
-import           Flow                ((.>))
+import           Flow                   ((.>), (|>))
 
--- | A Ninja-style environment, basically a linked-list of hash tables.
+--------------------------------------------------------------------------------
+
+-- | A constraint alias for @('Eq' k, 'Hashable' k)@.
+type Key k = (Eq k, Hashable k)
+
+-- | A 'NE.NonEmpty' list of 'HashMap's.
+type Maps k v = NE.NonEmpty (HashMap k v)
+
+--------------------------------------------------------------------------------
+
+-- | A Ninja-style environment, basically a nonempty list of hash tables.
 newtype Env k v
   = MkEnv
-    { _fromEnv :: NonEmpty (HashMap k v)
+    { _fromEnv :: Maps k v
     }
   deriving (Eq, Show, Generic)
 
@@ -86,7 +103,7 @@ makeEnv :: Env k v
 makeEnv = MkEnv (HM.empty :| [])
 
 -- | An isomorphism between an 'Env' and a nonempty list of 'HashMap's.
-fromEnv :: Iso' (Env k v) (NonEmpty (HashMap k v))
+fromEnv :: Iso' (Env k v) (Maps k v)
 fromEnv = iso _fromEnv MkEnv
 
 -- | Get the first 'HashMap' in the underlying nonempty list.
@@ -111,7 +128,7 @@ askEnv :: (Eq k, Hashable k) => Env k v -> k -> Maybe v
 askEnv env k = HM.lookup k (headEnv env)
                <|> (tailEnv env >>= (`askEnv` k))
 
--- | Converts to a (non-empty) array of JSON objects.
+-- | Converts to a (nonempty) array of JSON objects.
 instance (ToJSONKey k, ToJSON v) => ToJSON (Env k v) where
   toJSON = _fromEnv .> NE.toList .> toJSON
 
@@ -122,3 +139,19 @@ instance (Eq k, Hashable k, FromJSONKey k, FromJSON v) =>
               >=> NE.nonEmpty
               .>  maybe (fail "Env list was empty!") pure
               .>  fmap MkEnv
+
+-- | Uses the underlying 'Maps' instance.
+instance ( Monad m, Key k
+         , SC.Serial m (k, v)
+         , SC.Serial m (Maps k v)
+         ) => SC.Serial m (Env k v) where
+  series = SC.series |> fmap MkEnv
+
+-- | Uses the underlying 'Maps' instance.
+instance ( Monad m, Key k
+         , SC.CoSerial m (k, v)
+         , SC.CoSerial m (Maps k v)
+         ) => SC.CoSerial m (Env k v) where
+  coseries = SC.coseries .> fmap (\f -> _fromEnv .> f)
+
+--------------------------------------------------------------------------------

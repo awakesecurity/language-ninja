@@ -21,6 +21,7 @@
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -28,6 +29,7 @@
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 -- |
 --   Module      : Language.Ninja.AST.Meta
@@ -94,9 +96,6 @@ metaBuildDir = Control.Lens.lens _metaBuildDir
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable Meta
 
--- -- | Default 'Serial' instance via 'Generic'.
--- instance (Monad m) => SC.Serial m Meta
-
 -- | Converts to @{req-version: …, build-dir: …}@.
 instance ToJSON Meta where
   toJSON (MkMeta {..})
@@ -120,6 +119,18 @@ instance FromJSON Meta where
       versionP :: Value -> Aeson.Parser Ver.Version
       versionP = withText "Version" (megaparsecToAeson Ver.version')
 
+-- | Default 'SC.Serial' instance via 'Generic'.
+instance ( Monad m
+         , SC.Serial m Ver.Version
+         , SC.Serial m Text
+         ) => SC.Serial m Meta
+
+-- | Default 'SC.CoSerial' instance via 'Generic'.
+instance ( Monad m
+         , SC.CoSerial m Ver.Version
+         , SC.CoSerial m Text
+         ) => SC.CoSerial m Meta
+
 --------------------------------------------------------------------------------
 
 -- HELPER FUNCTIONS
@@ -132,30 +143,5 @@ megaparsecToAeson :: Mega.Parsec Mega.Dec Text t
 megaparsecToAeson parser text = case Mega.runParser parser "" text of
                                   Left  e -> fail (Mega.parseErrorPretty e)
                                   Right x -> pure x
-
--- FIXME: orphan instances
-
--- instance (Monad m) => SC.Serial m Ver.Version where
---   series = Ver.Version <$> series <*> series <*> series
---
--- instance (Monad m) => SC.Serial m Ver.VUnit where
---   series = series |> fmap (either Ver.Digits (T.pack .> Ver.Str))
---
--- instance (Monad m) => SC.CoSerial m Ver.Version where
---   coseries = coseries .> _ -- FIXME
---
--- instance (Monad m) => SC.CoSerial m Ver.VUnit where
---   coseries = coseries
---              .> fmap (\f -> \case (Ver.Digits i) -> f (Right i)
---                                   (Ver.Str    s) -> f (Left  (T.unpack s)))
-
--- seriesVChunks :: (Monad m) => SC.Series m [Ver.VChunk]
--- seriesVChunks = SC.generate $ \depth -> SC.list depth seriesVChunk
---
--- seriesVChunk :: (Monad m) => SC.Series m Ver.VChunk
--- seriesVChunk = SC.generate $ \depth -> SC.list depth seriesVUnit
---
--- seriesVUnit :: (Monad m) => SC.Series m Ver.VUnit
--- seriesVUnit = series |> fmap (either Ver.Digits (T.pack .> Ver.Str))
 
 --------------------------------------------------------------------------------

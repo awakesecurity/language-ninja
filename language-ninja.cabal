@@ -67,9 +67,10 @@ library
                         , Language.Ninja.Shake
                         , Language.Ninja.Types
                         , Language.Ninja.Misc.Command
-                        , Language.Ninja.Misc.Path
-                        , Language.Ninja.Misc.Located
                         , Language.Ninja.Misc.IText
+                        , Language.Ninja.Misc.Located
+                        , Language.Ninja.Misc.Path
+                        , Language.Ninja.Misc.Positive
     other-modules:        Language.Ninja.Internal.Str0
     default-language:     Haskell2010
     other-extensions:     OverloadedStrings
@@ -91,21 +92,27 @@ test-suite tests
                         , aeson-pretty          -any
                         , bytestring            -any
                         , flow                  -any
+                        , hashable              >= 1.2   && < 1.3
                         , HUnit                 >= 1.5   && < 1.6
+                        , lens                  >= 4.15  && < 4.16
+                        , mtl                   >= 2.2   && < 2.3
                         , QuickCheck            >= 2.9   && < 2.10
                         , quickcheck-instances  >= 0.3   && < 0.4
                         , smallcheck            >= 1.1   && < 1.2
                         , smallcheck-lens       >= 0.3   && < 0.4
                         , system-filepath       -any
                         , tasty                 >= 0.11  && < 0.12
-                        , tasty-quickcheck      >= 0.8   && < 0.9
                         , tasty-golden          >= 2.3   && < 2.4
                         , tasty-html            >= 0.4   && < 0.5
                         , tasty-hunit           >= 0.9   && < 0.10
                         , tasty-lens            >= 0.3   && < 0.4
+                        , tasty-quickcheck      >= 0.8   && < 0.9
+                        , tasty-smallcheck      >= 0.8   && < 0.9
                         , text                  -any
                         , transformers          -any
                         , turtle                -any
+                        , unordered-containers  >= 0.2   && < 0.3
+                        , versions              >= 3.1.1 && < 3.2
     default-language:     Haskell2010
     other-extensions:     OverloadedStrings
                           -- FIXME: add the rest of the extensions used
