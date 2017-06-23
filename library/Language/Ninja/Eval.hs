@@ -358,12 +358,12 @@ evaluate pninja = result
     evaluateDefault = evaluateTarget
 
     evaluatePool :: (Text, Int) -> m Pool
-    evaluatePool ("console", 1) = pure Ninja.poolConsole
+    evaluatePool ("console", 1) = pure Ninja.makePoolConsole
     evaluatePool ("console", d) = throwInvalidPoolDepth d
     evaluatePool ("",        _) = throwEmptyPoolName
     evaluatePool (name,      d) = do dp <- maybe (throwInvalidPoolDepth d) pure
                                            (Ninja.makePositive d)
-                                     pure (Ninja.poolCustom name dp)
+                                     pure (Ninja.makePoolCustom name dp)
 
     evaluateRule :: (HashSet FileText, PBuild) -> m Rule
     evaluateRule (outputs, pbuild) = do
@@ -385,7 +385,7 @@ evaluate pninja = result
       pool         <- let buildBind = pbuild ^. Ninja.pbuildBind
                       in  (HM.lookup "pool" buildBind <|> askEnv env "pool")
                           |> fmap Ninja.parsePoolName
-                          |> fromMaybe Ninja.poolNameDefault
+                          |> fromMaybe Ninja.makePoolNameDefault
                           |> pure
       depfile      <- lookupBind "depfile"
                       |> fmap (fmap Ninja.makePath)

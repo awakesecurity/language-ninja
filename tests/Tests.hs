@@ -71,6 +71,7 @@ import qualified Test.Tasty                 as T
 import qualified Test.Tasty.Golden          as T
 import qualified Test.Tasty.HUnit           as T
 import qualified Test.Tasty.Ingredients     as T
+import qualified Test.Tasty.Options         as T
 import qualified Test.Tasty.Runners.Html    as T
 import qualified Test.Tasty.SmallCheck      as T
 
@@ -165,143 +166,140 @@ pninjaTests name pninja
 
 opticsTests :: T.TestTree
 opticsTests
-  = T.testGroup "Testing optics with SmallCheck" []
-    -- [ testModule "Language.Ninja.AST.Build"
-    --   [ testType "Build"
-    --     [ testLens 1 "buildRule" Ninja.buildRule
-    --     , testLens 1 "buildOuts" Ninja.buildOuts
-    --     , testLens 1 "buildDeps" Ninja.buildDeps
-    --     ]
-    --   ]
-    -- , testModule "Language.Ninja.AST.Meta"
-    --   [ testType "Meta"
-    --     [ testLens def "metaReqVersion" Ninja.metaReqVersion
-    --     , testLens def "metaBuildDir"   Ninja.metaBuildDir
-    --     ]
-    --   ]
-    -- , testModule "Language.Ninja.AST.Ninja"
-    --   [ testType "Ninja"
-    --     [ testLens 1 "ninjaMeta"     Ninja.ninjaMeta
-    --     , testLens 1 "ninjaBuilds"   Ninja.ninjaBuilds
-    --     , testLens 1 "ninjaPhonys"   Ninja.ninjaPhonys
-    --     , testLens 1 "ninjaDefaults" Ninja.ninjaDefaults
-    --     , testLens 1 "ninjaPools"    Ninja.ninjaPools
-    --     ]
-    --   ]
-    -- , testModule "Language.Ninja.AST.Pool"
-    --   [ testType "Pool"
-    --     [
-    --     ]
-    --   , testType "PoolName"
-    --     [ testPrism def "_PoolNameDefault" Ninja._PoolNameDefault
-    --     , testPrism def "_PoolNameConsole" Ninja._PoolNameConsole
-    --     , testPrism def "_PoolNameCustom"  Ninja._PoolNameCustom
-    --     ]
-    --   , testType "PoolDepth"
-    --     [ testPrism def "_PoolDepth"    Ninja._PoolDepth
-    --     , testPrism def "_PoolInfinite" Ninja._PoolInfinite
-    --     ]
-    --   ]
-    -- , testModule "Language.Ninja.AST.Rule"
-    --   [ testType "Rule"
-    --     [ testLens 1 "ruleName"         Ninja.ruleName
-    --     , testLens 1 "ruleCommand"      Ninja.ruleCommand
-    --     , testLens 1 "ruleDescription"  Ninja.ruleDescription
-    --     , testLens 1 "rulePool"         Ninja.rulePool
-    --     , testLens 1 "ruleDepfile"      Ninja.ruleDepfile
-    --     , testLens 1 "ruleSpecialDeps"  Ninja.ruleSpecialDeps
-    --     , testLens 1 "ruleGenerator"    Ninja.ruleGenerator
-    --     , testLens 1 "ruleRestat"       Ninja.ruleRestat
-    --     , testLens 1 "ruleResponseFile" Ninja.ruleResponseFile
-    --     ]
-    --   , testType "SpecialDeps"
-    --     [ testPrism def "_SpecialDepsGCC"  Ninja._SpecialDepsGCC
-    --     , testPrism def "_SpecialDepsMSVC" Ninja._SpecialDepsMSVC
-    --     ]
-    --   , testType "ResponseFile"
-    --     [ testLens def "responseFilePath"    Ninja.responseFilePath
-    --     , testLens def "responseFileContent" Ninja.responseFileContent
-    --     ]
-    --   ]
-    -- , testModule "Language.Ninja.AST.Target"
-    --   [ testType "Target"
-    --     [ testIso def "targetIText" Ninja.targetIText
-    --     , testIso def "targetText"  Ninja.targetText
-    --     ]
-    --   , testType "Output"
-    --     [ testLens def "outputTarget" Ninja.outputTarget
-    --     , testLens def "outputType"   Ninja.outputType
-    --     ]
-    --   , testType "OutputType"
-    --     [ testPrism def "_ExplicitOutput" Ninja._ExplicitOutput
-    --     , testPrism def "_ImplicitOutput" Ninja._ImplicitOutput
-    --     ]
-    --   , testType "Dependency"
-    --     [ testLens def "dependencyTarget" Ninja.dependencyTarget
-    --     , testLens def "dependencyType"   Ninja.dependencyType
-    --     ]
-    --   , testType "DependencyType"
-    --     [ testPrism def "_NormalDependency"    Ninja._NormalDependency
-    --     , testPrism def "_ImplicitDependency"  Ninja._ImplicitDependency
-    --     , testPrism def "_OrderOnlyDependency" Ninja._OrderOnlyDependency
-    --     ]
-    --   ]
-    -- , testModule "Language.Ninja.Env"
-    --   [ testType "Env"
-    --     [ testIso 1 "fromEnv"
-    --       (Ninja.fromEnv
-    --        :: Lens.Iso' (Ninja.Env Text Int) (Ninja.Maps Text Int))
-    --     ]
-    --   ]
-    -- , testModule "Language.Ninja.Types"
-    --   [ testType "PNinja"
-    --     [ testLens 1 "pninjaRules"     Ninja.pninjaRules
-    --     , testLens 1 "pninjaSingles"   Ninja.pninjaSingles
-    --     , testLens 1 "pninjaMultiples" Ninja.pninjaMultiples
-    --     , testLens 1 "pninjaPhonys"    Ninja.pninjaPhonys
-    --     , testLens 1 "pninjaDefaults"  Ninja.pninjaDefaults
-    --     , testLens 1 "pninjaSpecials"  Ninja.pninjaSpecials
-    --     ]
-    --   , testType "PBuild"
-    --     [ testLens 1 "pbuildRule" Ninja.pbuildRule
-    --     , testLens 1 "pbuildEnv"  Ninja.pbuildEnv
-    --     , testLens 1 "pbuildDeps" Ninja.pbuildDeps
-    --     , testLens 1 "pbuildBind" Ninja.pbuildBind
-    --     ]
-    --   , testType "PDeps"
-    --     [ testLens def "pdepsNormal"    Ninja.pdepsNormal
-    --     , testLens def "pdepsImplicit"  Ninja.pdepsImplicit
-    --     , testLens def "pdepsOrderOnly" Ninja.pdepsOrderOnly
-    --     ]
-    --   , testType "PRule"
-    --     [ testLens 2 "pruleBind" Ninja.pruleBind
-    --     ]
-    --   , testType "PExpr"
-    --     [ testPrism 3 "_PExprs" Ninja._PExprs
-    --     , testPrism 3 "_PLit"   Ninja._PLit
-    --     , testPrism 3 "_PVar"   Ninja._PVar
-    --     ]
-    --   ]
-    -- , testModule "Language.Ninja.Misc.Command"
-    --   [ testType "Command"
-    --     [ testIso def "commandText" Ninja.commandText
-    --     ]
-    --   ]
-    -- , testModule "Language.Ninja.Misc.Path"
-    --   [ testType "Path"
-    --     [ testIso def "pathIText" Ninja.pathIText
-    --     , testIso def "pathText"  Ninja.pathText
-    --     ]
-    --   ]
-    -- , testModule "Language.Ninja.Misc.Located"
-    --   [
-    --   ]
-    -- , testModule "Language.Ninja.Misc.IText"
-    --   [ testType "IText"
-    --     [ testIso def "itext" Ninja.itext
-    --     ]
-    --   ]
-    -- ]
+  = T.testGroup "Testing optics with SmallCheck"
+    [ testModule "Language.Ninja.AST.Build"
+      [ testType "Build" [] -- FIXME: combinatorial explosion
+        -- [ testLens 1 "buildRule" Ninja.buildRule
+        -- , testLens 1 "buildOuts" Ninja.buildOuts
+        -- , testLens 1 "buildDeps" Ninja.buildDeps
+        -- ]
+      ]
+    , testModule "Language.Ninja.AST.Meta"
+      [ testType "Meta"
+        [ testLens def "metaReqVersion" Ninja.metaReqVersion
+        , testLens def "metaBuildDir"   Ninja.metaBuildDir
+        ]
+      ]
+    , testModule "Language.Ninja.AST.Ninja"
+      [ testType "Ninja" [] -- FIXME: combinatorial explosion
+        -- [ testLens 1 "ninjaMeta"     Ninja.ninjaMeta
+        -- , testLens 1 "ninjaBuilds"   Ninja.ninjaBuilds
+        -- , testLens 1 "ninjaPhonys"   Ninja.ninjaPhonys
+        -- , testLens 1 "ninjaDefaults" Ninja.ninjaDefaults
+        -- , testLens 1 "ninjaPools"    Ninja.ninjaPools
+        -- ]
+      ]
+    , testModule "Language.Ninja.AST.Pool"
+      [ testType "Pool"
+        [
+        ]
+      , testType "PoolName"
+        [ testIso def "poolNameText" Ninja.poolNameText
+        ]
+      , testType "PoolDepth"
+        [ testIso def "poolDepthPositive" Ninja.poolDepthPositive
+        ]
+      ]
+    , testModule "Language.Ninja.AST.Rule"
+      [ testType "Rule" [] -- FIXME: combinatorial explosion
+        -- [ testLens 1 "ruleName"         Ninja.ruleName
+        -- , testLens 1 "ruleCommand"      Ninja.ruleCommand
+        -- , testLens 1 "ruleDescription"  Ninja.ruleDescription
+        -- , testLens 1 "rulePool"         Ninja.rulePool
+        -- , testLens 1 "ruleDepfile"      Ninja.ruleDepfile
+        -- , testLens 1 "ruleSpecialDeps"  Ninja.ruleSpecialDeps
+        -- , testLens 1 "ruleGenerator"    Ninja.ruleGenerator
+        -- , testLens 1 "ruleRestat"       Ninja.ruleRestat
+        -- , testLens 1 "ruleResponseFile" Ninja.ruleResponseFile
+        -- ]
+      , testType "SpecialDeps"
+        [ testPrism def "_SpecialDepsGCC"  Ninja._SpecialDepsGCC
+        , testPrism def "_SpecialDepsMSVC" Ninja._SpecialDepsMSVC
+        ]
+      , testType "ResponseFile"
+        [ testLens def "responseFilePath"    Ninja.responseFilePath
+        , testLens def "responseFileContent" Ninja.responseFileContent
+        ]
+      ]
+    , testModule "Language.Ninja.AST.Target"
+      [ testType "Target"
+        [ testIso def "targetIText" Ninja.targetIText
+        , testIso def "targetText"  Ninja.targetText
+        ]
+      , testType "Output"
+        [ testLens def "outputTarget" Ninja.outputTarget
+        , testLens def "outputType"   Ninja.outputType
+        ]
+      , testType "OutputType"
+        [ testPrism def "_ExplicitOutput" Ninja._ExplicitOutput
+        , testPrism def "_ImplicitOutput" Ninja._ImplicitOutput
+        ]
+      , testType "Dependency"
+        [ testLens def "dependencyTarget" Ninja.dependencyTarget
+        , testLens def "dependencyType"   Ninja.dependencyType
+        ]
+      , testType "DependencyType"
+        [ testPrism def "_NormalDependency"    Ninja._NormalDependency
+        , testPrism def "_ImplicitDependency"  Ninja._ImplicitDependency
+        , testPrism def "_OrderOnlyDependency" Ninja._OrderOnlyDependency
+        ]
+      ]
+    , testModule "Language.Ninja.Env"
+      [ testType "Env"
+        [ testIso 1 "fromEnv"
+          (Ninja.fromEnv
+           :: Lens.Iso' (Ninja.Env Text Int) (Ninja.Maps Text Int))
+        ]
+      ]
+    , testModule "Language.Ninja.Types"
+      [ testType "PNinja" [] -- FIXME: combinatorial explosion
+        -- [ testLens 1 "pninjaRules"     Ninja.pninjaRules
+        -- , testLens 1 "pninjaSingles"   Ninja.pninjaSingles
+        -- , testLens 1 "pninjaMultiples" Ninja.pninjaMultiples
+        -- , testLens 1 "pninjaPhonys"    Ninja.pninjaPhonys
+        -- , testLens 1 "pninjaDefaults"  Ninja.pninjaDefaults
+        -- , testLens 1 "pninjaSpecials"  Ninja.pninjaSpecials
+        -- ]
+      , testType "PBuild" [] -- FIXME: combinatorial explosion
+        -- [ testLens 1 "pbuildRule" Ninja.pbuildRule
+        -- , testLens 1 "pbuildEnv"  Ninja.pbuildEnv
+        -- , testLens 1 "pbuildDeps" Ninja.pbuildDeps
+        -- , testLens 1 "pbuildBind" Ninja.pbuildBind
+        -- ]
+      , testType "PDeps"
+        [ testLens def "pdepsNormal"    Ninja.pdepsNormal
+        , testLens def "pdepsImplicit"  Ninja.pdepsImplicit
+        , testLens def "pdepsOrderOnly" Ninja.pdepsOrderOnly
+        ]
+      , testType "PRule"
+        [ testLens 4 "pruleBind" Ninja.pruleBind
+        ]
+      , testType "PExpr"
+        [ testPrism 4 "_PExprs" Ninja._PExprs
+        , testPrism 4 "_PLit"   Ninja._PLit
+        , testPrism 4 "_PVar"   Ninja._PVar
+        ]
+      ]
+    , testModule "Language.Ninja.Misc.Command"
+      [ testType "Command"
+        [ testIso def "commandText" Ninja.commandText
+        ]
+      ]
+    , testModule "Language.Ninja.Misc.Path"
+      [ testType "Path"
+        [ testIso def "pathIText" Ninja.pathIText
+        , testIso def "pathText"  Ninja.pathText
+        ]
+      ]
+    , testModule "Language.Ninja.Misc.Located"
+      [
+      ]
+    , testModule "Language.Ninja.Misc.IText"
+      [ testType "IText"
+        [ testIso def "itext" Ninja.itext
+        ]
+      ]
+    ]
   where
     testIso   :: ( Eq s, Eq a, Show s, Show a
                  , Serial Identity s, Serial IO s, CoSerial IO s
@@ -328,7 +326,8 @@ opticsTests
                              $ T.testGroup name subtrees
 
     def :: Int
-    def = 5
+    def = (T.defaultValue :: T.SmallCheckDepth)
+          |> toInteger |> fromIntegral
 
     typeTimeout :: T.Timeout
     typeTimeout = T.mkTimeout 20000000 -- 20 seconds
@@ -344,7 +343,7 @@ testTree = do
   let tests = [ fmap (uncurry pninjaTests) (zip testFiles ninjas)
               , [opticsTests]
               ] |> mconcat
-  pure (T.testGroup "Language.Ninja" tests)
+  pure (T.testGroup "language-ninja" tests)
 
 test :: IO ()
 test = do

@@ -40,24 +40,23 @@
 --   Types relating to Ninja @pool@s.
 module Language.Ninja.AST.Pool
   ( -- * @Pool@
-    Pool, makePool, poolDefault, poolConsole, poolCustom
+    Pool, makePool, makePoolDefault, makePoolConsole, makePoolCustom
   , poolName, poolDepth
 
     -- * @PoolName@
-  , PoolName, poolNameDefault, poolNameConsole, poolNameCustom
+  , PoolName, makePoolNameDefault, makePoolNameConsole, makePoolNameCustom
   , _PoolNameDefault, _PoolNameConsole, _PoolNameCustom
-  , printPoolName, parsePoolName
+  , poolNameText, printPoolName, parsePoolName
 
     -- * @PoolDepth@
-  , PoolDepth (..)
-  , _PoolDepth, _PoolInfinite
+  , PoolDepth
+  , makePoolDepth, makePoolInfinite
+  , poolDepthPositive
   ) where
 
 import           Control.Applicative          (empty)
 
-import           Control.Lens.Fold            (preview)
-import           Control.Lens.Getter          (Getter, to, (^.))
-import           Control.Lens.Prism
+import qualified Control.Lens                 as Lens
 
 import           Data.Aeson
                  (FromJSON (..), FromJSONKey (..), KeyValue (..), ToJSON (..),
@@ -94,37 +93,37 @@ data Pool
 
 -- | Construct a 'Pool', given its name and depth.
 makePool :: PoolName -> PoolDepth -> Maybe Pool
-makePool PoolNameDefault    PoolInfinite  = Just poolDefault
-makePool PoolNameConsole    (PoolDepth 1) = Just poolConsole
+makePool PoolNameDefault    PoolInfinite  = Just makePoolDefault
+makePool PoolNameConsole    (PoolDepth 1) = Just makePoolConsole
 makePool (PoolNameCustom t) (PoolDepth d) = if d >= 1
                                             then fromIntegral d
-                                                 |> poolCustom t
+                                                 |> makePoolCustom t
                                                  |> Just
                                             else Nothing
 makePool _                  _             = Nothing
 -- FIXME: use MonadThrow instead of Maybe here
 
 -- | The default pool, i.e.: the one whose name is the empty string.
-poolDefault :: Pool
-poolDefault = MkPool poolNameDefault PoolInfinite
+makePoolDefault :: Pool
+makePoolDefault = MkPool makePoolNameDefault PoolInfinite
 
 -- | The @console@ pool.
-poolConsole :: Pool
-poolConsole = MkPool poolNameConsole (PoolDepth 1)
+makePoolConsole :: Pool
+makePoolConsole = MkPool makePoolNameConsole (PoolDepth 1)
 
 -- | Create a pool with the given name and depth.
-poolCustom :: Text     -- ^ The pool name.
-           -> Positive -- ^ The pool depth.
-           -> Pool
-poolCustom name depth = MkPool (poolNameCustom name) (PoolDepth depth)
+makePoolCustom :: Text     -- ^ The pool name.
+               -> Positive -- ^ The pool depth.
+               -> Pool
+makePoolCustom name depth = MkPool (makePoolNameCustom name) (PoolDepth depth)
 
 -- | A 'Getter' that gives the name of a pool.
-poolName :: Getter Pool PoolName
-poolName = to _poolName
+poolName :: Lens.Getter Pool PoolName
+poolName = Lens.to _poolName
 
 -- | A 'Getter' that gives the depth of a pool.
-poolDepth :: Getter Pool PoolDepth
-poolDepth = to _poolDepth
+poolDepth :: Lens.Getter Pool PoolDepth
+poolDepth = Lens.to _poolDepth
 
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable Pool
@@ -147,12 +146,12 @@ instance FromJSON Pool where
 instance ( Monad m
          , SC.Serial m Text
          ) => SC.Serial m Pool where
-  series = pure poolDefault
-           \/ pure poolConsole
+  series = pure makePoolDefault
+           \/ pure makePoolConsole
            \/ (let nameSeries = series >>= (\case ""        -> empty
                                                   "console" -> empty
                                                   x         -> pure x)
-               in poolCustom <$> nameSeries <~> series)
+               in makePoolCustom <$> nameSeries <~> series)
 
 -- | Uses the underlying instances.
 instance ( Monad m
@@ -161,7 +160,7 @@ instance ( Monad m
   coseries = coseries .> fmap (\f -> convert .> f)
     where
       convert :: Pool -> (PoolName, PoolDepth)
-      convert pool = (pool ^. poolName, pool ^. poolDepth)
+      convert pool = (Lens.view poolName pool, Lens.view poolDepth pool)
 
 --------------------------------------------------------------------------------
 
@@ -177,36 +176,40 @@ data PoolName
 
 -- | Create a 'PoolName' corresponding to the built-in default pool, i.e.: the
 --   pool that is selected if the @pool@ attribute is set to the empty string.
-poolNameDefault :: PoolName
-poolNameDefault = PoolNameDefault
+makePoolNameDefault :: PoolName
+makePoolNameDefault = PoolNameDefault
 
 -- | Create a 'PoolName' corresponding to the built-in @console@ pool.
-poolNameConsole :: PoolName
-poolNameConsole = PoolNameConsole
+makePoolNameConsole :: PoolName
+makePoolNameConsole = PoolNameConsole
 
 -- | Create a 'PoolName' corresponding to a custom pool.
-poolNameCustom :: Text -> PoolName
-poolNameCustom ""        = error "Invalid pool name: \"\""
-poolNameCustom "console" = error "Invalid pool name: \"console\""
-poolNameCustom text      = PoolNameCustom text
+--   Note: this can fail at runtime if given the empty string or @"console"@,
+--   so you should consider 'parsePoolName' as a safer alternative.
+makePoolNameCustom :: Text -> PoolName
+makePoolNameCustom ""        = error "Invalid pool name: \"\""
+makePoolNameCustom "console" = error "Invalid pool name: \"console\""
+makePoolNameCustom text      = PoolNameCustom text
 
--- | A prism for the 'poolNameDefault' constructor.
-_PoolNameDefault :: Prism' PoolName ()
-_PoolNameDefault = prism' (const poolNameDefault)
-                   $ \case PoolNameDefault -> Just ()
-                           _               -> Nothing
+-- | A one-way prism corresponding to the 'poolNameDefault' constructor.
+_PoolNameDefault :: Lens.Getter PoolName (Maybe ())
+_PoolNameDefault = Lens.to (\case PoolNameDefault -> Just ()
+                                  _               -> Nothing)
 
--- | A prism for the 'poolNameConsole' constructor.
-_PoolNameConsole :: Prism' PoolName ()
-_PoolNameConsole = prism' (const poolNameConsole)
-                   $ \case PoolNameConsole -> Just ()
-                           _               -> Nothing
+-- | A one-way prism corresponding to the 'poolNameConsole' constructor.
+_PoolNameConsole :: Lens.Getter PoolName (Maybe ())
+_PoolNameConsole = Lens.to (\case PoolNameConsole -> Just ()
+                                  _               -> Nothing)
 
--- | A prism for the 'poolNameCustom' constructor.
-_PoolNameCustom :: Prism' PoolName Text
-_PoolNameCustom = prism' poolNameCustom
-                  $ \case (PoolNameCustom t) -> Just t
-                          _                  -> Nothing
+-- | A one-way prism corresponding to the 'poolNameConsole' constructor.
+_PoolNameCustom :: Lens.Getter PoolName (Maybe Text)
+_PoolNameCustom = Lens.to (\case (PoolNameCustom t) -> Just t
+                                 _                  -> Nothing)
+
+-- | An isomorphism between a 'PoolName' and the corresponding 'Text'.
+--   Equivalent to @'Lens.iso' 'printPoolName' 'parsePoolName'@.
+poolNameText :: Lens.Iso' PoolName Text
+poolNameText = Lens.iso printPoolName parsePoolName
 
 -- | Convert a 'PoolName' to the string that, if the @pool@ attribute is set to
 --   it, will cause the given 'PoolName' to be parsed.
@@ -235,9 +238,9 @@ printPoolName (PoolNameCustom t) = t
 --   >>> parsePoolName "foobar"
 --   PoolNameCustom "foobar"
 parsePoolName :: Text -> PoolName
-parsePoolName ""        = poolNameDefault
-parsePoolName "console" = poolNameConsole
-parsePoolName t         = poolNameCustom t
+parsePoolName ""        = makePoolNameDefault
+parsePoolName "console" = makePoolNameConsole
+parsePoolName t         = makePoolNameCustom t
 
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable PoolName
@@ -296,17 +299,19 @@ makePoolDepth = PoolDepth
 makePoolInfinite :: PoolDepth
 makePoolInfinite = PoolInfinite
 
--- | A prism for the 'makePoolDepth' constructor.
-_PoolDepth :: Prism' PoolDepth Positive
-_PoolDepth = prism' makePoolDepth
-             $ \case (PoolDepth i) -> Just i
-                     _             -> Nothing
+-- | An isomorphism between a 'PoolDepth' and a @'Maybe' 'Positive'@;
+--   the 'Nothing' case maps to 'makePoolInfinite' and the 'Just' case
+--   maps to 'makePoolDepth'.
+poolDepthPositive :: Lens.Iso' PoolDepth (Maybe Positive)
+poolDepthPositive = Lens.iso fromPD toPD
+  where
+    fromPD :: PoolDepth -> Maybe Positive
+    fromPD (PoolDepth p) = Just p
+    fromPD PoolInfinite  = Nothing
 
--- | A prism for the 'makePoolInfinite' constructor.
-_PoolInfinite :: Prism' PoolDepth ()
-_PoolInfinite = prism' (const makePoolInfinite)
-                $ \case PoolInfinite -> Just ()
-                        _            -> Nothing
+    toPD :: Maybe Positive -> PoolDepth
+    toPD (Just p) = PoolDepth p
+    toPD Nothing  = PoolInfinite
 
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable PoolDepth
@@ -326,7 +331,7 @@ instance FromJSON PoolDepth where
 -- | Default 'SC.Serial' instance via 'Generic'.
 instance (Monad m) => SC.Serial m PoolDepth where
   series = pure PoolInfinite
-           \/ (series |> fmap (SC.getPositive .> PoolDepth))
+           \/ (series |> fmap PoolDepth)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
 instance (Monad m) => SC.CoSerial m PoolDepth where

@@ -51,16 +51,16 @@ module Language.Ninja.AST.Rule
   , ResponseFile, makeResponseFile, responseFilePath, responseFileContent
   ) where
 
-import           Language.Ninja.AST.Pool     (PoolName, poolNameDefault)
+import           Language.Ninja.AST.Pool     (PoolName, makePoolNameDefault)
 import           Language.Ninja.Misc.Command (Command)
 import           Language.Ninja.Misc.Path    (Path)
 
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 
-import           Data.Aeson                  (FromJSON(..), KeyValue(..),
-                                              ToJSON(..), Value(..), (.:),
-                                              (.:?))
+import           Data.Aeson
+                 (FromJSON (..), KeyValue (..), ToJSON (..), Value (..), (.:),
+                 (.:?))
 import qualified Data.Aeson                  as Aeson
 
 import           Data.Hashable               (Hashable (..))
@@ -103,7 +103,7 @@ makeRule name cmd
     { _ruleName         = name
     , _ruleCommand      = cmd
     , _ruleDescription  = Nothing
-    , _rulePool         = poolNameDefault
+    , _rulePool         = makePoolNameDefault
     , _ruleDepfile      = Nothing
     , _ruleSpecialDeps  = Nothing
     , _ruleGenerator    = False
