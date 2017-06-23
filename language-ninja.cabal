@@ -75,7 +75,7 @@ library
     default-language:     Haskell2010
     other-extensions:     OverloadedStrings
                           -- FIXME: add the rest of the extensions used
-    ghc-options:          -fhpc -Wall -g
+    ghc-options:          -Wall -g
                           -fno-warn-type-defaults
                           -fno-warn-unused-do-bind
                           -- FIXME: remove all unused imports

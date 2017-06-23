@@ -87,6 +87,8 @@ import           Language.Ninja.Misc.IText   (IText, internText, uninternText)
 import           Data.Aeson                  as Aeson
 import           Data.Aeson.Encode.Pretty    as Aeson
 
+import           System.Environment          (getArgs)
+
 import           Flow
 
 import           Misc.Hash
@@ -262,4 +264,9 @@ sninjaToJSON (sn@(MkSNinja {..})) = [ "graph" .= builds, "defaults" .= defaults
     tyObject t rest = object (("type" .= (t :: Text)) : rest)
 
 main :: IO ()
-main = pure ()
+main = do
+  [file] <- getArgs
+  parsed <- Ninja.parse file
+  let sninja = compileNinja parsed
+  let value = sninjaToJSON sninja
+  LBSC8.putStrLn (encodePretty value)
