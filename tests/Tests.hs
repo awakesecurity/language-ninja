@@ -166,20 +166,20 @@ pninjaTests name pninja
 opticsTests :: T.TestTree
 opticsTests
   = T.testGroup "Testing optics with SmallCheck" []
-    -- [ testModule "Language.Ninja.Misc.AST.Build"
+    -- [ testModule "Language.Ninja.AST.Build"
     --   [ testType "Build"
     --     [ testLens 1 "buildRule" Ninja.buildRule
     --     , testLens 1 "buildOuts" Ninja.buildOuts
     --     , testLens 1 "buildDeps" Ninja.buildDeps
     --     ]
     --   ]
-    -- , testModule "Language.Ninja.Misc.AST.Meta"
+    -- , testModule "Language.Ninja.AST.Meta"
     --   [ testType "Meta"
     --     [ testLens def "metaReqVersion" Ninja.metaReqVersion
     --     , testLens def "metaBuildDir"   Ninja.metaBuildDir
     --     ]
     --   ]
-    -- , testModule "Language.Ninja.Misc.AST.Ninja"
+    -- , testModule "Language.Ninja.AST.Ninja"
     --   [ testType "Ninja"
     --     [ testLens 1 "ninjaMeta"     Ninja.ninjaMeta
     --     , testLens 1 "ninjaBuilds"   Ninja.ninjaBuilds
@@ -188,7 +188,7 @@ opticsTests
     --     , testLens 1 "ninjaPools"    Ninja.ninjaPools
     --     ]
     --   ]
-    -- , testModule "Language.Ninja.Misc.AST.Pool"
+    -- , testModule "Language.Ninja.AST.Pool"
     --   [ testType "Pool"
     --     [
     --     ]
@@ -202,7 +202,7 @@ opticsTests
     --     , testPrism def "_PoolInfinite" Ninja._PoolInfinite
     --     ]
     --   ]
-    -- , testModule "Language.Ninja.Misc.AST.Rule"
+    -- , testModule "Language.Ninja.AST.Rule"
     --   [ testType "Rule"
     --     [ testLens 1 "ruleName"         Ninja.ruleName
     --     , testLens 1 "ruleCommand"      Ninja.ruleCommand
@@ -223,7 +223,7 @@ opticsTests
     --     , testLens def "responseFileContent" Ninja.responseFileContent
     --     ]
     --   ]
-    -- , testModule "Language.Ninja.Misc.AST.Target"
+    -- , testModule "Language.Ninja.AST.Target"
     --   [ testType "Target"
     --     [ testIso def "targetIText" Ninja.targetIText
     --     , testIso def "targetText"  Ninja.targetText
@@ -246,14 +246,14 @@ opticsTests
     --     , testPrism def "_OrderOnlyDependency" Ninja._OrderOnlyDependency
     --     ]
     --   ]
-    -- , testModule "Language.Ninja.Misc.Env"
+    -- , testModule "Language.Ninja.Env"
     --   [ testType "Env"
     --     [ testIso 1 "fromEnv"
     --       (Ninja.fromEnv
     --        :: Lens.Iso' (Ninja.Env Text Int) (Ninja.Maps Text Int))
     --     ]
     --   ]
-    -- , testModule "Language.Ninja.Misc.Types"
+    -- , testModule "Language.Ninja.Types"
     --   [ testType "PNinja"
     --     [ testLens 1 "pninjaRules"     Ninja.pninjaRules
     --     , testLens 1 "pninjaSingles"   Ninja.pninjaSingles
@@ -382,7 +382,8 @@ instance (Monad m) => SC.CoSerial m Text where
                     Just (b, bs) -> f (Text.singleton b) bs))
 
 instance (Monad m, Serial m a) => Serial m (NE.NonEmpty a) where
-  series = series |> fmap (SC.getNonEmpty .> NE.fromList)
+  series = series |> fmap (pure .> NE.fromList)
+  -- series = series |> fmap (SC.getNonEmpty .> NE.fromList)
 
 instance (Monad m, CoSerial m a) => CoSerial m (NE.NonEmpty a) where
   coseries = coseries .> fmap (\f -> NE.toList .> f)
@@ -390,8 +391,6 @@ instance (Monad m, CoSerial m a) => CoSerial m (NE.NonEmpty a) where
 instance (Monad m, Serial m a, Eq a, Hashable a) => Serial m (HashSet a) where
   series = pure HS.empty
            \/ (HS.singleton <$> series)
-           -- pure HS.empty
-           -- \/ (HS.singleton <$> series)
            -- \/ (HS.union <$> series <~> series)
 
 instance ( Monad m, CoSerial m a, Eq a, Hashable a
@@ -402,8 +401,6 @@ instance ( Monad m, Serial m k, Serial m v, Eq k, Hashable k
          ) => Serial m (HashMap k v) where
   series = pure HM.empty
            \/ (HM.singleton <$> series <~> series)
-           -- pure HM.empty
-           -- \/ (HM.singleton <$> series <~> series)
            -- \/ (HM.union <$> series <~> series)
 
 instance ( Monad m, CoSerial m k, CoSerial m v, Eq k, Hashable k
