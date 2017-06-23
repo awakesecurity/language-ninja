@@ -38,10 +38,11 @@ module Language.Ninja.AST.Ninja
   , ninjaMeta, ninjaBuilds, ninjaPhonys, ninjaDefaults, ninjaPools
   ) where
 
-import           Language.Ninja.AST.Build
-import           Language.Ninja.AST.Meta
-import           Language.Ninja.AST.Pool
-import           Language.Ninja.AST.Target
+import           Language.Ninja.AST.Build   (Build)
+import           Language.Ninja.AST.Meta    (Meta)
+import qualified Language.Ninja.AST.Meta    as Ninja
+import           Language.Ninja.AST.Pool    (Pool)
+import           Language.Ninja.AST.Target  (Target)
 
 import           Data.HashMap.Strict        (HashMap)
 import qualified Data.HashMap.Strict        as HM
@@ -49,14 +50,17 @@ import qualified Data.HashMap.Strict        as HM
 import           Data.HashSet               (HashSet)
 import qualified Data.HashSet               as HS
 
-import           Data.Aeson                 as Aeson
+import           Data.Aeson                 (FromJSON, KeyValue(..), ToJSON,
+                                             (.:))
+import qualified Data.Aeson                 as Aeson
 
 import           Data.Hashable              (Hashable)
 import           GHC.Generics               (Generic)
 
-import           Control.Lens.Lens
+import           Control.Lens.Lens          (Lens')
+import qualified Control.Lens
 
-import           Flow
+import           Flow                       ((|>))
 
 --------------------------------------------------------------------------------
 
@@ -74,7 +78,7 @@ data Ninja
 -- | Construct a default 'Ninja' value.
 makeNinja :: Ninja
 makeNinja = MkNinja
-            { _ninjaMeta     = makeMeta
+            { _ninjaMeta     = Ninja.makeMeta
             , _ninjaBuilds   = HS.empty
             , _ninjaPhonys   = HM.empty
             , _ninjaDefaults = HS.empty
@@ -83,29 +87,29 @@ makeNinja = MkNinja
 
 -- | Metadata, which includes top-level variables like @builddir@.
 ninjaMeta :: Lens' Ninja Meta
-ninjaMeta = lens _ninjaMeta
+ninjaMeta = Control.Lens.lens _ninjaMeta
             $ \(MkNinja {..}) x -> MkNinja { _ninjaMeta = x, .. }
 
 -- | Evaluated @build@ declarations.
 ninjaBuilds :: Lens' Ninja (HashSet Build)
-ninjaBuilds = lens _ninjaBuilds
+ninjaBuilds = Control.Lens.lens _ninjaBuilds
               $ \(MkNinja {..}) x -> MkNinja { _ninjaBuilds = x, .. }
 
 -- | Phony targets, as documented
 --   <https://ninja-build.org/manual.html#_more_details here>.
 ninjaPhonys :: Lens' Ninja (HashMap Target (HashSet Target))
-ninjaPhonys = lens _ninjaPhonys
+ninjaPhonys = Control.Lens.lens _ninjaPhonys
               $ \(MkNinja {..}) x -> MkNinja { _ninjaPhonys = x, .. }
 
 -- | The set of default targets, as documented
 --   <https://ninja-build.org/manual.html#_default_target_statements here>.
 ninjaDefaults :: Lens' Ninja (HashSet Target)
-ninjaDefaults = lens _ninjaDefaults
+ninjaDefaults = Control.Lens.lens _ninjaDefaults
                 $ \(MkNinja {..}) x -> MkNinja { _ninjaDefaults = x, .. }
 
 -- | The set of pools for this Ninja file.
 ninjaPools :: Lens' Ninja (HashSet Pool)
-ninjaPools = lens _ninjaPools
+ninjaPools = Control.Lens.lens _ninjaPools
              $ \(MkNinja {..}) x -> MkNinja { _ninjaPools = x, .. }
 
 -- | Default 'Hashable' instance via 'Generic'.
@@ -119,11 +123,11 @@ instance ToJSON Ninja where
       , "phonys"   .= _ninjaPhonys
       , "defaults" .= _ninjaDefaults
       , "pools"    .= _ninjaPools
-      ] |> object
+      ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
 instance FromJSON Ninja where
-  parseJSON = (withObject "Ninja" $ \o -> do
+  parseJSON = (Aeson.withObject "Ninja" $ \o -> do
                   _ninjaMeta     <- (o .: "meta")     >>= pure
                   _ninjaBuilds   <- (o .: "builds")   >>= pure
                   _ninjaPhonys   <- (o .: "phonys")   >>= pure

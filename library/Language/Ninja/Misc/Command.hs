@@ -37,12 +37,13 @@ module Language.Ninja.Misc.Command
 
 import           Data.Text        (Text)
 
-import           Data.Aeson       as Aeson
+import           Data.Aeson       (FromJSON, ToJSON)
 
 import           Data.Hashable    (Hashable)
 import           GHC.Generics     (Generic)
 
-import           Control.Lens.Iso
+import           Control.Lens.Iso (Iso')
+import qualified Control.Lens
 
 --------------------------------------------------------------------------------
 
@@ -60,6 +61,6 @@ makeCommand = MkCommand
 
 -- | An isomorphism between a 'Command' and its underlying 'Text'.
 commandText :: Iso' Command Text
-commandText = iso _commandText MkCommand
+commandText = Control.Lens.iso _commandText MkCommand
 
 --------------------------------------------------------------------------------

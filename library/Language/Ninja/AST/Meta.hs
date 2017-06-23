@@ -50,17 +50,18 @@ import qualified Data.Text                as T
 
 import           Data.Hashable            (Hashable (..))
 import           GHC.Generics             (Generic)
-import           Test.SmallCheck.Series   as SC
+import qualified Test.SmallCheck.Series   as SC
 
 import qualified Data.Versions            as Ver
 
 import qualified Text.Megaparsec          as Mega
 
-import           Language.Ninja.Misc.Path
+import           Language.Ninja.Misc.Path (Path)
 
-import           Control.Lens.Lens
+import           Control.Lens.Lens        (Lens')
+import qualified Control.Lens
 
-import           Flow
+import           Flow                     ((|>), (.>))
 
 --------------------------------------------------------------------------------
 
@@ -82,12 +83,12 @@ makeMeta = MkMeta
 
 -- | Corresponds to the @ninja_required_version@ top-level variable.
 metaReqVersion :: Lens' Meta (Maybe Ver.Version)
-metaReqVersion = lens _metaReqVersion
+metaReqVersion = Control.Lens.lens _metaReqVersion
                  $ \(MkMeta {..}) x -> MkMeta { _metaReqVersion = x, .. }
 
 -- | Corresponds to the @builddir@ top-level variable.
 metaBuildDir :: Lens' Meta (Maybe Path)
-metaBuildDir = lens _metaBuildDir
+metaBuildDir = Control.Lens.lens _metaBuildDir
                $ \(MkMeta {..}) x -> MkMeta { _metaBuildDir = x, .. }
 
 -- | Default 'Hashable' instance via 'Generic'.

@@ -50,17 +50,21 @@ import           Language.Ninja.Misc.IText
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 
-import           Data.Aeson                as Aeson
+import           Data.Aeson                (FromJSON(..), FromJSONKey,
+                                            KeyValue(..), ToJSON(..), ToJSONKey,
+                                            (.:))
+import qualified Data.Aeson                as Aeson
 
 import           Data.Hashable             (Hashable (..))
 import           Data.String               (IsString (..))
 import           GHC.Generics              (Generic)
 
-import           Control.Lens.Getter
-import           Control.Lens.Iso
-import           Control.Lens.Lens
+import           Control.Lens.Getter       (view)
+import           Control.Lens.Iso          (Iso')
+import           Control.Lens.Lens         (Lens')
+import qualified Control.Lens
 
-import           Flow
+import           Flow                      ((|>), (.>))
 
 --------------------------------------------------------------------------------
 
@@ -78,14 +82,14 @@ makeTarget = view itext .> MkTarget
 
 -- | An isomorphism between a 'Target' and its underlying 'IText'.
 targetIText :: Iso' Target IText
-targetIText = iso _targetIText MkTarget
+targetIText = Control.Lens.iso _targetIText MkTarget
 
 -- | An isomorphism that gives access to a 'Text'-typed view of a 'Target',
 --   even though the underlying data has type 'IText'.
 --
---   This is equivalent to @targetIText . from itext@.
+--   This is equivalent to @targetIText . Control.Lens.from itext@.
 targetText :: Iso' Target Text
-targetText = targetIText . from itext
+targetText = targetIText . Control.Lens.from itext
 
 --------------------------------------------------------------------------------
 
@@ -110,12 +114,12 @@ makeOutput = MkOutput
 
 -- | A lens for the 'Target' of an 'Output'.
 outputTarget :: Lens' Output Target
-outputTarget = lens _outputTarget
+outputTarget = Control.Lens.lens _outputTarget
                $ \(MkOutput {..}) new -> MkOutput { _outputTarget = new, .. }
 
 -- | A lens for the 'OutputType' of an 'Output'.
 outputType :: Lens' Output OutputType
-outputType = lens _outputType
+outputType = Control.Lens.lens _outputType
              $ \(MkOutput {..}) new -> MkOutput { _outputType = new, .. }
 
 -- | Default 'Hashable' instance via 'Generic'.
@@ -126,11 +130,11 @@ instance ToJSON Output where
   toJSON (MkOutput {..})
     = [ "target" .= _outputTarget
       , "type"   .= _outputType
-      ] |> object
+      ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
 instance FromJSON Output where
-  parseJSON = (withObject "Output" $ \o -> do
+  parseJSON = (Aeson.withObject "Output" $ \o -> do
                   _outputTarget <- (o .: "target") >>= pure
                   _outputType   <- (o .: "type")   >>= pure
                   pure (MkOutput {..}))
@@ -155,7 +159,7 @@ instance ToJSON OutputType where
 
 -- | Inverse of the 'ToJSON' instance.
 instance FromJSON OutputType where
-  parseJSON = (withText "OutputType" $ \case
+  parseJSON = (Aeson.withText "OutputType" $ \case
                   "explicit" -> pure ExplicitOutput
                   "implicit" -> pure ImplicitOutput
                   owise      -> [ "Invalid output type "
@@ -187,13 +191,13 @@ makeDependency = MkDependency
 -- | A lens for the 'Target' of a 'Dependency'.
 dependencyTarget :: Lens' Dependency Target
 dependencyTarget
-  = lens _dependencyTarget
+  = Control.Lens.lens _dependencyTarget
     $ \(MkDependency {..}) new -> MkDependency { _dependencyTarget = new, .. }
 
 -- | A lens for the 'DependencyType' of a 'Dependency'.
 dependencyType :: Lens' Dependency DependencyType
 dependencyType
-  = lens _dependencyType
+  = Control.Lens.lens _dependencyType
     $ \(MkDependency {..}) new -> MkDependency { _dependencyType = new, .. }
 
 -- | Default 'Hashable' instance via 'Generic'.
@@ -204,11 +208,11 @@ instance ToJSON Dependency where
   toJSON (MkDependency {..})
     = [ "target" .= _dependencyTarget
       , "type"   .= _dependencyType
-      ] |> object
+      ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
 instance FromJSON Dependency where
-  parseJSON = (withObject "Dependency" $ \o -> do
+  parseJSON = (Aeson.withObject "Dependency" $ \o -> do
                   _dependencyTarget <- (o .: "target") >>= pure
                   _dependencyType   <- (o .: "type")   >>= pure
                   pure (MkDependency {..}))
@@ -242,7 +246,7 @@ instance ToJSON DependencyType where
 
 -- | Inverse of the 'ToJSON' instance.
 instance FromJSON DependencyType where
-  parseJSON = (withText "DependencyType" $ \case
+  parseJSON = (Aeson.withText "DependencyType" $ \case
                   "normal"     -> pure NormalDependency
                   "implicit"   -> pure ImplicitDependency
                   "order-only" -> pure OrderOnlyDependency

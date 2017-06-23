@@ -78,21 +78,21 @@ module Language.Ninja.Types
   , PExpr (..), askVar, askExpr, addBind, addBinds
 
     -- * @Env@
-  , Env, makeEnv, fromEnv, addEnv, scopeEnv
+  , Env, Ninja.makeEnv, Ninja.fromEnv, Ninja.addEnv, Ninja.scopeEnv
 
     -- * Miscellaneous
   , Str, FileStr, Text, FileText
   ) where
 
-import           Control.Applicative
-import           Control.Arrow
-import           Control.Monad
+import           Control.Arrow             (second)
+import           Control.Monad             ((>=>))
 
-import           Control.Lens.Lens
+import           Control.Lens.Lens         (Lens')
+import qualified Control.Lens
 
 import           Data.Foldable             (asum)
-import           Data.Maybe
-import           Data.Monoid
+import qualified Data.Maybe
+import           Data.Monoid               (Endo(..))
 
 import qualified Data.ByteString.Char8     as BSC8
 
@@ -109,16 +109,19 @@ import qualified Data.HashSet              as HS
 import           Data.Hashable             (Hashable)
 import           GHC.Generics              (Generic)
 
-import           Data.Aeson                as Aeson
+import           Data.Aeson                (FromJSON(..), KeyValue(..),
+                                            ToJSON(..), Value, (.:))
 import qualified Data.Aeson.Types          as Aeson
 
-import           Test.QuickCheck.Arbitrary as Q
-import           Test.QuickCheck.Gen       as Q
+import qualified Test.QuickCheck           as Q
+import           Test.QuickCheck.Arbitrary (Arbitrary(..))
+import           Test.QuickCheck.Gen       (Gen(..))
 import           Test.QuickCheck.Instances ()
 
-import           Language.Ninja.Env
+import           Language.Ninja.Env        (Env)
+import qualified Language.Ninja.Env        as Ninja
 
-import           Flow
+import           Flow                      ((|>), (.>))
 
 --------------------------------------------------------------------------------
 
@@ -151,15 +154,15 @@ askExpr e (PVar x)    = askVar e x
 
 -- | FIXME: doc
 askVar :: Env Text Text -> Text -> Text
-askVar e x = fromMaybe T.empty (askEnv e x)
+askVar e x = Data.Maybe.fromMaybe T.empty (Ninja.askEnv e x)
 
 -- | FIXME: doc
 addBind :: Text -> PExpr -> Env Text Text -> Env Text Text
-addBind k v e = addEnv k (askExpr e v) e
+addBind k v e = Ninja.addEnv k (askExpr e v) e
 
 -- | FIXME: doc
 addBinds :: [(Text, PExpr)] -> Env Text Text -> Env Text Text
-addBinds bs e = map (second (askExpr e) .> uncurry addEnv .> Endo) bs
+addBinds bs e = map (second (askExpr e) .> uncurry Ninja.addEnv .> Endo) bs
                 |> mconcat
                 |> (\endo -> appEndo endo e)
 
@@ -167,13 +170,13 @@ addBinds bs e = map (second (askExpr e) .> uncurry addEnv .> Endo) bs
 instance ToJSON PExpr where
   toJSON (PExprs xs) = toJSON xs
   toJSON (PLit  str) = toJSON str
-  toJSON (PVar  var) = object ["var" .= var]
+  toJSON (PVar  var) = Aeson.object ["var" .= var]
 
 -- | FIXME: doc
 instance FromJSON PExpr where
   parseJSON = [ \v -> PExprs <$> parseJSON v
               , \v -> PLit   <$> parseJSON v
-              , withObject "PExpr" $ \o -> PVar <$> (o .: "var")
+              , Aeson.withObject "PExpr" $ \o -> PVar <$> (o .: "var")
               ] |> choice
     where
       choice :: [Value -> Aeson.Parser a] -> (Value -> Aeson.Parser a)
@@ -181,17 +184,17 @@ instance FromJSON PExpr where
 
 -- | FIXME: doc
 instance Arbitrary PExpr where
-  arbitrary = sized go
+  arbitrary = Q.sized go
     where
       go :: Int -> Gen PExpr
-      go n | n <= 0 = [ PLit <$> resize litLength arbitrary
-                      , PVar <$> resize varLength arbitrary
-                      ] |> oneof
+      go n | n <= 0 = [ PLit <$> Q.resize litLength arbitrary
+                      , PVar <$> Q.resize varLength arbitrary
+                      ] |> Q.oneof
       go n          = [ go 0
                       , do width <- (`mod` maxWidth) <$> arbitrary
                            let subtree = go (n `div` lossRate)
-                           PExprs <$> vectorOf width subtree
-                      ] |> oneof
+                           PExprs <$> Q.vectorOf width subtree
+                      ] |> Q.oneof
 
       litLength, varLength, lossRate, maxWidth :: Int
       litLength = 10
@@ -228,37 +231,37 @@ makePNinja = MkPNinja
 
 -- | The rules defined in a parsed Ninja file.
 pninjaRules :: Lens' PNinja (HashMap Text PRule)
-pninjaRules = lens _pninjaRules
+pninjaRules = Control.Lens.lens _pninjaRules
               $ \(MkPNinja {..}) x -> MkPNinja { _pninjaRules = x, .. }
 
 -- | The set of build declarations with precisely one output.
 pninjaSingles :: Lens' PNinja (HashMap FileText PBuild)
-pninjaSingles = lens _pninjaSingles
+pninjaSingles = Control.Lens.lens _pninjaSingles
                 $ \(MkPNinja {..}) x -> MkPNinja { _pninjaSingles = x, .. }
 
 -- | The set of build declarations with two or more outputs.
 pninjaMultiples :: Lens' PNinja (HashMap (HashSet FileText) PBuild)
-pninjaMultiples = lens _pninjaMultiples
+pninjaMultiples = Control.Lens.lens _pninjaMultiples
                   $ \(MkPNinja {..}) x -> MkPNinja { _pninjaMultiples = x, .. }
 
 -- | The set of phony build declarations.
 pninjaPhonys :: Lens' PNinja (HashMap Text (HashSet FileText))
-pninjaPhonys = lens _pninjaPhonys
+pninjaPhonys = Control.Lens.lens _pninjaPhonys
                $ \(MkPNinja {..}) x -> MkPNinja { _pninjaPhonys = x, .. }
 
 -- | The set of default targets.
 pninjaDefaults :: Lens' PNinja (HashSet FileText)
-pninjaDefaults = lens _pninjaDefaults
+pninjaDefaults = Control.Lens.lens _pninjaDefaults
                  $ \(MkPNinja {..}) x -> MkPNinja { _pninjaDefaults = x, .. }
 
 -- | A mapping from pool names to pool depth integers.
 pninjaPools :: Lens' PNinja (HashMap Text Int)
-pninjaPools = lens _pninjaPools
+pninjaPools = Control.Lens.lens _pninjaPools
               $ \(MkPNinja {..}) x -> MkPNinja { _pninjaPools = x, .. }
 
 -- | A map from "special" top-level variables to their values.
 pninjaSpecials :: Lens' PNinja (HashMap Text Text)
-pninjaSpecials = lens _pninjaSpecials
+pninjaSpecials = Control.Lens.lens _pninjaSpecials
                  $ \(MkPNinja {..}) x -> MkPNinja { _pninjaSpecials = x, .. }
 
 -- | FIXME: doc
@@ -271,17 +274,18 @@ instance ToJSON PNinja where
       , "defaults"  .= _pninjaDefaults
       , "pools"     .= _pninjaPools
       , "specials"  .= _pninjaPools
-      ] |> object
+      ] |> Aeson.object
     where
       fixMultiples :: HashMap (HashSet FileText) PBuild -> Value
       fixMultiples = HM.toList .> map (uncurry printPair) .> toJSON
 
       printPair :: HashSet FileText -> PBuild -> Value
-      printPair outputs build = object ["outputs" .= outputs, "build" .= build]
+      printPair outputs build =
+        Aeson.object ["outputs" .= outputs, "build" .= build]
 
 -- | FIXME: doc
 instance FromJSON PNinja where
-  parseJSON = (withObject "PNinja" $ \o -> do
+  parseJSON = (Aeson.withObject "PNinja" $ \o -> do
                   _pninjaRules     <- (o .: "rules")     >>= pure
                   _pninjaSingles   <- (o .: "singles")   >>= pure
                   _pninjaMultiples <- (o .: "multiples") >>= fixMultiples
@@ -295,7 +299,7 @@ instance FromJSON PNinja where
       fixMultiples = parseJSON >=> mapM parsePair >=> (HM.fromList .> pure)
 
       parsePair :: Value -> Aeson.Parser (HashSet FileText, PBuild)
-      parsePair = (withObject "PNinja.multiples" $ \o -> do
+      parsePair = (Aeson.withObject "PNinja.multiples" $ \o -> do
                       outputs <- (o .: "outputs") >>= pure
                       build   <- (o .: "build")   >>= pure
                       pure (outputs, build))
@@ -327,22 +331,22 @@ makePBuild rule env = MkPBuild
 
 -- | A lens into the rule name associated with a 'PBuild'.
 pbuildRule :: Lens' PBuild Text
-pbuildRule = lens _pbuildRule
+pbuildRule = Control.Lens.lens _pbuildRule
              $ \(MkPBuild {..}) x -> MkPBuild { _pbuildRule = x, .. }
 
 -- | A lens into the environment associated with a 'PBuild'.
 pbuildEnv :: Lens' PBuild (Env Text Text)
-pbuildEnv = lens _pbuildEnv
+pbuildEnv = Control.Lens.lens _pbuildEnv
             $ \(MkPBuild {..}) x -> MkPBuild { _pbuildEnv = x, .. }
 
 -- | A lens into the dependencies associated with a 'PBuild'.
 pbuildDeps :: Lens' PBuild PDeps
-pbuildDeps = lens _pbuildDeps
+pbuildDeps = Control.Lens.lens _pbuildDeps
              $ \(MkPBuild {..}) x -> MkPBuild { _pbuildDeps = x, .. }
 
 -- | A lens into the bindings associated with a 'PBuild'.
 pbuildBind :: Lens' PBuild (HashMap Text Text)
-pbuildBind = lens _pbuildBind
+pbuildBind = Control.Lens.lens _pbuildBind
              $ \(MkPBuild {..}) x -> MkPBuild { _pbuildBind = x, .. }
 
 -- | FIXME: doc
@@ -352,11 +356,11 @@ instance ToJSON PBuild where
       , "env"  .= _pbuildEnv
       , "deps" .= _pbuildDeps
       , "bind" .= _pbuildBind
-      ] |> object
+      ] |> Aeson.object
 
 -- | FIXME: doc
 instance FromJSON PBuild where
-  parseJSON = (withObject "PBuild" $ \o -> do
+  parseJSON = (Aeson.withObject "PBuild" $ \o -> do
                   _pbuildRule <- (o .: "rule") >>= pure
                   _pbuildEnv  <- (o .: "env")  >>= pure
                   _pbuildDeps <- (o .: "deps") >>= pure
@@ -384,17 +388,17 @@ makePDeps = MkPDeps
 
 -- | A lens into the set of normal dependencies in a 'PDeps'.
 pdepsNormal :: Lens' PDeps (HashSet FileText)
-pdepsNormal = lens _pdepsNormal
+pdepsNormal = Control.Lens.lens _pdepsNormal
               $ \(MkPDeps {..}) x -> MkPDeps { _pdepsNormal = x, .. }
 
 -- | A lens into the set of implicit dependencies in a 'PDeps'.
 pdepsImplicit :: Lens' PDeps (HashSet FileText)
-pdepsImplicit = lens _pdepsImplicit
+pdepsImplicit = Control.Lens.lens _pdepsImplicit
                 $ \(MkPDeps {..}) x -> MkPDeps { _pdepsImplicit = x, .. }
 
 -- | A lens into the set of order-only dependencies in a 'PDeps'.
 pdepsOrderOnly :: Lens' PDeps (HashSet FileText)
-pdepsOrderOnly = lens _pdepsOrderOnly
+pdepsOrderOnly = Control.Lens.lens _pdepsOrderOnly
                  $ \(MkPDeps {..}) x -> MkPDeps { _pdepsOrderOnly = x, .. }
 
 -- | FIXME: doc
@@ -403,11 +407,11 @@ instance ToJSON PDeps where
     = [ "normal"     .= _pdepsNormal
       , "implicit"   .= _pdepsImplicit
       , "order-only" .= _pdepsOrderOnly
-      ] |> object
+      ] |> Aeson.object
 
 -- | FIXME: doc
 instance FromJSON PDeps where
-  parseJSON = (withObject "PDeps" $ \o -> do
+  parseJSON = (Aeson.withObject "PDeps" $ \o -> do
                   _pdepsNormal    <- (o .: "normal")     >>= pure
                   _pdepsImplicit  <- (o .: "implicit")   >>= pure
                   _pdepsOrderOnly <- (o .: "order-only") >>= pure
@@ -430,7 +434,7 @@ makePRule = MkPRule
 
 -- | The set of bindings in scope during the execution of this rule.
 pruleBind :: Lens' PRule (HashMap Text PExpr)
-pruleBind = lens _pruleBind (const MkPRule)
+pruleBind = Control.Lens.lens _pruleBind (const MkPRule)
 
 -- | FIXME: doc
 instance ToJSON PRule where

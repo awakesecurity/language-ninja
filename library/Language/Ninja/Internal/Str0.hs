@@ -49,21 +49,16 @@ module Language.Ninja.Internal.Str0
   ( module Language.Ninja.Internal.Str0 -- FIXME: specific export list
   ) where
 
-import           Control.Applicative
-
 import           Data.ByteString          (ByteString)
 import qualified Data.ByteString.Char8    as BSC8
 import qualified Data.ByteString.Internal as BS.Internal
 import qualified Data.ByteString.Unsafe   as BS.Unsafe
 
-import           Data.Char
-import           Data.Tuple.Extra
-import           Data.Word
-import           Foreign.Ptr
-import           Foreign.Storable
-import           GHC.Exts
-import           Prelude
-import           System.IO.Unsafe
+import           Data.Word                (Word8)
+import qualified Foreign.Ptr
+import qualified Foreign.Storable
+import           GHC.Exts                 (Ptr(..))
+import qualified System.IO.Unsafe
 
 --------------------------------------------------------------------------------
 
@@ -76,11 +71,12 @@ type S = Ptr Word8
 
 -- | FIXME: doc
 char :: S -> Char
-char x = BS.Internal.w2c $ unsafePerformIO $ peek x
+char x =
+  BS.Internal.w2c $ System.IO.Unsafe.unsafePerformIO $ Foreign.Storable.peek x
 
 -- | FIXME: doc
 next :: S -> S
-next x = x `plusPtr` 1
+next x = x `Foreign.Ptr.plusPtr` 1
 
 -- | FIXME: doc
 {-# INLINE dropWhile0 #-}
@@ -100,10 +96,11 @@ break0 f (MkStr0 bs) = (initial, rest)
     initial = BS.Unsafe.unsafeTake i bs
     rest    = MkStr0 (BS.Unsafe.unsafeDrop i bs)
 
-    i = unsafePerformIO $ BS.Unsafe.unsafeUseAsCString bs $ \ptr -> do
-      let start = castPtr ptr :: S
+    i = System.IO.Unsafe.unsafePerformIO $
+      BS.Unsafe.unsafeUseAsCString bs $ \ptr -> do
+      let start = Foreign.Ptr.castPtr ptr :: S
       let end = go start
-      pure $! Ptr end `minusPtr` start
+      pure $! Ptr end `Foreign.Ptr.minusPtr` start
 
     go s@(Ptr a) | ((c == '\0') || (f c)) = a
                  | otherwise              = go (next s)
@@ -119,10 +116,11 @@ break00 f (MkStr0 bs) = (initial, rest)
     initial = BS.Unsafe.unsafeTake i bs
     rest    = MkStr0 $ BS.Unsafe.unsafeDrop i bs
 
-    i = unsafePerformIO $ BS.Unsafe.unsafeUseAsCString bs $ \ptr -> do
-      let start = castPtr ptr :: S
+    i = System.IO.Unsafe.unsafePerformIO $
+      BS.Unsafe.unsafeUseAsCString bs $ \ptr -> do
+      let start = Foreign.Ptr.castPtr ptr :: S
       let end = go start
-      pure $! Ptr end `minusPtr` start
+      pure $! Ptr end `Foreign.Ptr.minusPtr` start
 
     go s@(Ptr a) | f c       = a
                  | otherwise = go (next s)

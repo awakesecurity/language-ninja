@@ -49,16 +49,19 @@ module Language.Ninja.AST.Pool
 import           Data.Text           (Text)
 import qualified Data.Text           as T
 
-import           Data.Aeson          as Aeson
+import           Data.Aeson          (FromJSON(..), FromJSONKey(..),
+                                      KeyValue(..), ToJSON(..), ToJSONKey(..),
+                                      Value(..), (.:))
+import qualified Data.Aeson          as Aeson
 import qualified Data.Aeson.Types    as Aeson
 
 import           Data.Hashable       (Hashable (..))
 import           Data.String         (IsString (..))
 import           GHC.Generics        (Generic)
 
-import           Control.Lens.Getter
+import           Control.Lens.Getter (Getter, to)
 
-import           Flow
+import           Flow                ((|>), (.>))
 
 --------------------------------------------------------------------------------
 
@@ -101,11 +104,11 @@ instance ToJSON Pool where
   toJSON (MkPool {..})
     = [ "name"  .= _poolName
       , "depth" .= _poolDepth
-      ] |> object
+      ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
 instance FromJSON Pool where
-  parseJSON = (withObject "Pool" $ \o -> do
+  parseJSON = (Aeson.withObject "Pool" $ \o -> do
                   _poolName  <- (o .: "name")  >>= pure
                   _poolDepth <- (o .: "depth") >>= pure
                   pure (MkPool {..}))
@@ -181,7 +184,7 @@ instance ToJSON PoolName where
 
 -- | Inverse of the 'ToJSON' instance.
 instance FromJSON PoolName where
-  parseJSON = withText "PoolName" (parsePoolName .> pure)
+  parseJSON = Aeson.withText "PoolName" (parsePoolName .> pure)
 
 -- | Converts to JSON string via 'printPoolName'.
 instance ToJSONKey PoolName where

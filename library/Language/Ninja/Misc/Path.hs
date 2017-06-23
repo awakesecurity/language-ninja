@@ -38,12 +38,14 @@ module Language.Ninja.Misc.Path
   ( Path, makePath, pathIText, pathText
   ) where
 
-import           Language.Ninja.Misc.IText
+import           Language.Ninja.Misc.IText (IText)
+import qualified Language.Ninja.Misc.IText as Ninja
 
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 
-import           Data.Aeson                as Aeson
+import           Data.Aeson                (FromJSON, FromJSONKey, ToJSON, ToJSONKey)
+import qualified Data.Aeson                as Aeson
 
 import           Data.Hashable             (Hashable (..))
 import           Data.String               (IsString (..))
@@ -51,10 +53,11 @@ import           GHC.Generics              (Generic)
 import           Test.SmallCheck.Series    ((>>-))
 import qualified Test.SmallCheck.Series    as SC
 
-import           Control.Lens.Getter
-import           Control.Lens.Iso
+import           Control.Lens.Getter       (view)
+import           Control.Lens.Iso          (Iso')
+import qualified Control.Lens
 
-import           Flow
+import           Flow                      ((.>))
 
 --------------------------------------------------------------------------------
 
@@ -76,17 +79,17 @@ instance (Monad m) => SC.CoSerial m Path where
 
 -- | Construct a 'Path' from some 'Text'.
 makePath :: Text -> Path
-makePath = view itext .> MkPath
+makePath = view Ninja.itext .> MkPath
 
 -- | An isomorphism between a 'Path' and its underlying 'IText'.
 pathIText :: Iso' Path IText
-pathIText = iso _pathIText MkPath
+pathIText = Control.Lens.iso _pathIText MkPath
 
 -- | An isomorphism that gives access to a 'Text'-typed view of a 'Path',
 --   even though the underlying data has type 'IText'.
 --
---   This is equivalent to @pathIText . from itext@.
+--   This is equivalent to @pathIText . from Ninja.itext@.
 pathText :: Iso' Path Text
-pathText = pathIText . from itext
+pathText = pathIText . Control.Lens.from Ninja.itext
 
 --------------------------------------------------------------------------------

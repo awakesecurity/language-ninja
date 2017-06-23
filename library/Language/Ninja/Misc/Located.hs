@@ -48,17 +48,20 @@ module Language.Ninja.Misc.Located
   , Line, Column
   ) where
 
-import           Control.Arrow
+import           Control.Arrow            (second, (***))
 
-import           Control.Lens.Getter
-import           Control.Lens.Lens
+import           Control.Lens.Getter      ((^.))
+import           Control.Lens.Lens        (Lens')
+import qualified Control.Lens
 
-import           Control.Monad.ST
-import           Data.STRef
+import           Control.Monad.ST         (ST)
+import qualified Control.Monad.ST
+import           Data.STRef               (STRef)
+import qualified Data.STRef
 
-import           Data.Char
-import           Data.Maybe
-import           Data.Monoid
+import           Data.Char                (isSpace)
+import qualified Data.Maybe
+import           Data.Monoid              ((<>))
 
 import           Data.Text                (Text)
 import qualified Data.Text                as T
@@ -67,12 +70,15 @@ import qualified Data.Text.IO             as T
 import           Data.Map.Strict          (Map)
 import qualified Data.Map.Strict          as Map
 
-import           Data.Aeson               as Aeson
-import           Data.Aeson.Types         as Aeson
+import           Data.Aeson               (FromJSON(..), KeyValue(..),
+                                           ToJSON(..), (.:))
+import qualified Data.Aeson               as Aeson
+import qualified Data.Aeson.Types         as Aeson
 
-import           Flow
+import           Flow                     ((|>), (.>))
 
-import           Language.Ninja.Misc.Path
+import           Language.Ninja.Misc.Path (Path)
+import qualified Language.Ninja.Misc.Path as Ninja
 
 --------------------------------------------------------------------------------
 
@@ -99,7 +105,7 @@ tokenize mpath = removeWhitespace (mpath, 0, 0)
 --   resulting 'Text'.
 tokenizeFile :: Path -> IO [Located Text]
 tokenizeFile path = tokenize (Just path)
-                    <$> T.readFile (T.unpack (path ^. pathText))
+                    <$> T.readFile (T.unpack (path ^. Ninja.pathText))
 
 -- | This function is equivalent to @tokenize Nothing@.
 tokenizeText :: Text -> [Located Text]
@@ -111,12 +117,12 @@ untokenize = undefined -- FIXME: implement
 
 -- | The position of this located value.
 locatedPos :: Lens' (Located t) Position
-locatedPos = lens _locatedPos
+locatedPos = Control.Lens.lens _locatedPos
              $ \(MkLocated {..}) x -> MkLocated { _locatedPos = x, .. }
 
 -- | The value underlying this located value.
 locatedVal :: Lens' (Located t) t
-locatedVal = lens _locatedVal
+locatedVal = Control.Lens.lens _locatedVal
              $ \(MkLocated {..}) x -> MkLocated { _locatedVal = x, .. }
 
 -- | Converts to @{position: …, value: …}@.
@@ -124,11 +130,11 @@ instance (ToJSON t) => ToJSON (Located t) where
   toJSON (MkLocated {..})
     = [ "pos" .= _locatedPos
       , "val" .= _locatedVal
-      ] |> object
+      ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
 instance (FromJSON t) => FromJSON (Located t) where
-  parseJSON = (withObject "Located" $ \o -> do
+  parseJSON = (Aeson.withObject "Located" $ \o -> do
                   _locatedPos <- (o .: "pos") >>= pure
                   _locatedVal <- (o .: "val") >>= pure
                   pure (MkLocated {..}))
@@ -150,17 +156,17 @@ makePosition file (line, column) = MkPosition file line column
 
 -- | The path of the file pointed to by this position, if any.
 positionFile :: Lens' Position (Maybe Path)
-positionFile = lens _positionFile
+positionFile = Control.Lens.lens _positionFile
                $ \(MkPosition {..}) x -> MkPosition { _positionFile = x, .. }
 
 -- | The line number in the file pointed to by this position.
 positionLine :: Lens' Position Line
-positionLine = lens _positionLine
+positionLine = Control.Lens.lens _positionLine
                $ \(MkPosition {..}) x -> MkPosition { _positionLine = x, .. }
 
 -- | The column number in the line pointed to by this position.
 positionCol :: Lens' Position Column
-positionCol = lens _positionCol
+positionCol = Control.Lens.lens _positionCol
               $ \(MkPosition {..}) x -> MkPosition { _positionCol = x, .. }
 
 -- | Converts to @{file: …, line: …, col: …}@.
@@ -169,11 +175,11 @@ instance ToJSON Position where
     = [ "file" .= _positionFile
       , "line" .= _positionLine
       , "col"  .= _positionCol
-      ] |> object
+      ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
 instance FromJSON Position where
-  parseJSON = (withObject "Position" $ \o -> do
+  parseJSON = (Aeson.withObject "Position" $ \o -> do
                   _positionFile <- (o .: "file") >>= pure
                   _positionLine <- (o .: "line") >>= pure
                   _positionCol  <- (o .: "col")  >>= pure
@@ -221,23 +227,25 @@ chunksAddChar c                = chunksCons (ChunkText (T.singleton c))
 --------------------------------------------------------------------------------
 
 removeWhitespace :: (Maybe Path, Line, Column) -> Text -> [Located Text]
-removeWhitespace (file, initLine, initCol) = go .> catMaybes .> map makeLoc
+removeWhitespace (file, initLine, initCol) =
+  go .> Data.Maybe.catMaybes .> map makeLoc
   where
     go :: Text -> [Maybe (Line, Column, Text)]
-    go text = runST $ do ref <- newSTRef (initLine, initCol)
-                         T.foldr chunksAddChar chunksNil text
-                           |> fromChunks
-                           |> mapM (applyChunk ref)
+    go text = Control.Monad.ST.runST $ do
+      ref <- Data.STRef.newSTRef (initLine, initCol)
+      T.foldr chunksAddChar chunksNil text
+        |> fromChunks
+        |> mapM (applyChunk ref)
 
     applyChunk :: STRef s (Line, Column)
                -> Chunk -> ST s (Maybe (Line, Column, Text))
     applyChunk ref = \case
-      ChunkLine  n -> do modifySTRef' ref ((+ n) *** const 0)
+      ChunkLine  n -> do Data.STRef.modifySTRef' ref ((+ n) *** const 0)
                          pure Nothing
-      ChunkSpace n -> do modifySTRef' ref (second (+ n))
+      ChunkSpace n -> do Data.STRef.modifySTRef' ref (second (+ n))
                          pure Nothing
-      ChunkText  t -> do (line, column) <- readSTRef ref
-                         modifySTRef' ref (second (+ T.length t))
+      ChunkText  t -> do (line, column) <- Data.STRef.readSTRef ref
+                         Data.STRef.modifySTRef' ref (second (+ T.length t))
                          pure (Just (line, column, t))
 
     makeLoc :: (Line, Column, Text) -> Located Text

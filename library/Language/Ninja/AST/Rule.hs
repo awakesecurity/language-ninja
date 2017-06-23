@@ -54,7 +54,10 @@ import           Language.Ninja.Misc.Path    (Path)
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 
-import           Data.Aeson                  as Aeson
+import           Data.Aeson                  (FromJSON(..), KeyValue(..),
+                                              ToJSON(..), Value(..), (.:),
+                                              (.:?))
+import qualified Data.Aeson                  as Aeson
 
 import           Data.Hashable               (Hashable (..))
 import           GHC.Generics                (Generic)
@@ -185,11 +188,11 @@ instance ToJSON Rule where
       , "generator" .= _ruleGenerator
       , "restat"    .= _ruleRestat
       , "rsp"       .= _ruleResponseFile
-      ] |> object
+      ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
 instance FromJSON Rule where
-  parseJSON = (withObject "Rule" $ \o -> do
+  parseJSON = (Aeson.withObject "Rule" $ \o -> do
                   _ruleName         <- (o .: "name")      >>= pure
                   _ruleCommand      <- (o .: "command")   >>= pure
                   _ruleDescription  <- (o .: "desc")      >>= pure
@@ -246,16 +249,17 @@ instance Hashable SpecialDeps
 instance ToJSON SpecialDeps where
   toJSON = go
     where
-      go SpecialDepsGCC             = object ["deps" .= gcc]
-      go (SpecialDepsMSVC Nothing)  = object ["deps" .= msvc]
-      go (SpecialDepsMSVC (Just p)) = object ["deps" .= msvc, "prefix" .= p]
+      go SpecialDepsGCC             = Aeson.object ["deps" .= gcc]
+      go (SpecialDepsMSVC Nothing)  = Aeson.object ["deps" .= msvc]
+      go (SpecialDepsMSVC (Just p)) =
+        Aeson.object ["deps" .= msvc, "prefix" .= p]
 
       gcc, msvc :: Value
       (gcc, msvc) = ("gcc", "msvc")
 
 -- | Inverse of the 'ToJSON' instance.
 instance FromJSON SpecialDeps where
-  parseJSON = withObject "SpecialDeps" $ \o -> do
+  parseJSON = Aeson.withObject "SpecialDeps" $ \o -> do
     deps <- o .: "deps"
     prefix <- o .:? "prefix"
     case T.pack deps of
@@ -304,11 +308,11 @@ instance ToJSON ResponseFile where
   toJSON (MkResponseFile {..})
     = [ "path"    .= _responseFilePath
       , "content" .= _responseFileContent
-      ] |> object
+      ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
 instance FromJSON ResponseFile where
-  parseJSON = withObject "ResponseFile" $ \o -> do
+  parseJSON = Aeson.withObject "ResponseFile" $ \o -> do
     MkResponseFile
       <$> (o .: "path")
       <*> (o .: "content")

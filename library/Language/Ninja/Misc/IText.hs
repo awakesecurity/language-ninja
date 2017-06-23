@@ -42,7 +42,9 @@ import           Data.Text              (Text)
 import qualified Data.Text              as T
 import qualified Data.Text.Encoding     as T
 
-import           Data.Aeson             as Aeson
+import           Data.Aeson             (FromJSON(..), FromJSONKey(..),
+                                         ToJSON(..), ToJSONKey(..))
+import qualified Data.Aeson             as Aeson
 import qualified Data.Aeson.Types       as Aeson
 
 import qualified Data.Interned          as Interned
@@ -52,13 +54,13 @@ import           Data.Data              (Data)
 import           Data.Hashable          (Hashable (..))
 import           Data.String            (IsString (..))
 import           GHC.Generics           (Generic)
-import           Test.SmallCheck.Series as SC
+import qualified Test.SmallCheck.Series as SC
 
-import           Control.Lens.Getter
-import           Control.Lens.Iso
+import           Control.Lens.Iso       (Iso')
+import qualified Control.Lens
 
 import           Control.Arrow          (first)
-import           Flow
+import           Flow                   ((|>), (.>))
 
 --------------------------------------------------------------------------------
 
@@ -96,7 +98,7 @@ internText = Interned.intern .> MkIText
 --   >>> (("foobar" :: IText) ^. from itext) :: Text
 --   "foobar"
 itext :: Iso' Text IText
-itext = iso internText uninternText
+itext = Control.Lens.iso internText uninternText
 
 -- | Displays an 'IText' such that 'fromString' is inverse to 'show'.
 instance Show IText where
@@ -116,7 +118,7 @@ instance ToJSON IText where
 
 -- | Inverse of the 'ToJSON' instance.
 instance FromJSON IText where
-  parseJSON = withText "IText" (internText .> pure)
+  parseJSON = Aeson.withText "IText" (internText .> pure)
 
 -- | Converts to JSON string via 'uninternText'.
 instance ToJSONKey IText where

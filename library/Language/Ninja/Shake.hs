@@ -55,8 +55,8 @@ module Language.Ninja.Shake
   ( runNinja
   ) where
 
-import           Data.Bifunctor
-import           Data.Monoid
+import           Data.Bifunctor             (bimap, first)
+import           Data.Monoid                (Endo(..), (<>))
 
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
@@ -71,25 +71,23 @@ import qualified Development.Shake.FilePath as Shake (normaliseEx, toStandard)
 import qualified Development.Shake.Util     as Shake (parseMakefile)
 
 import           Language.Ninja.Env         (Env)
-import           Language.Ninja.Types
+import           Language.Ninja.Types       (PBuild, PNinja, PRule)
 
 import qualified Language.Ninja.Env         as Ninja
 import qualified Language.Ninja.Parse       as Ninja
 import qualified Language.Ninja.Types       as Ninja
 
-import           Control.Applicative
-import           Control.Exception.Extra
-import           Control.Monad
-import           Control.Monad.IO.Class
+import qualified Control.Exception.Extra
+import qualified Control.Monad
+import           Control.Monad.IO.Class     (liftIO)
 
-import           Control.Lens               hiding ((.>), (<.), (<|), (|>))
+import           Control.Lens               (to, (^.))
 
-import           Data.Char
-import           Data.List.Extra
-import           Data.Maybe
-import           Prelude
-import           System.Directory
-import           System.Info.Extra
+import qualified Data.Char
+import qualified Data.List.Extra
+import qualified Data.Maybe
+import qualified System.Directory
+import qualified System.Info.Extra
 
 import           Data.Hashable              (Hashable)
 
@@ -99,7 +97,7 @@ import qualified Data.HashMap.Strict        as HM
 import           Data.HashSet               (HashSet)
 import qualified Data.HashSet               as HS
 
-import           Flow
+import           Flow                       ((|>), (.>))
 
 --------------------------------------------------------------------------------
 -- STUBS
@@ -146,27 +144,29 @@ parseNinjaOptions file (map T.pack -> args) tool = do
 ninjaDispatch :: NinjaOptions -> IO (Maybe (Rules ()))
 ninjaDispatch (NinjaOptionsBuild  n args) = ninjaBuild  n args
 ninjaDispatch (NinjaOptionsCompDB n args) = ninjaCompDB n args
-ninjaDispatch (NinjaOptionsUnknown tool)  = [ "Unknown tool: ", tool
-                                            ] |> mconcat |> T.unpack |> errorIO
+ninjaDispatch (NinjaOptionsUnknown tool)  =
+  [ "Unknown tool: ", tool
+  ] |> mconcat |> T.unpack |> Control.Exception.Extra.errorIO
 
 computeRuleEnv :: HashSet Text -> PBuild -> PRule -> Env Text Text
 computeRuleEnv outputs b r = do
-  let deps = b ^. pbuildDeps . pdepsNormal
+  let deps = b ^. Ninja.pbuildDeps . Ninja.pdepsNormal
   -- the order of adding new environment variables matters
 
   let composeList :: [a -> a] -> (a -> a)
       composeList = map Endo .> mconcat .> appEndo
 
-  Ninja.scopeEnv (b ^. pbuildEnv)
+  Ninja.scopeEnv (b ^. Ninja.pbuildEnv)
     |> Ninja.addEnv "out"        (T.unwords (map quote (HS.toList outputs)))
     |> Ninja.addEnv "in"         (T.unwords (map quote (HS.toList deps)))
     |> Ninja.addEnv "in_newline" (T.unlines (HS.toList deps))
-    |> composeList (map (uncurry Ninja.addEnv) (HM.toList (b ^. pbuildBind)))
-    |> Ninja.addBinds (HM.toList (r ^. pruleBind))
+    |> composeList
+        (map (uncurry Ninja.addEnv) (HM.toList (b ^. Ninja.pbuildBind)))
+    |> Ninja.addBinds (HM.toList (r ^. Ninja.pruleBind))
 
 ninjaCompDB :: PNinja -> [Text] -> IO (Maybe (Rules ()))
 ninjaCompDB ninja args = do
-  dir <- getCurrentDirectory
+  dir <- System.Directory.getCurrentDirectory
 
   -- Compute the set of rules
   let argumentSet = HS.fromList args
@@ -176,19 +176,20 @@ ninjaCompDB ninja args = do
   -- the build items are generated in reverse order, hence the reverse
   let itemsToBuild :: [(HashSet Text, PBuild, Text, PRule)]
       itemsToBuild = do
-        let multiples = ninja ^. pninjaMultiples
-        let singles = ninja ^. pninjaSingles
+        let multiples = ninja ^. Ninja.pninjaMultiples
+        let singles = ninja ^. Ninja.pninjaSingles
         (outputs, build) <- [ HM.toList multiples
                             , map (first HS.singleton) (HM.toList singles)
                             ] |> mconcat |> reverse
-        (Just rule) <- [HM.lookup (build ^. pbuildRule) rules]
-        (file:_) <- [build ^. pbuildDeps . pdepsNormal . to HS.toList]
+        (Just rule) <- [HM.lookup (build ^. Ninja.pbuildRule) rules]
+        (file:_) <- do
+          [build ^. Ninja.pbuildDeps . Ninja.pdepsNormal . to HS.toList]
         pure (outputs, build, file, rule)
 
-  compDB <- forM itemsToBuild $ \(outputs, build, _, rule) -> do
+  compDB <- Control.Monad.forM itemsToBuild $ \(outputs, build, _, rule) -> do
     let env = computeRuleEnv outputs build rule
     let commandLine = T.unpack (Ninja.askVar env "command")
-    let deps = build ^. pbuildDeps . pdepsNormal
+    let deps = build ^. Ninja.pbuildDeps . Ninja.pdepsNormal
     pure $ MkCompDB dir commandLine (T.unpack (head (HS.toList deps)))
 
   putStr $ printCompDB compDB
@@ -198,24 +199,24 @@ ninjaCompDB ninja args = do
 ninjaBuild :: PNinja -> [Text] -> IO (Maybe (Rules ()))
 ninjaBuild ninja args = pure $ Just $ do
   let normMultiples = ninja
-                      ^. pninjaMultiples
+                      ^. Ninja.pninjaMultiples
                       .  to HM.toList
                       .  to (fmap (first (HS.map filepathNormalise)))
 
   poolList <- HM.traverseWithKey
               (\k v -> Shake.newResource (T.unpack k) v)
-              (HM.insert "console" 1 (ninja ^. pninjaPools))
+              (HM.insert "console" 1 (ninja ^. Ninja.pninjaPools))
 
-  let phonys    = ninja ^. pninjaPhonys
-  let singles   = ninja ^. pninjaSingles
+  let phonys    = ninja ^. Ninja.pninjaPhonys
+  let singles   = ninja ^. Ninja.pninjaSingles
                   |> HM.toList
                   |> fmap (first filepathNormalise)
                   |> HM.fromList
   let multiples = [(x, (xs, b)) | (xs, b) <- normMultiples, x <- HS.toList xs]
                   |> HM.fromList
-  let rules     = ninja ^. pninjaRules
+  let rules     = ninja ^. Ninja.pninjaRules
   let pools     = poolList
-  let defaults  = ninja ^. pninjaDefaults
+  let defaults  = ninja ^. Ninja.pninjaDefaults
 
   let build :: HashSet Text -> PBuild -> Action ()
       build = runBuild (needDeps ninja) phonys rules pools
@@ -233,7 +234,7 @@ ninjaBuild ninja args = pure $ Just $ do
       relatedOutputs (T.pack -> out)
         = HM.lookup out multiples
           |> fmap (fst .> HS.toList)
-          |> fromMaybe (if HM.member out singles then [out] else [])
+          |> Data.Maybe.fromMaybe (if HM.member out singles then [out] else [])
           |> map T.unpack
           |> Just
 
@@ -260,8 +261,10 @@ resolvePhony mp = f (Left 100)
     (∈) = HS.member
 
 quote :: Text -> Text
-quote x | T.any isSpace x = let q = T.singleton '\"' in mconcat [q, x, q]
-quote x                   = x
+quote x | T.any Data.Char.isSpace x =
+  let q = T.singleton '\"' in mconcat [q, x, q]
+quote x                             =
+  x
 
 
 runBuild :: (PBuild -> [Text] -> Action ())
@@ -273,12 +276,12 @@ runBuild :: (PBuild -> [Text] -> Action ())
          -> Action ()
 runBuild needD phonys rules pools outputs build = do
   let errorA :: Text -> Action a
-      errorA = T.unpack .> errorIO .> liftIO
+      errorA = T.unpack .> Control.Exception.Extra.errorIO .> liftIO
 
-  let ruleName      = build ^. pbuildRule
-  let depsNormal    = build ^. pbuildDeps . pdepsNormal
-  let depsImplicit  = build ^. pbuildDeps . pdepsImplicit
-  let depsOrderOnly = build ^. pbuildDeps . pdepsOrderOnly
+  let ruleName      = build ^. Ninja.pbuildRule
+  let depsNormal    = build ^. Ninja.pbuildDeps . Ninja.pdepsNormal
+  let depsImplicit  = build ^. Ninja.pbuildDeps . Ninja.pdepsImplicit
+  let depsOrderOnly = build ^. Ninja.pbuildDeps . Ninja.pdepsOrderOnly
 
   let setConcatMap :: (Eq b, Hashable b) => (a -> HashSet b) -> HashSet a -> [b]
       setConcatMap f = HS.map f .> HS.toList .> HS.unions .> HS.toList
@@ -314,19 +317,19 @@ runBuild needD phonys rules pools outputs build = do
                                          ] |> mconcat |> errorA
                               (Just r) -> Shake.withResource r 1 act
 
-    when (description /= "") $ Shake.putNormal description
+    Control.Monad.when (description /= "") $ Shake.putNormal description
 
     let (opts, prog, args) = toCommand commandline
       in if deps == "msvc"
          then do stdout <- withPool (Shake.command opts prog args)
                  let prefix = Ninja.askEnv env "msvc_deps_prefix"
-                              |> fromMaybe "Note: including file: "
+                              |> Data.Maybe.fromMaybe "Note: including file: "
                  let outStr = T.pack (Shake.fromStdout stdout)
                  needD build (parseShowIncludes prefix outStr)
          else withPool (Shake.command_ opts prog args)
 
-    when (depfile /= "") $ do
-      when (deps /= "gcc") $ Shake.need [depfile]
+    Control.Monad.when (depfile /= "") $ do
+      Control.Monad.when (deps /= "gcc") $ Shake.need [depfile]
 
       depsrc <- T.readFile depfile
                 |> fmap T.unpack
@@ -337,15 +340,16 @@ runBuild needD phonys rules pools outputs build = do
       needD build parsed
 
       -- correct as per the Ninja spec, but breaks --skip-commands
-      -- when (deps == "gcc") $ liftIO $ removeFile depfile
+      -- Control.Monad.when (deps == "gcc") $ liftIO $ do
+      --   System.Directory.removeFile depfile
 
 needDeps :: PNinja -> PBuild -> [Text] -> Action ()
 needDeps ninja = \build xs -> do
   let errorA :: Text -> Action a
-      errorA = T.unpack .> errorIO .> liftIO
+      errorA = T.unpack .> Control.Exception.Extra.errorIO .> liftIO
   -- eta reduced so 'builds' is shared
   opts <- Shake.getShakeOptions
-  let dontLint = isNothing $ Shake.shakeLint opts
+  let dontLint = Data.Maybe.isNothing $ Shake.shakeLint opts
   if dontLint then needT xs else do
     neededT xs
     -- now try and statically validate needed will never fail
@@ -360,8 +364,8 @@ needDeps ninja = \build xs -> do
                ] |> mconcat |> errorA
   where
     builds :: HashMap Text PBuild
-    builds = let singles   = ninja ^. pninjaSingles
-                 multiples = ninja ^. pninjaMultiples
+    builds = let singles   = ninja ^. Ninja.pninjaSingles
+                 multiples = ninja ^. Ninja.pninjaMultiples
              in singles <> explodeHM multiples
 
     explodeHM :: (Eq k, Hashable k) => HashMap (HashSet k) v -> HashMap k v
@@ -392,15 +396,16 @@ needDeps ninja = \build xs -> do
     allDependencies rule = f HS.empty [] [rule]
       where
         f _    []     []                = []
-        f seen []     (x:xs)            = let fpNorm = filepathNormalise
-                                              pdeps  = x ^. pbuildDeps
-                                              deps   = [ pdeps ^. pdepsNormal
-                                                       , pdeps ^. pdepsImplicit
-                                                       , pdeps ^. pdepsOrderOnly
-                                                       ] |> mconcat
-                                              paths  = HS.toList deps
-                                                       |> map fpNorm
-                                          in f seen paths xs
+        f seen []     (x:xs)            =
+          let fpNorm = filepathNormalise
+              pdeps  = x ^. Ninja.pbuildDeps
+              deps   = [ pdeps ^. Ninja.pdepsNormal
+                       , pdeps ^. Ninja.pdepsImplicit
+                       , pdeps ^. Ninja.pdepsOrderOnly
+                       ] |> mconcat
+              paths  = HS.toList deps
+                       |> map fpNorm
+          in f seen paths xs
         f seen (x:xs) rest   | x ∈ seen = f seen xs rest
         f seen (x:xs) rest              = let seen' = HS.insert x seen
                                               rest' = HM.lookup x builds
@@ -418,14 +423,15 @@ applyRspfile env act = do
     then act
     else (liftIO (T.writeFile (T.unpack rspfile) rspfile_content) >> act)
          `Shake.actionFinally`
-         ignore (removeFile (T.unpack rspfile))
+         Control.Exception.Extra.ignore
+           (System.Directory.removeFile (T.unpack rspfile))
 
 parseShowIncludes :: Text -> Text -> [Text]
 parseShowIncludes prefix out = do
   x <- T.lines out
-  guard (prefix `T.isPrefixOf` x)
-  let y = T.dropWhile isSpace $ T.drop (T.length prefix) x
-  guard (not (isSystemInclude y))
+  Control.Monad.guard (prefix `T.isPrefixOf` x)
+  let y = T.dropWhile Data.Char.isSpace $ T.drop (T.length prefix) x
+  Control.Monad.guard (not (isSystemInclude y))
   pure y
 
 -- Dodgy, but ported over from the original Ninja
@@ -436,7 +442,7 @@ isSystemInclude (T.encodeUtf8 -> x)
     )
   where
     tx = BS.map (\c -> if c >= 97 then c - 32 else c) x
-    -- optimised toUpper that only cares about letters and spaces
+    -- optimised Data.Char.toUpper that only cares about letters and spaces
 
 data CompDB
   = MkCompDB
@@ -460,7 +466,7 @@ printCompDB xs = unlines (["["] <> concat (zipWith f [1..] xs) <> ["]"])
 toCommand :: String -> ([Shake.CmdOption], String, [String])
 toCommand s
   -- On POSIX, Ninja does a /bin/sh -c, and so does Haskell in Shell mode.
-  | not isWindows
+  | not System.Info.Extra.isWindows
   = ([Shake.Shell], s, [])
   -- On Windows, Ninja passes the string directly to CreateProcess,
   -- but Haskell applies some escaping first. We try and get back as close to
@@ -469,9 +475,9 @@ toCommand s
   -- Using the "cmd" program adds overhead (I measure 7ms), and a limit of
   -- 8191 characters, but is the most robust, requiring no additional escaping.
   = ([Shake.Shell], s, [])
-  | (cmd, s') <- word1 s
-  , map toUpper cmd `elem` ["CMD","CMD.EXE"]
-  , ("/c", s'') <- word1 s'
+  | (cmd, s') <- Data.List.Extra.word1 s
+  , map Data.Char.toUpper cmd `elem` ["CMD","CMD.EXE"]
+  , ("/c", s'') <- Data.List.Extra.word1 s'
   -- Given "cmd.exe /c <something>" we translate to Shell, which adds cmd.exe
   -- (looked up on the current path) and /c to the front.
   -- CMake uses this rule a lot.
@@ -495,11 +501,11 @@ data State
 splitArgs :: String -> [String]
 splitArgs = f Gap
   where
-    f Gap  (x:xs)    | isSpace x                   = f Gap xs
+    f Gap  (x:xs)    | Data.Char.isSpace x         = f Gap xs
     f Gap  ('\"':xs)                               = f Quot xs
     f Gap  []                                      = []
     f Gap  xs                                      = f Word xs
-    f Word (x:xs)    | isSpace x                   = [] : f Gap xs
+    f Word (x:xs)    | Data.Char.isSpace x         = [] : f Gap xs
     f Quot ('\"':xs)                               = [] : f Gap xs
     f s    ('\\':xs) | (a, b) <- span (== '\\') xs = g s (length a) b
     f s    (x:xs)                                  = add [x] $ f s xs
