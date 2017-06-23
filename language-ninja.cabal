@@ -61,6 +61,8 @@ library
                         , Language.Ninja.AST.Target
                         , Language.Ninja.Compile
                         , Language.Ninja.Env
+                        , Language.Ninja.Errors
+                        , Language.Ninja.Errors.Compile
                         , Language.Ninja.Lexer
                         , Language.Ninja.Parse
                         , Language.Ninja.Pretty

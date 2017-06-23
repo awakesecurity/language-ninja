@@ -85,6 +85,7 @@ import           Language.Ninja.AST
                  SpecialDeps, Target)
 import qualified Language.Ninja.AST           as Ninja
 import           Language.Ninja.Env           (askEnv)
+import qualified Language.Ninja.Errors        as Ninja
 import qualified Language.Ninja.Misc.Positive as Ninja
 import qualified Language.Ninja.Parse         as Ninja
 import           Language.Ninja.Types
@@ -92,176 +93,6 @@ import           Language.Ninja.Types
 import qualified Language.Ninja.Types         as Ninja
 
 -------------------------------------------------------------------------------
-
--- FIXME: split off into Errors.hs
-
--- | FIXME: doc
-data CompileError
-  = -- | Generic catch-all error constructor. Avoid using this.
-    GenericCompileError !Text
-  | -- | Errors encountered while computing a 'Meta'.
-    CompileMetaError    !CompileMetaError
-  | -- | Errors encountered while computing a 'Build'.
-    CompileBuildError   !CompileBuildError
-  | -- | Errors encountered while computing a 'Rule'.
-    CompileRuleError    !CompileRuleError
-  | -- | Errors encountered while computing the phony 'HashMap'.
-    CompilePhonyError   !CompilePhonyError
-  | -- | Errors encountered while computing the default target 'HashSet'.
-    CompileDefaultError !CompileDefaultError
-  | -- | Errors encountered while computing a 'Pool'.
-    CompilePoolError    !CompilePoolError
-  deriving (Eq, Show, Generic)
-
--- | FIXME: doc
-instance Exception CompileError
-
--- | FIXME: doc
-throwCompileError :: (MonadThrow m) => CompileError -> m a
-throwCompileError = throwM
-
--- | FIXME: doc
-throwGenericCompileError :: (MonadThrow m) => Text -> m a
-throwGenericCompileError msg = throwM (GenericCompileError msg)
-
---------------------------------------------------------------------------------
-
--- | FIXME: doc
-data CompileMetaError
-  = -- | Generic catch-all error constructor. Avoid using this.
-    GenericCompileMetaError !Text
-  | -- | @Failed to parse `ninja_required_version`: …@
-    VersionParseError       !Ver.ParsingError
-  deriving (Eq, Show, Generic)
-
--- | FIXME: doc
-throwCompileMetaError :: (MonadThrow m) => CompileMetaError -> m a
-throwCompileMetaError = CompileMetaError .> throwM
-
--- | FIXME: doc
-throwGenericCompileMetaError :: (MonadThrow m) => Text -> m a
-throwGenericCompileMetaError = GenericCompileMetaError .> throwCompileMetaError
-
--- | FIXME: doc
-throwVersionParseError :: (MonadThrow m) => Ver.ParsingError -> m a
-throwVersionParseError pe = throwCompileMetaError (VersionParseError pe)
-
---------------------------------------------------------------------------------
-
--- | FIXME: doc
-data CompilePhonyError
-  = -- | Generic catch-all error constructor. Avoid using this.
-    GenericCompilePhonyError !Text
-  deriving (Eq, Show, Generic)
-
--- | FIXME: doc
-throwCompilePhonyError :: (MonadThrow m) => CompilePhonyError -> m a
-throwCompilePhonyError = CompilePhonyError .> throwM
-
--- | FIXME: doc
-throwGenericCompilePhonyError :: (MonadThrow m) => Text -> m a
-throwGenericCompilePhonyError = GenericCompilePhonyError
-                                .> throwCompilePhonyError
-
---------------------------------------------------------------------------------
-
--- | FIXME: doc
-data CompileDefaultError
-  = -- | Generic catch-all error constructor. Avoid using this.
-    GenericCompileDefaultError !Text
-  deriving (Eq, Show, Generic)
-
--- | FIXME: doc
-throwCompileDefaultError :: (MonadThrow m) => CompileDefaultError -> m a
-throwCompileDefaultError = CompileDefaultError .> throwM
-
--- | FIXME: doc
-throwGenericCompileDefaultError :: (MonadThrow m) => Text -> m a
-throwGenericCompileDefaultError = GenericCompileDefaultError
-                                  .> throwCompileDefaultError
-
---------------------------------------------------------------------------------
-
--- | FIXME: doc
-data CompileBuildError
-  = -- | Generic catch-all error constructor. Avoid using this.
-    GenericCompileBuildError !Text
-  | -- | @Rule not found: <text>@
-    BuildRuleNotFound        !Text
-  deriving (Eq, Show, Generic)
-
--- | FIXME: doc
-throwCompileBuildError :: (MonadThrow m) => CompileBuildError -> m a
-throwCompileBuildError = CompileBuildError .> throwM
-
--- | FIXME: doc
-throwGenericCompileBuildError :: (MonadThrow m) => Text -> m a
-throwGenericCompileBuildError = GenericCompileBuildError
-                                .> throwCompileBuildError
-
--- | FIXME: doc
-throwBuildRuleNotFound :: (MonadThrow m) => Text -> m a
-throwBuildRuleNotFound name = throwCompileBuildError (BuildRuleNotFound name)
-
---------------------------------------------------------------------------------
-
--- | FIXME: doc
-data CompileRuleError
-  = -- | Generic catch-all error constructor. Avoid using this.
-    GenericCompileRuleError !Text
-  | -- | @Lookup failed on rule variable: <text>@
-    RuleLookupFailure       !Text
-  | -- | @Unknown `deps` value: <text>@
-    UnknownDepsValue        !Text
-  | -- | @Unexpected `msvc_deps_prefix` for `deps = "<text>"`@
-    UnexpectedMSVCPrefix    !Text
-  deriving (Eq, Show, Generic)
-
--- | FIXME: doc
-throwCompileRuleError :: (MonadThrow m) => CompileRuleError -> m a
-throwCompileRuleError = CompileRuleError .> throwM
-
--- | FIXME: doc
-throwGenericCompileRuleError :: (MonadThrow m) => Text -> m a
-throwGenericCompileRuleError = GenericCompileRuleError .> throwCompileRuleError
-
--- | FIXME: doc
-throwLookupError :: (MonadThrow m) => Text -> m a
-throwLookupError v = throwCompileRuleError (RuleLookupFailure v)
-
--- | FIXME: doc
-throwUnknownDeps :: (MonadThrow m) => Text -> m a
-throwUnknownDeps deps = throwCompileRuleError (UnknownDepsValue deps)
-
---------------------------------------------------------------------------------
-
--- | FIXME: doc
-data CompilePoolError
-  = -- | Generic catch-all error constructor. Avoid using this.
-    GenericCompilePoolError !Text
-  | -- | @Invalid pool depth for console: <int>@
-    InvalidPoolDepth     !Int
-  | -- | @Pool name is an empty string@
-    EmptyPoolName
-  deriving (Eq, Show, Generic)
-
--- | FIXME: doc
-throwCompilePoolError :: (MonadThrow m) => CompilePoolError -> m a
-throwCompilePoolError = CompilePoolError .> throwM
-
--- | FIXME: doc
-throwGenericCompilePoolError :: (MonadThrow m) => Text -> m a
-throwGenericCompilePoolError = GenericCompilePoolError .> throwCompilePoolError
-
--- | FIXME: doc
-throwInvalidPoolDepth :: (MonadThrow m) => Int -> m a
-throwInvalidPoolDepth d = throwCompilePoolError (InvalidPoolDepth d)
-
--- | FIXME: doc
-throwEmptyPoolName :: (MonadThrow m) => m a
-throwEmptyPoolName = throwCompilePoolError EmptyPoolName
-
---------------------------------------------------------------------------------
 
 -- | FIXME: doc
 compile :: forall m. (MonadThrow m) => PNinja -> m Ninja
@@ -289,7 +120,8 @@ compile pninja = result
           getSpecial name = HM.lookup name (pninja ^. Ninja.pninjaSpecials)
 
       let parseVersion :: Text -> m Ver.Version
-          parseVersion = Ver.version .> either throwVersionParseError pure
+          parseVersion = Ver.version
+                         .> either Ninja.throwVersionParseFailure pure
 
       reqversion <- getSpecial "ninja_required_version"
                     |> fmap parseVersion
@@ -349,19 +181,20 @@ compile pninja = result
     compileDefault = compileTarget
 
     compilePool :: (Text, Int) -> m Pool
-    compilePool ("console", 1) = pure Ninja.makePoolConsole
-    compilePool ("console", d) = throwInvalidPoolDepth d
-    compilePool ("",        _) = throwEmptyPoolName
-    compilePool (name,      d) = do dp <- maybe (throwInvalidPoolDepth d) pure
-                                          (Ninja.makePositive d)
-                                    pure (Ninja.makePoolCustom name dp)
+    compilePool pair = case pair of
+      ("console", 1) -> pure Ninja.makePoolConsole
+      ("console", d) -> Ninja.throwInvalidPoolDepth d
+      ("",        _) -> Ninja.throwEmptyPoolName
+      (name,      d) -> do dp <- Ninja.makePositive d
+                                 |> maybe (Ninja.throwInvalidPoolDepth d) pure
+                           pure (Ninja.makePoolCustom name dp)
 
     compileRule :: (HashSet FileText, PBuild) -> m Rule
     compileRule (outputs, pbuild) = do
       (name, prule) <- lookupRule pbuild
 
       let orLookupError :: Text -> Maybe a -> m a
-          orLookupError var = maybe (throwLookupError var) pure
+          orLookupError var = maybe (Ninja.throwRuleLookupFailure var) pure
 
       let env = computeRuleEnv (outputs, pbuild) prule
 
@@ -374,10 +207,10 @@ compile pninja = result
       command      <- lookupBind_ "command" >>= compileCommand
       description  <- lookupBind "description"
       pool         <- let buildBind = pbuild ^. Ninja.pbuildBind
-                      in  (HM.lookup "pool" buildBind <|> askEnv env "pool")
-                          |> fmap Ninja.parsePoolName
-                          |> fromMaybe Ninja.makePoolNameDefault
-                          |> pure
+                      in (HM.lookup "pool" buildBind <|> askEnv env "pool")
+                         |> fmap Ninja.parsePoolName
+                         |> fromMaybe Ninja.makePoolNameDefault
+                         |> pure
       depfile      <- lookupBind "depfile"
                       |> fmap (fmap Ninja.makePath)
       specialDeps  <- let prefix = "msvc_deps_prefix"
@@ -403,14 +236,10 @@ compile pninja = result
     compileSpecialDeps :: (Maybe Text, Maybe Text) -> m (Maybe SpecialDeps)
     compileSpecialDeps = go
       where
-        go (Nothing,           _) = do
-          pure Nothing
-        go (Just "gcc",        _) = do
-          pure (Just Ninja.makeSpecialDepsGCC)
-        go (Just "msvc", mprefix) = do
-          pure (Just (Ninja.makeSpecialDepsMSVC mprefix))
-        go (Just owise,        _) = do
-          throwUnknownDeps owise
+        go (Nothing,     _) = pure Nothing
+        go (Just "gcc",  _) = pure (Just Ninja.makeSpecialDepsGCC)
+        go (Just "msvc", m) = pure (Just (Ninja.makeSpecialDepsMSVC m))
+        go (Just owise,  _) = Ninja.throwUnknownDeps owise
 
     compileResponseFile :: (Text, Text) -> m ResponseFile
     compileResponseFile (file, content)
@@ -435,7 +264,8 @@ compile pninja = result
     lookupRule :: PBuild -> m (Text, PRule)
     lookupRule pbuild = do
       let name = pbuild ^. Ninja.pbuildRule
-      prule <- maybe (throwBuildRuleNotFound name) pure (HM.lookup name prules)
+      prule <- HM.lookup name prules
+               |> maybe (Ninja.throwBuildRuleNotFound name) pure
       pure (name, prule)
 
     computeRuleEnv :: (HashSet Text, PBuild)
