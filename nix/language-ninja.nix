@@ -31,6 +31,6 @@ mkDerivation {
     turtle unordered-containers versions
   ];
   homepage = "https://github.com/awakesecurity/language-ninja";
-  description = "A Haskell library for parsing, pretty-printing, and evaluating the Ninja build language";
+  description = "A Haskell library for parsing, pretty-printing, and compiling the Ninja build language";
   license = stdenv.lib.licenses.asl20;
 }

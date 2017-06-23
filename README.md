@@ -5,7 +5,7 @@
 [![License][license-badge]][license-link]
 
 `language-ninja` is a Haskell library for parsing, pretty-printing, and
-evaluating the [Ninja build language](https://ninja-build.org).
+compiling the [Ninja build language](https://ninja-build.org).
 
 ## Motivation
 
@@ -45,11 +45,11 @@ It simply outputs text such that if that text is parsed and the parsed data
 is pretty-printed again, the resulting text will be identical to the original
 text (this is tested on a variety of Ninja files in the test suite).
 
-## Evaluating
+## Compiling
 
 The `Ninja` type from `Language.Ninja.AST.Ninja` contains precisely the data
 that must be acted on dynamically in a Ninja. In converting from a `PNinja`
-from the parser to a `Ninja` (using `Language.Ninja.Eval.evaluate`), you are
+from the parser to a `Ninja` (using `Language.Ninja.Compile.compile`), you are
 eliminating all statically-dischargeable language features in Ninja, like
 variables. It also "monomorphizes" Ninja `rule`s, since rule-level `$out`
 references are a kind of parametric polymorphism. This `Ninja` type is thus

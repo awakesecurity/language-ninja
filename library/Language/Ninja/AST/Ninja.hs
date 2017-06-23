@@ -103,7 +103,7 @@ ninjaMeta :: Lens' Ninja Meta
 ninjaMeta = Control.Lens.lens _ninjaMeta
             $ \(MkNinja {..}) x -> MkNinja { _ninjaMeta = x, .. }
 
--- | Evaluated @build@ declarations.
+-- | Compiled @build@ declarations.
 ninjaBuilds :: Lens' Ninja (HashSet Build)
 ninjaBuilds = Control.Lens.lens _ninjaBuilds
               $ \(MkNinja {..}) x -> MkNinja { _ninjaBuilds = x, .. }

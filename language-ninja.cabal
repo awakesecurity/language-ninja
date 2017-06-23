@@ -13,9 +13,9 @@ homepage:                 https://github.com/awakesecurity/language-ninja
 bug-reports:              https://github.com/awakesecurity/language-ninja/issues
 category:                 Build, Language
 synopsis:                 A Haskell library for parsing, pretty-printing, and
-                          evaluating the Ninja build language.
+                          compiling the Ninja build language.
 description:              A Haskell library for parsing, pretty-printing, and
-                          evaluating the Ninja build language.
+                          compiling the Ninja build language.
 
 source-repository head
     type:                 git
@@ -59,7 +59,7 @@ library
                         , Language.Ninja.AST.Pool
                         , Language.Ninja.AST.Rule
                         , Language.Ninja.AST.Target
-                        , Language.Ninja.Eval
+                        , Language.Ninja.Compile
                         , Language.Ninja.Env
                         , Language.Ninja.Lexer
                         , Language.Ninja.Parse

@@ -62,8 +62,8 @@ import qualified Control.Lens               as Lens
 
 import qualified Language.Ninja             as Ninja
 import qualified Language.Ninja.AST         as Ninja
+import qualified Language.Ninja.Compile     as Ninja
 import qualified Language.Ninja.Env         as Ninja
-import qualified Language.Ninja.Eval        as Ninja
 import qualified Language.Ninja.Misc.IText  as Ninja
 import qualified Language.Ninja.Misc.Path   as Ninja
 
@@ -157,17 +157,17 @@ roundtripTest pninja = do
     -- Aeson.encode actualJ `H.shouldBe` Aeson.encode expectedJ
     T.assertEqual "prefix" expected actual
 
-evaluateTest :: Ninja.PNinja -> IO ()
-evaluateTest pninja = void $ do
-  Ninja.evaluate pninja
+compileTest :: Ninja.PNinja -> IO ()
+compileTest pninja = void $ do
+  Ninja.compile pninja
 
 pninjaTests :: String -> Ninja.PNinja -> T.TestTree
 pninjaTests name pninja
   = T.testGroup ("Testing " <> name <> ".ninja")
     [ T.testCase "roundtrip through parser and pretty-printer" $ do
         roundtripTest pninja
-    , T.testCase "evaluate to Ninja" $ do
-        evaluateTest pninja
+    , T.testCase "compile to Ninja" $ do
+        compileTest pninja
     ]
 
 opticsTests :: T.TestTree
