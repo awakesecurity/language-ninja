@@ -79,7 +79,7 @@ import qualified Test.Tasty.Lens.Iso        as T.Iso
 import qualified Test.Tasty.Lens.Lens       as T.Lens
 import qualified Test.Tasty.Lens.Prism      as T.Prism
 
-import           Test.SmallCheck.Series     as SC
+import qualified Test.SmallCheck.Series     as SC
 
 import qualified Data.Versions              as Ver
 
@@ -91,16 +91,22 @@ import qualified Data.Aeson.Diff            as Aeson
 import qualified Data.Aeson.Encode.Pretty   as Aeson
 
 import           Data.Hashable              (Hashable)
+
 import           Data.HashMap.Strict        (HashMap)
 import qualified Data.HashMap.Strict        as HM
+
 import           Data.HashSet               (HashSet)
 import qualified Data.HashSet               as HS
 
 import qualified Data.List.NonEmpty         as NE
 
+import qualified Turtle
+
 import           Flow
 
-import qualified Turtle
+import           Tests.Orphans              ()
+
+--------------------------------------------------------------------------------
 
 dataPrefix :: String
 dataPrefix = "./tests/data/"
@@ -302,14 +308,16 @@ opticsTests
     ]
   where
     testIso   :: ( Eq s, Eq a, Show s, Show a
-                 , Serial Identity s, Serial IO s, CoSerial IO s
-                 , Serial Identity a, Serial IO a, CoSerial IO a
+                 , SC.Serial Identity s, SC.Serial IO s, SC.CoSerial IO s
+                 , SC.Serial Identity a, SC.Serial IO a, SC.CoSerial IO a
                  ) => Int -> T.TestName -> Lens.Iso' s a -> T.TestTree
     testLens  :: ( Eq s, Eq a, Show s, Show a
-                 , Serial IO s, Serial IO a, Serial Identity a, CoSerial IO a
+                 , SC.Serial IO s, SC.Serial IO a
+                 , SC.Serial Identity a, SC.CoSerial IO a
                  ) => Int -> T.TestName -> Lens.Lens' s a -> T.TestTree
     testPrism :: ( Eq s, Eq a, Show s, Show a
-                 , Serial IO s, Serial IO a, Serial Identity a, CoSerial IO a
+                 , SC.Serial IO s, SC.Serial IO a
+                 , SC.Serial Identity a, SC.CoSerial IO a
                  ) => Int -> T.TestName -> Lens.Prism' s a -> T.TestTree
     testIso   d name i = withDepth d $ T.testGroup name [T.Iso.test   i]
     testLens  d name l = withDepth d $ T.testGroup name [T.Lens.test  l]
@@ -354,111 +362,5 @@ test = do
 main :: IO ()
 main = do
   test
-
---------------------------------------------------------------------------------
-
--- Orphan instances
-
-instance (Monad m) => SC.Serial m Ver.Version where
-  series = foldr1 (\/) (map pure testVersions)
-
-instance (Monad m, SC.CoSerial m Ver.VUnit) => SC.CoSerial m Ver.Version where
-  coseries = coseries
-             .> fmap (\f -> \(Ver.Version {..}) -> f (_vEpoch, _vChunks, _vRel))
-
-instance (Monad m) => SC.CoSerial m Ver.VUnit where
-  coseries = coseries
-             .> fmap (\f -> \case (Ver.Digits i) -> f (Right i)
-                                  (Ver.Str    s) -> f (Left  s))
-
-instance (Monad m) => SC.Serial m Text where
-  series = pure "" \/ pure "foo" \/ pure "42" \/ pure " "
-
-instance (Monad m) => SC.CoSerial m Text where
-  coseries rs = alts0 rs >>- \y -> alts2 rs >>- \f -> do
-    pure (Text.uncons
-          .> (\case Nothing      -> y
-                    Just (b, bs) -> f (Text.singleton b) bs))
-
-instance (Monad m, Serial m a) => Serial m (NE.NonEmpty a) where
-  series = series |> fmap (pure .> NE.fromList)
-  -- series = series |> fmap (SC.getNonEmpty .> NE.fromList)
-
-instance (Monad m, CoSerial m a) => CoSerial m (NE.NonEmpty a) where
-  coseries = coseries .> fmap (\f -> NE.toList .> f)
-
-instance (Monad m, Serial m a, Eq a, Hashable a) => Serial m (HashSet a) where
-  series = pure HS.empty
-           \/ (HS.singleton <$> series)
-           -- \/ (HS.union <$> series <~> series)
-
-instance ( Monad m, CoSerial m a, Eq a, Hashable a
-         ) => CoSerial m (HashSet a) where
-  coseries = SC.coseries .> fmap (\f -> HS.toList .> f)
-
-instance ( Monad m, Serial m k, Serial m v, Eq k, Hashable k
-         ) => Serial m (HashMap k v) where
-  series = pure HM.empty
-           \/ (HM.singleton <$> series <~> series)
-           -- \/ (HM.union <$> series <~> series)
-
-instance ( Monad m, CoSerial m k, CoSerial m v, Eq k, Hashable k
-         ) => CoSerial m (HashMap k v) where
-  coseries = SC.coseries .> fmap (\f -> HM.toList .> f)
-
---------------------------------------------------------------------------------
-
-testVersions :: [Ver.Version]
-testVersions = [ "0.1.0"
-               , "0.2"
-               , "0.2.0"
-               , "0.2.0.0"
-               , "0.25-2"
-               , "0.9.9.9"
-               , "1"
-               , "1.0"
-               , "1.0.0"
-               , "1.0.0.0"
-               , "1.0.0.1"
-               , "1.0.0-alpha"
-               , "1.0.0-alpha.1"
-               , "1.0.0-alpha.beta"
-               , "1.0.0-beta"
-               , "1.0.0-beta.11"
-               , "1.0.0-beta.2"
-               , "1.0.0-rc.1"
-               , "1:0.10.16-3"
-               , "1.0rc0"
-               , "1.0rc1"
-               , "1.1"
-               , "1:1.0"
-               , "1:1.1"
-               , "1:1.2.3-1"
-               , "1.1rc1"
-               , "1.2"
-               , "1.2.2r1-1"
-               , "1.2.3"
-               , "1.2.3-1"
-               , "1.2.3-alpha"
-               , "1.2.3-alpha.2"
-               , "1.2.3r1"
-               , "1.2.3r1-1"
-               , "1.2.4"
-               , "1.2.4r1-1"
-               , "1.2-5"
-               , "1.58.0-3"
-               , "2"
-               , "20150826-1"
-               , "21-2"
-               , "2.3.4"
-               , "3.4.5"
-               , "44.0.2403.157-1"
-               , "7.1p1-1"
-               , "8.u51-1"
-               ] |> map (Ver.version .> fromRight)
-  where
-    fromRight :: (Show a, Show b) => Either a b -> b
-    fromRight (Left  a) = error ("fromRight: " <> show a)
-    fromRight (Right b) = b
 
 --------------------------------------------------------------------------------
