@@ -1,10 +1,10 @@
 { mkDerivation, aeson, aeson-diff, aeson-pretty, base, bytestring
-, containers, cryptonite, deepseq, directory, Earley, exceptions
-, extra, flow, hashable, HUnit, intern, lens, makefile, megaparsec
-, mtl, QuickCheck, quickcheck-instances, shake, smallcheck
-, smallcheck-lens, stdenv, system-filepath, tasty, tasty-golden
-, tasty-html, tasty-hunit, tasty-lens, tasty-quickcheck
-, tasty-smallcheck, text, transformers, turtle
+, containers, cryptonite, deepseq, directory, Earley, ether
+, exceptions, extra, flow, hashable, HUnit, intern, lens, makefile
+, megaparsec, mtl, QuickCheck, quickcheck-instances, shake
+, smallcheck, smallcheck-lens, stdenv, system-filepath, tasty
+, tasty-golden, tasty-html, tasty-hunit, tasty-lens
+, tasty-quickcheck, tasty-smallcheck, text, transformers, turtle
 , unordered-containers, versions
 }:
 mkDerivation {
@@ -15,16 +15,16 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson aeson-pretty base bytestring containers deepseq directory
-    Earley exceptions extra flow hashable intern lens makefile
+    Earley ether exceptions extra flow hashable intern lens makefile
     megaparsec mtl QuickCheck quickcheck-instances shake smallcheck
     system-filepath text transformers unordered-containers versions
   ];
   executableHaskellDepends = [
-    aeson aeson-pretty base bytestring containers cryptonite flow
+    aeson aeson-pretty base bytestring containers cryptonite ether flow
     hashable lens makefile text unordered-containers
   ];
   testHaskellDepends = [
-    aeson aeson-diff aeson-pretty base bytestring containers flow
+    aeson aeson-diff aeson-pretty base bytestring containers ether flow
     hashable HUnit lens mtl QuickCheck quickcheck-instances smallcheck
     smallcheck-lens system-filepath tasty tasty-golden tasty-html
     tasty-hunit tasty-lens tasty-quickcheck tasty-smallcheck text
