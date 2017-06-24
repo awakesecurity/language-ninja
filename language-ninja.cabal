@@ -89,11 +89,12 @@ test-suite tests
     main-is:              Tests.hs
     build-depends:        language-ninja
                         , base                  >= 4.8   && < 5.0
-                        , aeson                 -any
-                        , aeson-diff            -any
-                        , aeson-pretty          -any
-                        , bytestring            -any
-                        , flow                  -any
+                        , aeson                 >= 1.0   && < 1.3
+                        , aeson-diff            >= 1.1   && < 1.2
+                        , aeson-pretty          >= 0.8   && < 0.9
+                        , bytestring            >= 0.10  && < 0.11
+                        , containers            >= 0.5   && < 0.6
+                        , flow                  >= 1.0   && < 1.1
                         , hashable              >= 1.2   && < 1.3
                         , HUnit                 >= 1.5   && < 1.6
                         , lens                  >= 4.15  && < 4.16
@@ -102,7 +103,7 @@ test-suite tests
                         , quickcheck-instances  >= 0.3   && < 0.4
                         , smallcheck            >= 1.1   && < 1.2
                         , smallcheck-lens       >= 0.3   && < 0.4
-                        , system-filepath       -any
+                        , system-filepath       >= 0.4   && < 0.5
                         , tasty                 >= 0.11  && < 0.12
                         , tasty-golden          >= 2.3   && < 2.4
                         , tasty-html            >= 0.4   && < 0.5
@@ -110,11 +111,12 @@ test-suite tests
                         , tasty-lens            >= 0.3   && < 0.4
                         , tasty-quickcheck      >= 0.8   && < 0.9
                         , tasty-smallcheck      >= 0.8   && < 0.9
-                        , text                  -any
-                        , transformers          -any
-                        , turtle                -any
+                        , text                  >= 1.2   && < 1.3
+                        , transformers          >= 0.5   && < 0.6
+                        , turtle                >= 1.3   && < 1.4
                         , unordered-containers  >= 0.2   && < 0.3
                         , versions              >= 3.1.1 && < 3.2
+                          -- FIXME: remove unneeded dependencies
     default-language:     Haskell2010
     other-extensions:     OverloadedStrings
                           -- FIXME: add the rest of the extensions used
@@ -126,17 +128,18 @@ executable ninja2nix
     other-modules:        Misc.Hash
     build-depends:        language-ninja
                         , base                  >= 4.8   && < 5.0
-                        , aeson                 -any
-                        , aeson-pretty          -any
-                        , bytestring            -any
-                        , containers            -any
+                        , aeson                 >= 1.0   && < 1.3
+                        , aeson-pretty          >= 0.8   && < 0.9
+                        , bytestring            >= 0.10  && < 0.11
+                        , containers            >= 0.5   && < 0.6
                         , cryptonite            >= 0.21  && < 0.22
-                        , flow                  -any
-                        , hashable              -any
-                        , lens                  -any
-                        , makefile              -any
-                        , text                  -any
-                        , unordered-containers  -any
+                        , flow                  >= 1.0   && < 1.1
+                        , hashable              >= 1.2   && < 1.3
+                        , lens                  >= 4.15  && < 4.16
+                        , makefile              >= 1.0   && < 1.1
+                        , text                  >= 1.2   && < 1.3
+                        , unordered-containers  >= 0.2   && < 0.3
+                          -- FIXME: remove unneeded dependencies
     default-language:     Haskell2010
     other-extensions:     OverloadedStrings
                           -- FIXME: add the rest of the extensions used
