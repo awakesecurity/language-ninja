@@ -60,10 +60,10 @@ import qualified Text.Megaparsec          as Mega
 
 import           Language.Ninja.Misc.Path (Path)
 
-import           Control.Lens.Lens        (Lens')
 import qualified Control.Lens
+import           Control.Lens.Lens        (Lens')
 
-import           Flow                     ((|>), (.>))
+import           Flow                     ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
@@ -77,6 +77,7 @@ data Meta
   deriving (Eq, Ord, Show, Generic)
 
 -- | Construct a default 'Meta' value.
+{-# INLINE makeMeta #-}
 makeMeta :: Meta
 makeMeta = MkMeta
            { _metaReqVersion = Nothing
@@ -84,11 +85,13 @@ makeMeta = MkMeta
            }
 
 -- | Corresponds to the @ninja_required_version@ top-level variable.
+{-# INLINE metaReqVersion #-}
 metaReqVersion :: Lens' Meta (Maybe Ver.Version)
 metaReqVersion = Control.Lens.lens _metaReqVersion
                  $ \(MkMeta {..}) x -> MkMeta { _metaReqVersion = x, .. }
 
 -- | Corresponds to the @builddir@ top-level variable.
+{-# INLINE metaBuildDir #-}
 metaBuildDir :: Lens' Meta (Maybe Path)
 metaBuildDir = Control.Lens.lens _metaBuildDir
                $ \(MkMeta {..}) x -> MkMeta { _metaBuildDir = x, .. }

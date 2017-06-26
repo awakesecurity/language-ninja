@@ -89,6 +89,7 @@ data Ninja
   deriving (Eq, Show, Generic)
 
 -- | Construct a default 'Ninja' value.
+{-# INLINE makeNinja #-}
 makeNinja :: Ninja
 makeNinja = MkNinja
             { _ninjaMeta     = Ninja.makeMeta
@@ -99,28 +100,33 @@ makeNinja = MkNinja
             }
 
 -- | Metadata, which includes top-level variables like @builddir@.
+{-# INLINE ninjaMeta #-}
 ninjaMeta :: Lens' Ninja Meta
 ninjaMeta = Control.Lens.lens _ninjaMeta
             $ \(MkNinja {..}) x -> MkNinja { _ninjaMeta = x, .. }
 
 -- | Compiled @build@ declarations.
+{-# INLINE ninjaBuilds #-}
 ninjaBuilds :: Lens' Ninja (HashSet Build)
 ninjaBuilds = Control.Lens.lens _ninjaBuilds
               $ \(MkNinja {..}) x -> MkNinja { _ninjaBuilds = x, .. }
 
 -- | Phony targets, as documented
 --   <https://ninja-build.org/manual.html#_more_details here>.
+{-# INLINE ninjaPhonys #-}
 ninjaPhonys :: Lens' Ninja (HashMap Target (HashSet Target))
 ninjaPhonys = Control.Lens.lens _ninjaPhonys
               $ \(MkNinja {..}) x -> MkNinja { _ninjaPhonys = x, .. }
 
 -- | The set of default targets, as documented
 --   <https://ninja-build.org/manual.html#_default_target_statements here>.
+{-# INLINE ninjaDefaults #-}
 ninjaDefaults :: Lens' Ninja (HashSet Target)
 ninjaDefaults = Control.Lens.lens _ninjaDefaults
                 $ \(MkNinja {..}) x -> MkNinja { _ninjaDefaults = x, .. }
 
 -- | The set of pools for this Ninja file.
+{-# INLINE ninjaPools #-}
 ninjaPools :: Lens' Ninja (HashSet Pool)
 ninjaPools = Control.Lens.lens _ninjaPools
              $ \(MkNinja {..}) x -> MkNinja { _ninjaPools = x, .. }

@@ -92,6 +92,7 @@ data Rule
 
 -- | Construct an 'Rule' with the given name and command, with default values
 --   for all other attributes (e.g.: 'False', 'Nothing', 'poolDefault').
+{-# INLINE makeRule #-}
 makeRule :: Text
          -- ^ The rule name.
          -> Command
@@ -112,11 +113,13 @@ makeRule name cmd
     }
 
 -- | The name of the rule.
+{-# INLINE ruleName #-}
 ruleName :: Lens' Rule Text
 ruleName = lens _ruleName
            $ \(MkRule {..}) x -> MkRule { _ruleName = x, .. }
 
 -- | The command that this rule will run.
+{-# INLINE ruleCommand #-}
 ruleCommand :: Lens' Rule Command
 ruleCommand = lens _ruleCommand
               $ \(MkRule {..}) x -> MkRule { _ruleCommand = x, .. }
@@ -125,11 +128,13 @@ ruleCommand = lens _ruleCommand
 --   as it's running. The @ninja -v@ flag controls whether to print the
 --   full command or its description; if a command fails, the full command
 --   line will always be printed before the command's output.
+{-# INLINE ruleDescription #-}
 ruleDescription :: Lens' Rule (Maybe Text)
 ruleDescription = lens _ruleDescription
                   $ \(MkRule {..}) x -> MkRule { _ruleDescription = x, .. }
 
 -- | The process pool in which this rule will be executed.
+{-# INLINE rulePool #-}
 rulePool :: Lens' Rule PoolName
 rulePool = lens _rulePool
            $ \(MkRule {..}) x -> MkRule { _rulePool = x, .. }
@@ -138,6 +143,7 @@ rulePool = lens _rulePool
 --   extra implicit dependencies. This is used to support C/C++ header
 --   dependencies. For more information, read the Ninja documentation
 --   <https://ninja-build.org/manual.html#_depfile here>.
+{-# INLINE ruleDepfile #-}
 ruleDepfile :: Lens' Rule (Maybe Path)
 ruleDepfile = lens _ruleDepfile
               $ \(MkRule {..}) x -> MkRule { _ruleDepfile = x, .. }
@@ -145,6 +151,7 @@ ruleDepfile = lens _ruleDepfile
 -- | If set, enables special dependency processing used in C/C++ header
 --   dependencies. For more information, read the Ninja documentation
 --   <https://ninja-build.org/manual.html#_deps here>.
+{-# INLINE ruleSpecialDeps #-}
 ruleSpecialDeps :: Lens' Rule (Maybe SpecialDeps)
 ruleSpecialDeps = lens _ruleSpecialDeps
                   $ \(MkRule {..}) x -> MkRule { _ruleSpecialDeps = x, .. }
@@ -153,6 +160,7 @@ ruleSpecialDeps = lens _ruleSpecialDeps
 --   generator program. Files built using generator rules are treated
 --   specially in two ways: firstly, they will not be rebuilt if the
 --   command line changes; and secondly, they are not cleaned by default.
+{-# INLINE ruleGenerator #-}
 ruleGenerator :: Lens' Rule Bool
 ruleGenerator = lens _ruleGenerator
                 $ \(MkRule {..}) x -> MkRule { _ruleGenerator = x, .. }
@@ -162,6 +170,7 @@ ruleGenerator = lens _ruleGenerator
 --   command did not change will be treated as though it had never needed
 --   to be built. This may cause the output's reverse dependencies to be
 --   removed from the list of pending build actions.
+{-# INLINE ruleRestat #-}
 ruleRestat :: Lens' Rule Bool
 ruleRestat = lens _ruleRestat
              $ \(MkRule {..}) x -> MkRule { _ruleRestat = x, .. }
@@ -172,6 +181,7 @@ ruleRestat = lens _ruleRestat
 --
 --   This is particularly useful on Windows OS, where the maximal length
 --   of a command line is limited and response files must be used instead.
+{-# INLINE ruleResponseFile #-}
 ruleResponseFile :: Lens' Rule (Maybe ResponseFile)
 ruleResponseFile = lens _ruleResponseFile
                    $ \(MkRule {..}) x -> MkRule { _ruleResponseFile = x, .. }
@@ -230,6 +240,7 @@ data SpecialDeps
 
 -- | Construct a 'SpecialDeps' corresponding to the case in which @deps = gcc@
 --   is set in a Ninja build rule.
+{-# INLINE makeSpecialDepsGCC #-}
 makeSpecialDepsGCC :: SpecialDeps
 makeSpecialDepsGCC = SpecialDepsGCC
 
@@ -239,6 +250,7 @@ makeSpecialDepsGCC = SpecialDepsGCC
 --   The @msvc_deps_prefix@ field defines the string which should be stripped
 --   from @msvc@'s @/showIncludes@ output. It is only needed if the version of
 --   Visual Studio being used is not English.
+{-# INLINE makeSpecialDepsMSVC #-}
 makeSpecialDepsMSVC :: Maybe Text
                     -- ^ If this is @Just …@, set @msvc_deps_prefix@ to the
                     --   given text; otherwise it will not be set.
@@ -246,12 +258,14 @@ makeSpecialDepsMSVC :: Maybe Text
 makeSpecialDepsMSVC = SpecialDepsMSVC
 
 -- | A prism for the @deps = gcc@ case.
+{-# INLINE _SpecialDepsGCC #-}
 _SpecialDepsGCC :: Prism' SpecialDeps ()
 _SpecialDepsGCC = prism (const makeSpecialDepsGCC)
                   $ \case SpecialDepsGCC -> Right ()
                           owise          -> Left owise
 
 -- | A prism for the @deps = msvc@ / @msvc_deps_prefix = …@ case.
+{-# INLINE _SpecialDepsMSVC #-}
 _SpecialDepsMSVC :: Prism' SpecialDeps (Maybe Text)
 _SpecialDepsMSVC = prism makeSpecialDepsMSVC
                    $ \case (SpecialDepsMSVC prefix) -> Right prefix
@@ -306,6 +320,7 @@ data ResponseFile
   deriving (Eq, Ord, Show, Generic)
 
 -- | Construct a 'ResponseFile' with the given 'Path' and content 'Text'.
+{-# INLINE makeResponseFile #-}
 makeResponseFile :: Path
                  -- ^ Corresponds to @rspfile@.
                  -> Text
@@ -314,12 +329,14 @@ makeResponseFile :: Path
 makeResponseFile = MkResponseFile
 
 -- | A lens for the @rspfile@ field.
+{-# INLINE responseFilePath #-}
 responseFilePath :: Lens' ResponseFile Path
 responseFilePath = lens _responseFilePath
                    $ \(MkResponseFile {..}) x ->
                        MkResponseFile { _responseFilePath = x, .. }
 
 -- | A lens for the @rspfile_content@ field.
+{-# INLINE responseFileContent #-}
 responseFileContent :: Lens' ResponseFile Text
 responseFileContent = lens _responseFileContent
                       $ \(MkResponseFile {..}) x ->

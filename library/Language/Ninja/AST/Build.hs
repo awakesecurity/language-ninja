@@ -75,6 +75,7 @@ data Build
   deriving (Eq, Show, Generic)
 
 -- | Construct a default 'Build' from the given 'Rule'
+{-# INLINE makeBuild #-}
 makeBuild :: Rule -> Build
 makeBuild rule = MkBuild
                  { _buildRule = rule
@@ -83,16 +84,19 @@ makeBuild rule = MkBuild
                  }
 
 -- | The rule to execute when building any of the outputs.
+{-# INLINE buildRule #-}
 buildRule :: Lens' Build Rule
 buildRule = Control.Lens.lens _buildRule
             $ \(MkBuild {..}) x -> MkBuild { _buildRule = x, .. }
 
 -- | The outputs that are built as a result of rule execution.
+{-# INLINE buildOuts #-}
 buildOuts :: Lens' Build (HashSet Output)
 buildOuts = Control.Lens.lens _buildOuts
             $ \(MkBuild {..}) x -> MkBuild { _buildOuts = x, .. }
 
 -- | The dependencies that must be satisfied before this can be built.
+{-# INLINE buildDeps #-}
 buildDeps :: Lens' Build (HashSet Dependency)
 buildDeps = Control.Lens.lens _buildDeps
             $ \(MkBuild {..}) x -> MkBuild { _buildDeps = x, .. }

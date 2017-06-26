@@ -85,10 +85,12 @@ newtype Target
            , ToJSON, FromJSON, ToJSONKey, FromJSONKey )
 
 -- | Construct a 'Target' from some 'Text'.
+{-# INLINE makeTarget #-}
 makeTarget :: Text -> Target
 makeTarget = view itext .> MkTarget
 
 -- | An isomorphism between a 'Target' and its underlying 'IText'.
+{-# INLINE targetIText #-}
 targetIText :: Iso' Target IText
 targetIText = iso _targetIText MkTarget
 
@@ -96,6 +98,7 @@ targetIText = iso _targetIText MkTarget
 --   even though the underlying data has type 'IText'.
 --
 --   This is equivalent to @targetIText . from itext@.
+{-# INLINE targetText #-}
 targetText :: Iso' Target Text
 targetText = targetIText . from itext
 
@@ -132,6 +135,7 @@ data Output
   deriving (Eq, Ord, Show, Read, Generic)
 
 -- | Construct an 'Output'.
+{-# INLINE makeOutput #-}
 makeOutput :: Target
            -- ^ The underlying target.
            -> OutputType
@@ -140,11 +144,13 @@ makeOutput :: Target
 makeOutput = MkOutput
 
 -- | A lens for the 'Target' of an 'Output'.
+{-# INLINE outputTarget #-}
 outputTarget :: Lens' Output Target
 outputTarget = lens _outputTarget
                $ \(MkOutput {..}) new -> MkOutput { _outputTarget = new, .. }
 
 -- | A lens for the 'OutputType' of an 'Output'.
+{-# INLINE outputType #-}
 outputType :: Lens' Output OutputType
 outputType = lens _outputType
              $ \(MkOutput {..}) new -> MkOutput { _outputType = new, .. }
@@ -177,12 +183,14 @@ data OutputType
   deriving (Eq, Ord, Show, Read, Generic)
 
 -- | A prism for the 'ExplicitOutput' constructor.
+{-# INLINE _ExplicitOutput #-}
 _ExplicitOutput :: Prism' OutputType ()
 _ExplicitOutput = prism' (const ExplicitOutput)
                    $ \case ExplicitOutput -> Just ()
                            _              -> Nothing
 
 -- | A prism for the 'ImplicitOutput' constructor.
+{-# INLINE _ImplicitOutput #-}
 _ImplicitOutput :: Prism' OutputType ()
 _ImplicitOutput = prism' (const ImplicitOutput)
                    $ \case ImplicitOutput -> Just ()
@@ -226,6 +234,7 @@ data Dependency
   deriving (Eq, Ord, Show, Read, Generic)
 
 -- | Construct a 'Dependency'.
+{-# INLINE makeDependency #-}
 makeDependency :: Target
                -- ^ The underlying target.
                -> DependencyType
@@ -234,12 +243,14 @@ makeDependency :: Target
 makeDependency = MkDependency
 
 -- | A lens for the 'Target' of a 'Dependency'.
+{-# INLINE dependencyTarget #-}
 dependencyTarget :: Lens' Dependency Target
 dependencyTarget
   = lens _dependencyTarget
     $ \(MkDependency {..}) new -> MkDependency { _dependencyTarget = new, .. }
 
 -- | A lens for the 'DependencyType' of a 'Dependency'.
+{-# INLINE dependencyType #-}
 dependencyType :: Lens' Dependency DependencyType
 dependencyType
   = lens _dependencyType
@@ -287,18 +298,21 @@ data DependencyType
   deriving (Eq, Ord, Show, Read, Generic)
 
 -- | A prism for the 'NormalDependency' constructor.
+{-# INLINE _NormalDependency #-}
 _NormalDependency :: Prism' DependencyType ()
 _NormalDependency = prism' (const NormalDependency)
                     $ \case NormalDependency -> Just ()
                             _                -> Nothing
 
 -- | A prism for the 'ImplicitDependency' constructor.
+{-# INLINE _ImplicitDependency #-}
 _ImplicitDependency :: Prism' DependencyType ()
 _ImplicitDependency = prism' (const ImplicitDependency)
                       $ \case ImplicitDependency -> Just ()
                               _                  -> Nothing
 
 -- | A prism for the 'OrderOnlyDependency' constructor.
+{-# INLINE _OrderOnlyDependency #-}
 _OrderOnlyDependency :: Prism' DependencyType ()
 _OrderOnlyDependency = prism' (const OrderOnlyDependency)
                        $ \case OrderOnlyDependency -> Just ()

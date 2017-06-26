@@ -90,8 +90,8 @@ data Pool
     }
   deriving (Eq, Ord, Show, Read, Generic)
 
-
 -- | Construct a 'Pool', given its name and depth.
+{-# INLINEABLE makePool #-}
 makePool :: PoolName -> PoolDepth -> Maybe Pool
 makePool PoolNameDefault    PoolInfinite  = Just makePoolDefault
 makePool PoolNameConsole    (PoolDepth 1) = Just makePoolConsole
@@ -104,24 +104,29 @@ makePool _                  _             = Nothing
 -- FIXME: use MonadThrow instead of Maybe here
 
 -- | The default pool, i.e.: the one whose name is the empty string.
+{-# INLINE makePoolDefault #-}
 makePoolDefault :: Pool
 makePoolDefault = MkPool makePoolNameDefault PoolInfinite
 
 -- | The @console@ pool.
+{-# INLINE makePoolConsole #-}
 makePoolConsole :: Pool
 makePoolConsole = MkPool makePoolNameConsole (PoolDepth 1)
 
 -- | Create a pool with the given name and depth.
+{-# INLINE makePoolCustom #-}
 makePoolCustom :: Text     -- ^ The pool name.
                -> Positive -- ^ The pool depth.
                -> Pool
 makePoolCustom name depth = MkPool (makePoolNameCustom name) (PoolDepth depth)
 
 -- | A 'Getter' that gives the name of a pool.
+{-# INLINE poolName #-}
 poolName :: Lens.Getter Pool PoolName
 poolName = Lens.to _poolName
 
 -- | A 'Getter' that gives the depth of a pool.
+{-# INLINE poolDepth #-}
 poolDepth :: Lens.Getter Pool PoolDepth
 poolDepth = Lens.to _poolDepth
 
@@ -176,38 +181,45 @@ data PoolName
 
 -- | Create a 'PoolName' corresponding to the built-in default pool, i.e.: the
 --   pool that is selected if the @pool@ attribute is set to the empty string.
+{-# INLINE makePoolNameDefault #-}
 makePoolNameDefault :: PoolName
 makePoolNameDefault = PoolNameDefault
 
 -- | Create a 'PoolName' corresponding to the built-in @console@ pool.
+{-# INLINE makePoolNameConsole #-}
 makePoolNameConsole :: PoolName
 makePoolNameConsole = PoolNameConsole
 
 -- | Create a 'PoolName' corresponding to a custom pool.
 --   Note: this can fail at runtime if given the empty string or @"console"@,
 --   so you should consider 'parsePoolName' as a safer alternative.
+{-# INLINEABLE makePoolNameCustom #-}
 makePoolNameCustom :: Text -> PoolName
 makePoolNameCustom ""        = error "Invalid pool name: \"\""
 makePoolNameCustom "console" = error "Invalid pool name: \"console\""
 makePoolNameCustom text      = PoolNameCustom text
 
 -- | A one-way prism corresponding to the 'poolNameDefault' constructor.
+{-# INLINE _PoolNameDefault #-}
 _PoolNameDefault :: Lens.Getter PoolName (Maybe ())
 _PoolNameDefault = Lens.to (\case PoolNameDefault -> Just ()
                                   _               -> Nothing)
 
 -- | A one-way prism corresponding to the 'poolNameConsole' constructor.
+{-# INLINE _PoolNameConsole #-}
 _PoolNameConsole :: Lens.Getter PoolName (Maybe ())
 _PoolNameConsole = Lens.to (\case PoolNameConsole -> Just ()
                                   _               -> Nothing)
 
 -- | A one-way prism corresponding to the 'poolNameConsole' constructor.
+{-# INLINE _PoolNameCustom #-}
 _PoolNameCustom :: Lens.Getter PoolName (Maybe Text)
 _PoolNameCustom = Lens.to (\case (PoolNameCustom t) -> Just t
                                  _                  -> Nothing)
 
 -- | An isomorphism between a 'PoolName' and the corresponding 'Text'.
 --   Equivalent to @'Lens.iso' 'printPoolName' 'parsePoolName'@.
+{-# INLINE poolNameText #-}
 poolNameText :: Lens.Iso' PoolName Text
 poolNameText = Lens.iso printPoolName parsePoolName
 
@@ -222,6 +234,7 @@ poolNameText = Lens.iso printPoolName parsePoolName
 --
 --   >>> printPoolName (poolNameCustom "foobar")
 --   "foobar"
+{-# INLINEABLE printPoolName #-}
 printPoolName :: PoolName -> Text
 printPoolName PoolNameDefault    = ""
 printPoolName PoolNameConsole    = "console"
@@ -237,6 +250,7 @@ printPoolName (PoolNameCustom t) = t
 --
 --   >>> parsePoolName "foobar"
 --   PoolNameCustom "foobar"
+{-# INLINEABLE parsePoolName #-}
 parsePoolName :: Text -> PoolName
 parsePoolName ""        = makePoolNameDefault
 parsePoolName "console" = makePoolNameConsole
@@ -291,24 +305,29 @@ data PoolDepth
 
 -- | Construct a finite 'PoolDepth' from an integer, which should be a number
 --   greater than or equal to 1.
+{-# INLINE makePoolDepth #-}
 makePoolDepth :: Positive -> PoolDepth
 makePoolDepth = PoolDepth
 
 -- | Construct an infinite 'PoolDepth'. This constructor is needed for the
 --   default pool (@pool = ""@), which has an infinite depth.
+{-# INLINE makePoolInfinite #-}
 makePoolInfinite :: PoolDepth
 makePoolInfinite = PoolInfinite
 
 -- | An isomorphism between a 'PoolDepth' and a @'Maybe' 'Positive'@;
 --   the 'Nothing' case maps to 'makePoolInfinite' and the 'Just' case
 --   maps to 'makePoolDepth'.
+{-# INLINE poolDepthPositive #-}
 poolDepthPositive :: Lens.Iso' PoolDepth (Maybe Positive)
 poolDepthPositive = Lens.iso fromPD toPD
   where
+    {-# INLINE fromPD #-}
     fromPD :: PoolDepth -> Maybe Positive
     fromPD (PoolDepth p) = Just p
     fromPD PoolInfinite  = Nothing
 
+    {-# INLINE toPD #-}
     toPD :: Maybe Positive -> PoolDepth
     toPD (Just p) = PoolDepth p
     toPD Nothing  = PoolInfinite
