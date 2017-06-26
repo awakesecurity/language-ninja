@@ -99,31 +99,38 @@ newtype Env k v
   deriving (Eq, Show, Generic)
 
 -- | Construct an empty environment.
+{-# INLINE makeEnv #-}
 makeEnv :: Env k v
 makeEnv = MkEnv (HM.empty :| [])
 
 -- | An isomorphism between an 'Env' and a nonempty list of 'HashMap's.
+{-# INLINE fromEnv #-}
 fromEnv :: Iso' (Env k v) (Maps k v)
 fromEnv = iso _fromEnv MkEnv
 
 -- | Get the first 'HashMap' in the underlying nonempty list.
+{-# INLINEABLE headEnv #-}
 headEnv :: Env k v -> HashMap k v
 headEnv (MkEnv (m :| _)) = m
 
 -- | If the remainder of the underlying nonempty list is nonempty, return
 --   the remainder after 'Env' wrapping. Otherwise, return 'Nothing'.
+{-# INLINEABLE tailEnv #-}
 tailEnv :: Env k v -> Maybe (Env k v)
 tailEnv (MkEnv (_ :| e)) = MkEnv <$> NE.nonEmpty e
 
 -- | Push a new 'Env' onto the stack.
+{-# INLINEABLE scopeEnv #-}
 scopeEnv :: Env k v -> Env k v
 scopeEnv e = MkEnv (NE.cons HM.empty (_fromEnv e))
 
 -- | Add the given key and value to the given 'Env'.
+{-# INLINEABLE addEnv #-}
 addEnv :: (Eq k, Hashable k) => k -> v -> Env k v -> Env k v
 addEnv k v (MkEnv (m :| rest)) = MkEnv (HM.insert k v m :| rest)
 
 -- | Look up the given key in the given 'Env'.
+{-# INLINEABLE askEnv #-}
 askEnv :: (Eq k, Hashable k) => Env k v -> k -> Maybe v
 askEnv env k = HM.lookup k (headEnv env)
                <|> (tailEnv env >>= (`askEnv` k))
