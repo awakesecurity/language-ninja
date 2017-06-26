@@ -22,7 +22,7 @@
 
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE RecordWildCards, FlexibleContexts     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- |
@@ -77,6 +77,7 @@ import           Control.Lens.Setter          ((.~))
 
 import           Control.Exception            (Exception)
 import           Control.Monad.Catch          (MonadThrow (..))
+import           Control.Monad.Error.Class
 
 import           Data.Char                    (isSpace)
 import           Data.Functor                 (void)
@@ -147,12 +148,12 @@ data CompileError
 instance Exception CompileError
 
 -- | Throw a 'CompileError'.
-throwCompileError :: (MonadThrow m) => CompileError -> m a
-throwCompileError = throwM
+throwCompileError :: (MonadError CompileError m) => CompileError -> m a
+throwCompileError = throwError
 
 -- | Throw a generic catch-all 'CompileError'.
-throwGenericCompileError :: (MonadThrow m) => Text -> m a
-throwGenericCompileError msg = throwM (GenericCompileError msg)
+throwGenericCompileError :: (MonadError CompileError m) => Text -> m a
+throwGenericCompileError msg = throwCompileError (GenericCompileError msg)
 
 --------------------------------------------------------------------------------
 
@@ -165,15 +166,16 @@ data CompileMetaError
   deriving (Eq, Show, Generic)
 
 -- | Throw a 'CompileMetaError'.
-throwCompileMetaError :: (MonadThrow m) => CompileMetaError -> m a
-throwCompileMetaError = CompileMetaError .> throwM
+throwCompileMetaError :: (MonadError CompileError m) => CompileMetaError -> m a
+throwCompileMetaError = CompileMetaError .> throwCompileError
 
 -- | Throw a generic catch-all 'CompileMetaError'.
-throwGenericCompileMetaError :: (MonadThrow m) => Text -> m a
+throwGenericCompileMetaError :: (MonadError CompileError m) => Text -> m a
 throwGenericCompileMetaError = GenericCompileMetaError .> throwCompileMetaError
 
 -- | Throw a 'VersionParseFailure' error.
-throwVersionParseFailure :: (MonadThrow m) => Ver.ParsingError -> m a
+throwVersionParseFailure :: (MonadError CompileError m)
+                         => Ver.ParsingError -> m a
 throwVersionParseFailure pe = throwCompileMetaError (VersionParseFailure pe)
 
 --------------------------------------------------------------------------------
@@ -185,11 +187,12 @@ data CompilePhonyError
   deriving (Eq, Show, Generic)
 
 -- | Throw a 'CompilePhonyError'.
-throwCompilePhonyError :: (MonadThrow m) => CompilePhonyError -> m a
-throwCompilePhonyError = CompilePhonyError .> throwM
+throwCompilePhonyError :: (MonadError CompileError m)
+                       => CompilePhonyError -> m a
+throwCompilePhonyError = CompilePhonyError .> throwCompileError
 
 -- | Throw a generic catch-all 'CompilePhonyError'.
-throwGenericCompilePhonyError :: (MonadThrow m) => Text -> m a
+throwGenericCompilePhonyError :: (MonadError CompileError m) => Text -> m a
 throwGenericCompilePhonyError = GenericCompilePhonyError
                                 .> throwCompilePhonyError
 
@@ -202,11 +205,12 @@ data CompileDefaultError
   deriving (Eq, Show, Generic)
 
 -- | Throw a 'CompileDefaultError'.
-throwCompileDefaultError :: (MonadThrow m) => CompileDefaultError -> m a
-throwCompileDefaultError = CompileDefaultError .> throwM
+throwCompileDefaultError :: (MonadError CompileError m)
+                         => CompileDefaultError -> m a
+throwCompileDefaultError = CompileDefaultError .> throwCompileError
 
 -- | Throw a generic catch-all 'CompileDefaultError'.
-throwGenericCompileDefaultError :: (MonadThrow m) => Text -> m a
+throwGenericCompileDefaultError :: (MonadError CompileError m) => Text -> m a
 throwGenericCompileDefaultError = GenericCompileDefaultError
                                   .> throwCompileDefaultError
 
@@ -221,16 +225,17 @@ data CompileBuildError
   deriving (Eq, Show, Generic)
 
 -- | Throw a 'CompileBuildError'.
-throwCompileBuildError :: (MonadThrow m) => CompileBuildError -> m a
-throwCompileBuildError = CompileBuildError .> throwM
+throwCompileBuildError :: (MonadError CompileError m)
+                       => CompileBuildError -> m a
+throwCompileBuildError = CompileBuildError .> throwCompileError
 
 -- | Throw a generic catch-all 'CompileBuildError'.
-throwGenericCompileBuildError :: (MonadThrow m) => Text -> m a
+throwGenericCompileBuildError :: (MonadError CompileError m) => Text -> m a
 throwGenericCompileBuildError = GenericCompileBuildError
                                 .> throwCompileBuildError
 
 -- | Throw a 'BuildRuleNotFound' error.
-throwBuildRuleNotFound :: (MonadThrow m) => Text -> m a
+throwBuildRuleNotFound :: (MonadError CompileError m) => Text -> m a
 throwBuildRuleNotFound name = throwCompileBuildError (BuildRuleNotFound name)
 
 --------------------------------------------------------------------------------
@@ -248,19 +253,19 @@ data CompileRuleError
   deriving (Eq, Show, Generic)
 
 -- | Throw a 'CompileRuleError'.
-throwCompileRuleError :: (MonadThrow m) => CompileRuleError -> m a
-throwCompileRuleError = CompileRuleError .> throwM
+throwCompileRuleError :: (MonadError CompileError m) => CompileRuleError -> m a
+throwCompileRuleError = CompileRuleError .> throwCompileError
 
 -- | Throw a generic catch-all 'CompileRuleError'.
-throwGenericCompileRuleError :: (MonadThrow m) => Text -> m a
+throwGenericCompileRuleError :: (MonadError CompileError m) => Text -> m a
 throwGenericCompileRuleError = GenericCompileRuleError .> throwCompileRuleError
 
 -- | Throw a 'RuleLookupFailure' error.
-throwRuleLookupFailure :: (MonadThrow m) => Text -> m a
+throwRuleLookupFailure :: (MonadError CompileError m) => Text -> m a
 throwRuleLookupFailure v = throwCompileRuleError (RuleLookupFailure v)
 
 -- | Throw an 'UnknownDeps' error.
-throwUnknownDeps :: (MonadThrow m) => Text -> m a
+throwUnknownDeps :: (MonadError CompileError m) => Text -> m a
 throwUnknownDeps deps = throwCompileRuleError (UnknownDepsValue deps)
 
 --------------------------------------------------------------------------------
@@ -276,19 +281,19 @@ data CompilePoolError
   deriving (Eq, Show, Generic)
 
 -- | Throw a 'CompilePoolError'.
-throwCompilePoolError :: (MonadThrow m) => CompilePoolError -> m a
-throwCompilePoolError = CompilePoolError .> throwM
+throwCompilePoolError :: (MonadError CompileError m) => CompilePoolError -> m a
+throwCompilePoolError = CompilePoolError .> throwCompileError
 
 -- | Throw a generic catch-all 'CompilePoolError'.
-throwGenericCompilePoolError :: (MonadThrow m) => Text -> m a
+throwGenericCompilePoolError :: (MonadError CompileError m) => Text -> m a
 throwGenericCompilePoolError = GenericCompilePoolError .> throwCompilePoolError
 
 -- | Throw an 'InvalidPoolDepth' error.
-throwInvalidPoolDepth :: (MonadThrow m) => Int -> m a
+throwInvalidPoolDepth :: (MonadError CompileError m) => Int -> m a
 throwInvalidPoolDepth d = throwCompilePoolError (InvalidPoolDepth d)
 
 -- | Throw an 'EmptyPoolName' error.
-throwEmptyPoolName :: (MonadThrow m) => m a
+throwEmptyPoolName :: (MonadError CompileError m) => m a
 throwEmptyPoolName = throwCompilePoolError EmptyPoolName
 
 --------------------------------------------------------------------------------

@@ -20,10 +20,12 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 
 -- |
 --   Module      : Language.Ninja.Compile
@@ -44,7 +46,7 @@ import           Control.Lens.Getter          ((^.))
 import           Control.Lens.Setter          ((.~))
 
 import           Control.Exception            (Exception)
-import           Control.Monad.Catch          (MonadThrow (..))
+import           Control.Monad.Error.Class    (MonadError (..))
 
 import           Data.Char                    (isSpace)
 import           Data.Functor                 (void)
@@ -95,7 +97,7 @@ import qualified Language.Ninja.Types         as Ninja
 -------------------------------------------------------------------------------
 
 -- | FIXME: doc
-compile :: forall m. (MonadThrow m) => PNinja -> m Ninja
+compile :: forall m. (MonadError Ninja.CompileError m) => PNinja -> m Ninja
 compile pninja = result
   where
     result :: m Ninja

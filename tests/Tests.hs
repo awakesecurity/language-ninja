@@ -54,6 +54,7 @@ import qualified Data.Text.IO               as Text
 
 import           Control.Exception
 import           Control.Monad
+import           Control.Monad.Error.Class
 import           Control.Monad.Identity     (Identity)
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Except
@@ -159,7 +160,7 @@ roundtripTest pninja = do
 
 compileTest :: Ninja.PNinja -> IO ()
 compileTest pninja = void $ do
-  Ninja.compile pninja
+  either (displayException .> fail) pure (Ninja.compile pninja)
 
 pninjaTests :: String -> Ninja.PNinja -> T.TestTree
 pninjaTests name pninja
