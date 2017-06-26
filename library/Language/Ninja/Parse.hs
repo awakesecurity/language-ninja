@@ -42,6 +42,8 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
 
+-- FIXME: either rename Parse => Parser or rename Lexer => Lex for consistency
+
 -- |
 --   Module      : Language.Ninja.Parse
 --   Copyright   : Copyright 2011-2017 Neil Mitchell
@@ -49,7 +51,7 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   Parse a Ninja file.
 module Language.Ninja.Parse
   ( parse, parseWithEnv
   ) where
@@ -59,7 +61,7 @@ import           Control.Monad         ((>=>))
 
 import           Control.Lens.Setter   ((%~), (.~))
 
-import           Data.Monoid           (Endo(..), (<>))
+import           Data.Monoid           (Endo (..), (<>))
 
 import qualified Data.ByteString.Char8 as BSC8
 
@@ -74,27 +76,36 @@ import           Data.HashSet          (HashSet)
 import qualified Data.HashSet          as HS
 
 import           Language.Ninja.Env    (askEnv)
-import           Language.Ninja.Lexer  (Lexeme(..), LBinding(..), LBuild(..),
-                                        LFile(..), LName(..), lexerFile)
+import           Language.Ninja.Lexer
+                 (LBinding (..), LBuild (..), LFile (..), LName (..),
+                 Lexeme (..), lexer)
 import           Language.Ninja.Types  (Env, PExpr, PNinja)
 import qualified Language.Ninja.Types  as Ninja
 
-import           Flow                  ((|>), (.>))
+import           Flow                  ((.>), (|>))
 
-type PNinjaWithEnv = (PNinja, Env Text Text)
+--------------------------------------------------------------------------------
 
--- | FIXME: doc
+-- | Parse the file at the given path into a 'PNinja'.
 parse :: FilePath -> IO PNinja
 parse file = parseWithEnv file Ninja.makeEnv
 
--- | FIXME: doc
+-- | Parse the file at the given path using the given Ninja variable context,
+--   resulting in a 'PNinja'.
 parseWithEnv :: FilePath -> Env Text Text -> IO PNinja
 parseWithEnv file env = fst <$> parseFile file (Ninja.makePNinja, env)
 
+--------------------------------------------------------------------------------
+
+type PNinjaWithEnv = (PNinja, Env Text Text)
+
 parseFile :: FilePath -> PNinjaWithEnv -> IO PNinjaWithEnv
 parseFile file (ninja, env) = do
-  lexes <- lexerFile $ if file == "-" then Nothing else Just file
-  withBinds lexes
+  bs <- if file == "-"
+        then BSC8.getContents
+        else BSC8.readFile file
+  let lexemes = lexer bs
+  withBinds lexemes
     |> map (uncurry applyStmt)
     |> foldr (>=>) pure
     |> (\f -> f (ninja, env))
@@ -193,6 +204,8 @@ applyDefine :: LBinding -> ApplyFun
 applyDefine (MkLBinding (MkLName var) value) _ (ninja, env) = do
   pure (ninja, Ninja.addBind (T.decodeUtf8 var) value env)
 
+-- FIXME: use MonadError instead of IO
+
 throwUnexpectedBinding :: LBinding -> IO a
 throwUnexpectedBinding (MkLBinding (MkLName var) _)
   = [ "Unexpected binding defining ", var
@@ -220,3 +233,5 @@ getDepth env xs = do
     Just x  -> case BSC8.readInt (T.encodeUtf8 x) of
                  (Just (i, n)) | BSC8.null n -> pure i
                  _                           -> poolDepthError x
+
+--------------------------------------------------------------------------------

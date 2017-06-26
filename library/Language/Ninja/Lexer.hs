@@ -73,24 +73,24 @@ import           Data.Text                    (Text)
 import qualified Data.Text                    as T
 import qualified Data.Text.Encoding           as T
 
-import           Data.Char                    (isAsciiLower, isAsciiUpper,
-                                               isDigit)
+import           Data.Char
+                 (isAsciiLower, isAsciiUpper, isDigit)
 import           Data.Tuple.Extra             (first)
 
 import           Flow                         ((|>))
 
 import qualified Data.Aeson                   as Aeson
 
-import           Language.Ninja.Types         (PExpr(..), Str)
+import           Language.Ninja.Types         (PExpr (..), Str)
 
 import qualified Language.Ninja.Misc.Located  as Loc
 
-import           Language.Ninja.Internal.Str0 (Str0(..))
+import           Language.Ninja.Internal.Str0 (Str0 (..))
 import qualified Language.Ninja.Internal.Str0
 
 --------------------------------------------------------------------------------
 
--- | Lex each line separately, rather than each lexeme
+-- | Lex each line separately, rather than each lexeme.
 data Lexeme
   = -- | @foo = bar@
     LexDefine   !LBinding
@@ -110,21 +110,21 @@ data Lexeme
     LexDefault  ![PExpr]
   deriving (Eq, Show)
 
--- | FIXME: doc
+-- | The name of a Ninja rule or pool.
 newtype LName
   = MkLName
     { _lnameStr :: Str
     }
   deriving (Eq, Show)
 
--- | FIXME: doc
+-- | A reference to a file in an @include@ or @subninja@ declaration.
 newtype LFile
   = MkLFile
     { _lfileExpr :: PExpr
     }
   deriving (Eq, Show)
 
--- | FIXME: doc
+-- | A Ninja variable binding, top-level or otherwise.
 data LBinding
   = MkLBinding
     { _lbindingName  :: !LName
@@ -132,7 +132,7 @@ data LBinding
     }
   deriving (Eq, Show)
 
--- | FIXME: doc
+-- | The data contained within a Ninja @build@ declaration.
 data LBuild
   = MkLBuild
     { _lbuildOuts :: ![PExpr]
@@ -143,13 +143,15 @@ data LBuild
 
 --------------------------------------------------------------------------------
 
--- | FIXME: doc
-lexerFile :: Maybe FilePath -> IO [Lexeme]
-lexerFile file = lexer <$> maybe BSC8.getContents BSC8.readFile file
+-- | Lex the given file.
+lexerFile :: FilePath -> IO [Lexeme]
+lexerFile file = lexer <$> BSC8.readFile file
 
--- | FIXME: doc
+-- | Lex the given 'BSC8.ByteString'.
 lexer :: Str -> [Lexeme]
 lexer x = lexerLoop (MkStr0 (BSC8.append x "\n\n\0"))
+
+--------------------------------------------------------------------------------
 
 lexerLoop :: Str0 -> [Lexeme]
 lexerLoop c_x
