@@ -57,8 +57,8 @@ import qualified Data.ByteString.Unsafe   as BS.Unsafe
 import           Data.Word                (Word8)
 import qualified Foreign.Ptr
 import qualified Foreign.Storable
-import           GHC.Exts                 (Ptr(..))
-import qualified System.IO.Unsafe
+import           GHC.Exts                 (Ptr (..))
+import           System.IO.Unsafe         (unsafePerformIO)
 
 --------------------------------------------------------------------------------
 
@@ -66,29 +66,33 @@ import qualified System.IO.Unsafe
 newtype Str0
   = MkStr0 ByteString
 
--- | FIXME: doc
+-- | A type alias for @'Ptr' 'Word8'@.
 type S = Ptr Word8
 
--- | FIXME: doc
+-- | Convert a pointer to a 'Word8' to a 'Char'.
+--
+--   FIXME: uses unsafePerformIO
+--   FIXME: probably shouldn't be exported
 char :: S -> Char
-char x =
-  BS.Internal.w2c $ System.IO.Unsafe.unsafePerformIO $ Foreign.Storable.peek x
+char x = BS.Internal.w2c $ unsafePerformIO $ Foreign.Storable.peek x
 
--- | FIXME: doc
+-- | Increment a pointer by one byte.
+--
+--   FIXME: probably shouldn't be exported
 next :: S -> S
 next x = x `Foreign.Ptr.plusPtr` 1
 
--- | FIXME: doc
+-- | Similar to 'BSC8.dropWhile', but for null-terminated bytestrings.
 {-# INLINE dropWhile0 #-}
 dropWhile0 :: (Char -> Bool) -> Str0 -> Str0
 dropWhile0 f x = snd $ span0 f x
 
--- | FIXME: doc
+-- | Similar to 'BSC8.span', but for null-terminated bytestrings.
 {-# INLINE span0 #-}
 span0 :: (Char -> Bool) -> Str0 -> (ByteString, Str0)
 span0 f = break0 (not . f)
 
--- | FIXME: doc
+-- | Similar to 'BSC8.break', but for null-terminated bytestrings.
 {-# INLINE break0 #-}
 break0 :: (Char -> Bool) -> Str0 -> (ByteString, Str0)
 break0 f (MkStr0 bs) = (initial, rest)
@@ -127,19 +131,23 @@ break00 f (MkStr0 bs) = (initial, rest)
       where
         c = char s
 
--- | FIXME: doc
+-- | Similar to 'BSC8.head', but for null-terminated bytestrings.
 head0 :: Str0 -> Char
 head0 (MkStr0 x) = BS.Internal.w2c $ BS.Unsafe.unsafeHead x
 
--- | FIXME: doc
+-- | Similar to 'BSC8.tail', but for null-terminated bytestrings.
 tail0 :: Str0 -> Str0
 tail0 (MkStr0 x) = MkStr0 $ BS.Unsafe.unsafeTail x
 
--- | FIXME: doc
+-- | Similar to 'BSC8.uncons', but for null-terminated bytestrings.
+--
+--   FIXME: badly named
+--
+--   FIXME: not obviously correct
 list0 :: Str0 -> (Char, Str0)
 list0 x = (head0 x, tail0 x)
 
--- | FIXME: doc
+-- | Similar to 'BSC8.take', but for null-terminated bytestrings.
 take0 :: Int -> Str0 -> ByteString
 take0 i (MkStr0 x) = BSC8.takeWhile (/= '\0') $ BSC8.take i x
 
