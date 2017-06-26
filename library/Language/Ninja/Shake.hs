@@ -50,13 +50,15 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   Evaluate a parsed Ninja file to a Shake build rule.
+--
+--   FIXME: remove this module
 module Language.Ninja.Shake
   ( runNinja
   ) where
 
 import           Data.Bifunctor             (bimap, first)
-import           Data.Monoid                (Endo(..), (<>))
+import           Data.Monoid                (Endo (..), (<>))
 
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
@@ -97,29 +99,13 @@ import qualified Data.HashMap.Strict        as HM
 import           Data.HashSet               (HashSet)
 import qualified Data.HashSet               as HS
 
-import           Flow                       ((|>), (.>))
-
---------------------------------------------------------------------------------
--- STUBS
-
-filepathNormalise :: Text -> Text
-filepathNormalise = T.unpack
-                    .> Shake.normaliseEx
-                    .> Shake.toStandard
-                    .> T.pack
-
-needT :: [Text] -> Action ()
-needT = Shake.need . map T.unpack
-
-neededT :: [Text] -> Action ()
-neededT = Shake.needed . map T.unpack
-
-orderOnlyT :: [Text] -> Action ()
-orderOnlyT = Shake.orderOnly . map T.unpack
+import           Flow                       ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
--- | FIXME: doc
+-- | Given a Ninja file, a list of arguments, and the tool name associated
+--   with the @-t <tool>@ argument, create a Shake rule that will execute
+--   the relevant actions.
 runNinja :: FilePath
          -> [String]
          -> Maybe String
@@ -127,6 +113,8 @@ runNinja :: FilePath
 runNinja file args tool = do
   options <- parseNinjaOptions file args tool
   ninjaDispatch options
+
+--------------------------------------------------------------------------------
 
 data NinjaOptions
   = NinjaOptionsBuild   !PNinja ![Text]
@@ -520,3 +508,22 @@ splitArgs = f Gap
     add :: String -> [String] -> [String]
     add a (b:c) = (a <> b) : c
     add a []    = [a]
+
+--------------------------------------------------------------------------------
+
+filepathNormalise :: Text -> Text
+filepathNormalise = T.unpack
+                    .> Shake.normaliseEx
+                    .> Shake.toStandard
+                    .> T.pack
+
+needT :: [Text] -> Action ()
+needT = Shake.need . map T.unpack
+
+neededT :: [Text] -> Action ()
+neededT = Shake.needed . map T.unpack
+
+orderOnlyT :: [Text] -> Action ()
+orderOnlyT = Shake.orderOnly . map T.unpack
+
+--------------------------------------------------------------------------------

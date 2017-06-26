@@ -34,7 +34,7 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   Compile a parsed Ninja file into an intermediate representation.
 module Language.Ninja.Compile
   ( compile
   ) where
@@ -96,7 +96,7 @@ import qualified Language.Ninja.Types         as Ninja
 
 -------------------------------------------------------------------------------
 
--- | FIXME: doc
+-- | Compile a 'PNinja' into a 'Ninja'.
 compile :: forall m. (MonadError Ninja.CompileError m) => PNinja -> m Ninja
 compile pninja = result
   where

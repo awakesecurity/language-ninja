@@ -32,7 +32,7 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   Errors thrown during Ninja compilation.
 module Language.Ninja.Errors.Compile
   ( -- * @CompileError@
     CompileError (..)

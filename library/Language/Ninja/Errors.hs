@@ -27,7 +27,8 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   The module re-exports the modules under @Language.Ninja.Errors.*@, all of
+--   which are related to error types used in @language-ninja@.
 module Language.Ninja.Errors
   ( module Language.Ninja.Errors.Compile
   ) where

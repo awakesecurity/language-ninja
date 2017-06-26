@@ -27,7 +27,10 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   Tools for parsing, pretty-printing, and compiling the Ninja build language.
+--
+--   The module re-exports most of the modules under the @Language.Ninja@
+--   namespace.
 module Language.Ninja
   ( module Exported
   ) where
