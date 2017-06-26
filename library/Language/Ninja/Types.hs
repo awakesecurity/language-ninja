@@ -163,18 +163,21 @@ data PExpr
   deriving (Eq, Show, Generic)
 
 -- | A prism for the 'PExprs' constructor.
+{-# INLINE _PExprs #-}
 _PExprs :: Prism' PExpr [PExpr]
 _PExprs = prism' PExprs
           $ \case (PExprs xs) -> Just xs
                   _           -> Nothing
 
 -- | A prism for the 'PLit' constructor.
+{-# INLINE _PLit #-}
 _PLit :: Prism' PExpr Text
 _PLit = prism' PLit
         $ \case (PLit t) -> Just t
                 _        -> Nothing
 
 -- | A prism for the 'PVar' constructor.
+{-# INLINE _PVar #-}
 _PVar :: Prism' PExpr Text
 _PVar = prism' PVar
         $ \case (PVar t) -> Just t
@@ -258,6 +261,7 @@ data PNinja
   deriving (Eq, Show, Generic)
 
 -- | Construct a 'PNinja' with all default values
+{-# INLINE makePNinja #-}
 makePNinja :: PNinja
 makePNinja = MkPNinja
              { _pninjaRules     = mempty
@@ -270,36 +274,43 @@ makePNinja = MkPNinja
              }
 
 -- | The rules defined in a parsed Ninja file.
+{-# INLINE pninjaRules #-}
 pninjaRules :: Lens' PNinja (HashMap Text PRule)
 pninjaRules = Control.Lens.lens _pninjaRules
               $ \(MkPNinja {..}) x -> MkPNinja { _pninjaRules = x, .. }
 
 -- | The set of build declarations with precisely one output.
+{-# INLINE pninjaSingles #-}
 pninjaSingles :: Lens' PNinja (HashMap FileText PBuild)
 pninjaSingles = Control.Lens.lens _pninjaSingles
                 $ \(MkPNinja {..}) x -> MkPNinja { _pninjaSingles = x, .. }
 
 -- | The set of build declarations with two or more outputs.
+{-# INLINE pninjaMultiples #-}
 pninjaMultiples :: Lens' PNinja (HashMap (HashSet FileText) PBuild)
 pninjaMultiples = Control.Lens.lens _pninjaMultiples
                   $ \(MkPNinja {..}) x -> MkPNinja { _pninjaMultiples = x, .. }
 
 -- | The set of phony build declarations.
+{-# INLINE pninjaPhonys #-}
 pninjaPhonys :: Lens' PNinja (HashMap Text (HashSet FileText))
 pninjaPhonys = Control.Lens.lens _pninjaPhonys
                $ \(MkPNinja {..}) x -> MkPNinja { _pninjaPhonys = x, .. }
 
 -- | The set of default targets.
+{-# INLINE pninjaDefaults #-}
 pninjaDefaults :: Lens' PNinja (HashSet FileText)
 pninjaDefaults = Control.Lens.lens _pninjaDefaults
                  $ \(MkPNinja {..}) x -> MkPNinja { _pninjaDefaults = x, .. }
 
 -- | A mapping from pool names to pool depth integers.
+{-# INLINE pninjaPools #-}
 pninjaPools :: Lens' PNinja (HashMap Text Int)
 pninjaPools = Control.Lens.lens _pninjaPools
               $ \(MkPNinja {..}) x -> MkPNinja { _pninjaPools = x, .. }
 
 -- | A map from "special" top-level variables to their values.
+{-# INLINE pninjaSpecials #-}
 pninjaSpecials :: Lens' PNinja (HashMap Text Text)
 pninjaSpecials = Control.Lens.lens _pninjaSpecials
                  $ \(MkPNinja {..}) x -> MkPNinja { _pninjaSpecials = x, .. }
@@ -375,6 +386,7 @@ data PBuild
   deriving (Eq, Show, Generic)
 
 -- | Construct a 'PBuild' with all default values.
+{-# INLINE makePBuild #-}
 makePBuild :: Text
            -- ^ The rule name
            -> Env Text Text
@@ -388,21 +400,25 @@ makePBuild rule env = MkPBuild
                       }
 
 -- | A lens into the rule name associated with a 'PBuild'.
+{-# INLINE pbuildRule #-}
 pbuildRule :: Lens' PBuild Text
 pbuildRule = Control.Lens.lens _pbuildRule
              $ \(MkPBuild {..}) x -> MkPBuild { _pbuildRule = x, .. }
 
 -- | A lens into the environment associated with a 'PBuild'.
+{-# INLINE pbuildEnv #-}
 pbuildEnv :: Lens' PBuild (Env Text Text)
 pbuildEnv = Control.Lens.lens _pbuildEnv
             $ \(MkPBuild {..}) x -> MkPBuild { _pbuildEnv = x, .. }
 
 -- | A lens into the dependencies associated with a 'PBuild'.
+{-# INLINE pbuildDeps #-}
 pbuildDeps :: Lens' PBuild PDeps
 pbuildDeps = Control.Lens.lens _pbuildDeps
              $ \(MkPBuild {..}) x -> MkPBuild { _pbuildDeps = x, .. }
 
 -- | A lens into the bindings associated with a 'PBuild'.
+{-# INLINE pbuildBind #-}
 pbuildBind :: Lens' PBuild (HashMap Text Text)
 pbuildBind = Control.Lens.lens _pbuildBind
              $ \(MkPBuild {..}) x -> MkPBuild { _pbuildBind = x, .. }
@@ -453,6 +469,7 @@ data PDeps
   deriving (Eq, Show, Generic)
 
 -- | Construct a 'PDeps' with all default values
+{-# INLINE makePDeps #-}
 makePDeps :: PDeps
 makePDeps = MkPDeps
             { _pdepsNormal    = mempty
@@ -461,16 +478,19 @@ makePDeps = MkPDeps
             }
 
 -- | A lens into the set of normal dependencies in a 'PDeps'.
+{-# INLINE pdepsNormal #-}
 pdepsNormal :: Lens' PDeps (HashSet FileText)
 pdepsNormal = Control.Lens.lens _pdepsNormal
               $ \(MkPDeps {..}) x -> MkPDeps { _pdepsNormal = x, .. }
 
 -- | A lens into the set of implicit dependencies in a 'PDeps'.
+{-# INLINE pdepsImplicit #-}
 pdepsImplicit :: Lens' PDeps (HashSet FileText)
 pdepsImplicit = Control.Lens.lens _pdepsImplicit
                 $ \(MkPDeps {..}) x -> MkPDeps { _pdepsImplicit = x, .. }
 
 -- | A lens into the set of order-only dependencies in a 'PDeps'.
+{-# INLINE pdepsOrderOnly #-}
 pdepsOrderOnly :: Lens' PDeps (HashSet FileText)
 pdepsOrderOnly = Control.Lens.lens _pdepsOrderOnly
                  $ \(MkPDeps {..}) x -> MkPDeps { _pdepsOrderOnly = x, .. }
@@ -509,12 +529,14 @@ newtype PRule
   deriving (Eq, Show, Generic)
 
 -- | Construct a 'PRule' with all default values
+{-# INLINE makePRule #-}
 makePRule :: PRule
 makePRule = MkPRule
             { _pruleBind = mempty
             }
 
 -- | The set of bindings in scope during the execution of this rule.
+{-# INLINE pruleBind #-}
 pruleBind :: Lens' PRule (HashMap Text PExpr)
 pruleBind = Control.Lens.lens _pruleBind (const MkPRule)
 
