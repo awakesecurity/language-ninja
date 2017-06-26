@@ -68,10 +68,12 @@ module Language.Ninja.Types
   , pninjaDefaults
   , pninjaPools
   , pninjaSpecials
+  , PNinjaConstraint
 
     -- * @PBuild@
   , PBuild, makePBuild
   , pbuildRule, pbuildEnv, pbuildDeps, pbuildBind
+  , PBuildConstraint
 
     -- * @PDeps@
   , PDeps, makePDeps
@@ -141,24 +143,24 @@ import           Flow                      ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
--- | FIXME: doc
+-- | A type alias for 'BSC8.ByteString'.
 type Str = BSC8.ByteString
 
--- | FIXME: doc
+-- | A type alias for 'BSC8.ByteString', representing a path.
 type FileStr = BSC8.ByteString
 
--- | FIXME: doc
+-- | A type alias for 'Text', representing a path.
 type FileText = Text
 
 --------------------------------------------------------------------------------
 
--- | FIXME: doc
+-- | An expression containing variable references in the Ninja language.
 data PExpr
-  = -- | FIXME: doc
+  = -- | Sequencing of expressions.
     PExprs [PExpr]
-  | -- | FIXME: doc
+  | -- | A literal string.
     PLit Text
-  | -- | FIXME: doc
+  | -- | A variable reference.
     PVar Text
   deriving (Eq, Show, Generic)
 
@@ -183,33 +185,43 @@ _PVar = prism' PVar
         $ \case (PVar t) -> Just t
                 _        -> Nothing
 
--- | FIXME: doc
+-- | Evaluate the given 'PExpr' in the given context (@'Env' 'Text' 'Text'@).
 askExpr :: Env Text Text -> PExpr -> Text
 askExpr e (PExprs xs) = T.concat (map (askExpr e) xs)
 askExpr _ (PLit x)    = x
 askExpr e (PVar x)    = askVar e x
 
--- | FIXME: doc
+-- | Look up the given variable in the given context, returning the empty string
+--   if the variable was not found.
 askVar :: Env Text Text -> Text -> Text
 askVar e x = Data.Maybe.fromMaybe T.empty (Ninja.askEnv e x)
 
--- | FIXME: doc
+-- | Add a binding with the given name ('Text') and value ('PExpr') to the
+--   given context.
 addBind :: Text -> PExpr -> Env Text Text -> Env Text Text
 addBind k v e = Ninja.addEnv k (askExpr e v) e
 
--- | FIXME: doc
+-- | Add bindings from a list. Note that this function evaluates all the
+--   right-hand-sides first, and then adds them all to the environment.
+--
+--   For example:
+--
+--   >>> let binds = [("x", PLit "5"), ("y", PVar "x")]
+--   >>> Ninja.headEnv (addBinds binds Ninja.makeEnv)
+--   fromList [("x","5"),("y","")]
 addBinds :: [(Text, PExpr)] -> Env Text Text -> Env Text Text
 addBinds bs e = map (second (askExpr e) .> uncurry Ninja.addEnv .> Endo) bs
                 |> mconcat
                 |> (\endo -> appEndo endo e)
 
--- | FIXME: doc
+-- | Converts 'PExprs' to a JSON list, 'PLit' to a JSON string,
+--   and 'PVar' to @{var: …}@.
 instance ToJSON PExpr where
   toJSON (PExprs xs) = toJSON xs
   toJSON (PLit  str) = toJSON str
   toJSON (PVar  var) = Aeson.object ["var" .= var]
 
--- | FIXME: doc
+-- | Inverse of the 'ToJSON' instance.
 instance FromJSON PExpr where
   parseJSON = [ \v -> PExprs <$> parseJSON v
               , \v -> PLit   <$> parseJSON v
@@ -219,7 +231,7 @@ instance FromJSON PExpr where
       choice :: [Value -> Aeson.Parser a] -> (Value -> Aeson.Parser a)
       choice = flip (\v -> map (\f -> f v)) .> fmap asum
 
--- | FIXME: doc
+-- | Reasonable 'Arbitrary' instance for 'PExpr'.
 instance Arbitrary PExpr where
   arbitrary = Q.sized go
     where
@@ -239,10 +251,10 @@ instance Arbitrary PExpr where
       maxWidth  = 5
       lossRate  = 2
 
--- | FIXME: doc
+-- | Default 'SC.Serial' instance via 'Generic'.
 instance (Monad m, SC.Serial m Text) => SC.Serial m PExpr
 
--- | FIXME: doc
+-- | Default 'SC.CoSerial' instance via 'Generic'.
 instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m PExpr
 
 --------------------------------------------------------------------------------
@@ -315,7 +327,9 @@ pninjaSpecials :: Lens' PNinja (HashMap Text Text)
 pninjaSpecials = Control.Lens.lens _pninjaSpecials
                  $ \(MkPNinja {..}) x -> MkPNinja { _pninjaSpecials = x, .. }
 
--- | FIXME: doc
+-- | Converts to
+--   @{rules: …, singles: …, multiples: …, phonys: …, defaults: …,
+--     pools: …, specials: …}@.
 instance ToJSON PNinja where
   toJSON (MkPNinja {..})
     = [ "rules"     .= _pninjaRules
@@ -334,7 +348,7 @@ instance ToJSON PNinja where
       printPair outputs build =
         Aeson.object ["outputs" .= outputs, "build" .= build]
 
--- | FIXME: doc
+-- | Inverse of the 'ToJSON' instance.
 instance FromJSON PNinja where
   parseJSON = (Aeson.withObject "PNinja" $ \o -> do
                   _pninjaRules     <- (o .: "rules")     >>= pure
@@ -355,23 +369,22 @@ instance FromJSON PNinja where
                       build   <- (o .: "build")   >>= pure
                       pure (outputs, build))
 
-type PNinjaConstraint (constraint :: (* -> *) -> * -> Constraint) (m :: * -> *)
-  = ( constraint m Text
-    , constraint m (HashSet FileText)
-    , constraint m (HashMap Text Text)
-    , constraint m (Ninja.Maps Text Text)
-    , constraint m (HashMap (HashSet FileText) PBuild)
-    , constraint m (HashMap Text (HashSet FileText))
-    , constraint m (HashMap Text PRule)
-    , constraint m (HashMap FileText PBuild)
-    , constraint m (HashMap Text Int)
+-- | Default 'SC.Serial' instance via 'Generic'.
+instance (Monad m, PNinjaConstraint (SC.Serial m)) => SC.Serial m PNinja
+
+-- | Default 'SC.CoSerial' instance via 'Generic'.
+instance (Monad m, PNinjaConstraint (SC.CoSerial m)) => SC.CoSerial m PNinja
+
+-- | The set of constraints required for a given constraint to be automatically
+--   computed for a 'PNinja'.
+type PNinjaConstraint (c :: * -> Constraint)
+  = ( PBuildConstraint c
+    , c (HashMap (HashSet FileText) PBuild)
+    , c (HashMap Text (HashSet FileText))
+    , c (HashMap Text PRule)
+    , c (HashMap FileText PBuild)
+    , c (HashMap Text Int)
     )
-
--- | FIXME: doc
-instance (Monad m, PNinjaConstraint SC.Serial m) => SC.Serial m PNinja
-
--- | FIXME: doc
-instance (Monad m, PNinjaConstraint SC.CoSerial m) => SC.CoSerial m PNinja
 
 --------------------------------------------------------------------------------
 
@@ -423,7 +436,7 @@ pbuildBind :: Lens' PBuild (HashMap Text Text)
 pbuildBind = Control.Lens.lens _pbuildBind
              $ \(MkPBuild {..}) x -> MkPBuild { _pbuildBind = x, .. }
 
--- | FIXME: doc
+-- | Converts to @{rule: …, env: …, deps: …, bind: …}@.
 instance ToJSON PBuild where
   toJSON (MkPBuild {..})
     = [ "rule" .= _pbuildRule
@@ -432,7 +445,7 @@ instance ToJSON PBuild where
       , "bind" .= _pbuildBind
       ] |> Aeson.object
 
--- | FIXME: doc
+-- | Inverse of the 'ToJSON' instance.
 instance FromJSON PBuild where
   parseJSON = (Aeson.withObject "PBuild" $ \o -> do
                   _pbuildRule <- (o .: "rule") >>= pure
@@ -441,21 +454,20 @@ instance FromJSON PBuild where
                   _pbuildBind <- (o .: "bind") >>= pure
                   pure (MkPBuild {..}))
 
--- | FIXME: doc
-instance ( Monad m
-         , SC.Serial m Text
-         , SC.Serial m (HashSet FileText)
-         , SC.Serial m (HashMap Text Text)
-         , SC.Serial m (Ninja.Maps Text Text)
-         ) => SC.Serial m PBuild
+-- | Default 'SC.Serial' instance via 'Generic'.
+instance (Monad m, PBuildConstraint (SC.Serial m)) => SC.Serial m PBuild
 
--- | FIXME: doc
-instance ( Monad m
-         , SC.CoSerial m Text
-         , SC.CoSerial m (HashSet FileText)
-         , SC.CoSerial m (HashMap Text Text)
-         , SC.CoSerial m (Ninja.Maps Text Text)
-         ) => SC.CoSerial m PBuild
+-- | Default 'SC.CoSerial' instance via 'Generic'.
+instance (Monad m, PBuildConstraint (SC.CoSerial m)) => SC.CoSerial m PBuild
+
+-- | The set of constraints required for a given constraint to be automatically
+--   computed for a 'PBuild'.
+type PBuildConstraint (c :: * -> Constraint)
+  = ( c Text
+    , c (HashSet FileText)
+    , c (HashMap Text Text)
+    , c (Ninja.Maps Text Text)
+    )
 
 --------------------------------------------------------------------------------
 
@@ -495,7 +507,7 @@ pdepsOrderOnly :: Lens' PDeps (HashSet FileText)
 pdepsOrderOnly = Control.Lens.lens _pdepsOrderOnly
                  $ \(MkPDeps {..}) x -> MkPDeps { _pdepsOrderOnly = x, .. }
 
--- | FIXME: doc
+-- | Converts to @{normal: …, implicit: …, order-only: …}@.
 instance ToJSON PDeps where
   toJSON (MkPDeps {..})
     = [ "normal"     .= _pdepsNormal
@@ -503,7 +515,7 @@ instance ToJSON PDeps where
       , "order-only" .= _pdepsOrderOnly
       ] |> Aeson.object
 
--- | FIXME: doc
+-- | Inverse of the 'ToJSON' instance.
 instance FromJSON PDeps where
   parseJSON = (Aeson.withObject "PDeps" $ \o -> do
                   _pdepsNormal    <- (o .: "normal")     >>= pure
@@ -511,11 +523,11 @@ instance FromJSON PDeps where
                   _pdepsOrderOnly <- (o .: "order-only") >>= pure
                   pure (MkPDeps {..}))
 
--- | FIXME: doc
+-- | Default 'SC.Serial' instance via 'Generic'.
 instance ( Monad m, SC.Serial m (HashSet FileText)
          ) => SC.Serial m PDeps
 
--- | FIXME: doc
+-- | Default 'SC.CoSerial' instance via 'Generic'.
 instance ( Monad m, SC.CoSerial m (HashSet FileText)
          ) => SC.CoSerial m PDeps
 
@@ -540,19 +552,19 @@ makePRule = MkPRule
 pruleBind :: Lens' PRule (HashMap Text PExpr)
 pruleBind = Control.Lens.lens _pruleBind (const MkPRule)
 
--- | FIXME: doc
+-- | Uses the 'ToJSON' instance of the underlying @'HashMap' 'Text' 'PEXpr'@.
 instance ToJSON PRule where
   toJSON = _pruleBind .> toJSON
 
--- | FIXME: doc
+-- | Inverse of the 'ToJSON' instance.
 instance FromJSON PRule where
   parseJSON = parseJSON .> fmap MkPRule
 
--- | FIXME: doc
+-- | Default 'SC.Serial' instance via 'Generic'.
 instance ( Monad m, SC.Serial m (HashMap Text PExpr)
          ) => SC.Serial m PRule
 
--- | FIXME: doc
+-- | Default 'SC.CoSerial' instance via 'Generic'.
 instance ( Monad m, SC.CoSerial m (HashMap Text PExpr)
          ) => SC.CoSerial m PRule
 

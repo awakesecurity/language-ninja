@@ -165,10 +165,10 @@ type NinjaConstraint
     , constraint m (HashSet Pool)
     )
 
--- | FIXME: doc
+-- | Default 'SC.Serial' instance via 'Generic'.
 instance (Monad m, NinjaConstraint SC.Serial m) => SC.Serial m Ninja
 
--- | FIXME: doc
+-- | Default 'SC.CoSerial' instance via 'Generic'.
 instance (Monad m, NinjaConstraint SC.CoSerial m) => SC.CoSerial m Ninja
 
 --------------------------------------------------------------------------------
