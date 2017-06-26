@@ -50,9 +50,9 @@ module Language.Ninja.Misc.Located
 
 import           Control.Arrow            (second, (***))
 
+import qualified Control.Lens
 import           Control.Lens.Getter      ((^.))
 import           Control.Lens.Lens        (Lens')
-import qualified Control.Lens
 
 import           Control.Monad.ST         (ST)
 import qualified Control.Monad.ST
@@ -70,12 +70,12 @@ import qualified Data.Text.IO             as T
 import           Data.Map.Strict          (Map)
 import qualified Data.Map.Strict          as Map
 
-import           Data.Aeson               (FromJSON(..), KeyValue(..),
-                                           ToJSON(..), (.:))
+import           Data.Aeson
+                 (FromJSON (..), KeyValue (..), ToJSON (..), (.:))
 import qualified Data.Aeson               as Aeson
 import qualified Data.Aeson.Types         as Aeson
 
-import           Flow                     ((|>), (.>))
+import           Flow                     ((.>), (|>))
 
 import           Language.Ninja.Misc.Path (Path)
 import qualified Language.Ninja.Misc.Path as Ninja
@@ -91,6 +91,7 @@ data Located t
   deriving (Eq, Show, Functor)
 
 -- | Construct a 'Located' value directly.
+{-# INLINE makeLocated #-}
 makeLocated :: Position -> t -> Located t
 makeLocated = MkLocated
 
@@ -116,11 +117,13 @@ untokenize :: [Located Text] -> Map Path Text
 untokenize = undefined -- FIXME: implement
 
 -- | The position of this located value.
+{-# INLINE locatedPos #-}
 locatedPos :: Lens' (Located t) Position
 locatedPos = Control.Lens.lens _locatedPos
              $ \(MkLocated {..}) x -> MkLocated { _locatedPos = x, .. }
 
 -- | The value underlying this located value.
+{-# INLINE locatedVal #-}
 locatedVal :: Lens' (Located t) t
 locatedVal = Control.Lens.lens _locatedVal
              $ \(MkLocated {..}) x -> MkLocated { _locatedVal = x, .. }
@@ -151,20 +154,24 @@ data Position
   deriving (Eq, Show)
 
 -- | Construct a 'Position' from a (nullable) path and a @(line, column)@ pair.
+{-# INLINE makePosition #-}
 makePosition :: Maybe Path -> (Line, Column) -> Position
 makePosition file (line, column) = MkPosition file line column
 
 -- | The path of the file pointed to by this position, if any.
+{-# INLINE positionFile #-}
 positionFile :: Lens' Position (Maybe Path)
 positionFile = Control.Lens.lens _positionFile
                $ \(MkPosition {..}) x -> MkPosition { _positionFile = x, .. }
 
 -- | The line number in the file pointed to by this position.
+{-# INLINE positionLine #-}
 positionLine :: Lens' Position Line
 positionLine = Control.Lens.lens _positionLine
                $ \(MkPosition {..}) x -> MkPosition { _positionLine = x, .. }
 
 -- | The column number in the line pointed to by this position.
+{-# INLINE positionCol #-}
 positionCol :: Lens' Position Column
 positionCol = Control.Lens.lens _positionCol
               $ \(MkPosition {..}) x -> MkPosition { _positionCol = x, .. }
@@ -207,17 +214,20 @@ newtype Chunks
   = MkChunks { fromChunks :: [Chunk] }
   deriving (Eq, Show)
 
+{-# INLINE chunksNil #-}
 chunksNil :: Chunks
 chunksNil = MkChunks []
 
 chunksCons :: Chunk -> Chunks -> Chunks
 chunksCons = \chunk (MkChunks list) -> MkChunks (go chunk list)
   where
+    {-# INLINE go #-}
     go (ChunkSpace m) (ChunkSpace n : rest) = ChunkSpace (m + n)  : rest
     go (ChunkLine  m) (ChunkLine  n : rest) = ChunkLine  (m + n)  : rest
     go (ChunkText  a) (ChunkText  b : rest) = ChunkText  (a <> b) : rest
     go other          list                  = other               : list
 
+{-# INLINE chunksAddChar #-}
 chunksAddChar :: Char -> Chunks -> Chunks
 chunksAddChar '\n'             = chunksCons (ChunkLine 1)
 chunksAddChar '\r'             = id
@@ -248,6 +258,7 @@ removeWhitespace (file, initLine, initCol) =
                          Data.STRef.modifySTRef' ref (second (+ T.length t))
                          pure (Just (line, column, t))
 
+    {-# INLINE makeLoc #-}
     makeLoc :: (Line, Column, Text) -> Located Text
     makeLoc (line, col, text) = makeLocated (MkPosition file line col) text
 

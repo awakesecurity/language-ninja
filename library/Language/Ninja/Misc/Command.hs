@@ -63,10 +63,12 @@ newtype Command
            , ToJSON, FromJSON )
 
 -- | Constructor for a 'Command'.
+{-# INLINE makeCommand #-}
 makeCommand :: Text -> Command
 makeCommand = MkCommand
 
 -- | An isomorphism between a 'Command' and its underlying 'Text'.
+{-# INLINE commandText #-}
 commandText :: Iso' Command Text
 commandText = Control.Lens.iso _commandText MkCommand
 

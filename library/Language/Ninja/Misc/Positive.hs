@@ -78,11 +78,13 @@ instance Num Positive where
                               ] |> mconcat |> error
 
 -- | Constructor for a 'Positive'.
+{-# INLINEABLE makePositive #-}
 makePositive :: Int -> Maybe Positive
 makePositive i | i > 0     = Just (MkPositive i)
                | otherwise = Nothing
 
 -- | A 'Getter' for the 'Int' underlying a 'Positive'.
+{-# INLINE fromPositive #-}
 fromPositive :: Getter Positive Int
 fromPositive = to _fromPositive
 

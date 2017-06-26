@@ -46,7 +46,8 @@ import qualified Language.Ninja.Misc.IText as Ninja
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 
-import           Data.Aeson                (FromJSON, FromJSONKey, ToJSON, ToJSONKey)
+import           Data.Aeson
+                 (FromJSON, FromJSONKey, ToJSON, ToJSONKey)
 import qualified Data.Aeson                as Aeson
 
 import           Data.Hashable             (Hashable (..))
@@ -55,9 +56,9 @@ import           GHC.Generics              (Generic)
 import           Test.SmallCheck.Series    ((>>-))
 import qualified Test.SmallCheck.Series    as SC
 
+import qualified Control.Lens
 import           Control.Lens.Getter       (view)
 import           Control.Lens.Iso          (Iso')
-import qualified Control.Lens
 
 import           Flow                      ((.>))
 
@@ -72,10 +73,12 @@ newtype Path
            , ToJSON, FromJSON, ToJSONKey, FromJSONKey )
 
 -- | Construct a 'Path' from some 'Text'.
+{-# INLINE makePath #-}
 makePath :: Text -> Path
 makePath = view Ninja.itext .> MkPath
 
 -- | An isomorphism between a 'Path' and its underlying 'IText'.
+{-# INLINE pathIText #-}
 pathIText :: Iso' Path IText
 pathIText = Control.Lens.iso _pathIText MkPath
 
@@ -83,6 +86,7 @@ pathIText = Control.Lens.iso _pathIText MkPath
 --   even though the underlying data has type 'IText'.
 --
 --   This is equivalent to @pathIText . from Ninja.itext@.
+{-# INLINE pathText #-}
 pathText :: Iso' Path Text
 pathText = pathIText . Control.Lens.from Ninja.itext
 

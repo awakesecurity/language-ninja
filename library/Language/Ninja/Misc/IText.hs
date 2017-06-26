@@ -44,8 +44,8 @@ import           Data.Text              (Text)
 import qualified Data.Text              as T
 import qualified Data.Text.Encoding     as T
 
-import           Data.Aeson             (FromJSON(..), FromJSONKey(..),
-                                         ToJSON(..), ToJSONKey(..))
+import           Data.Aeson
+                 (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
 import qualified Data.Aeson             as Aeson
 import qualified Data.Aeson.Types       as Aeson
 
@@ -58,11 +58,11 @@ import           Data.String            (IsString (..))
 import           GHC.Generics           (Generic)
 import qualified Test.SmallCheck.Series as SC
 
-import           Control.Lens.Iso       (Iso')
 import qualified Control.Lens
+import           Control.Lens.Iso       (Iso')
 
 import           Control.Arrow          (first)
-import           Flow                   ((|>), (.>))
+import           Flow                   ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
@@ -78,6 +78,7 @@ newtype IText
 --
 --   >>> uninternText ("foobar" :: IText)
 --   "foobar"
+{-# INLINE uninternText #-}
 uninternText :: IText -> Text
 uninternText (MkIText i) = Interned.unintern i
 
@@ -87,6 +88,7 @@ uninternText (MkIText i) = Interned.unintern i
 --
 --   >>> internText ("foobar" :: Text)
 --   "foobar"
+{-# INLINE internText #-}
 internText :: Text -> IText
 internText = Interned.intern .> MkIText
 
@@ -99,6 +101,7 @@ internText = Interned.intern .> MkIText
 --
 --   >>> (("foobar" :: IText) ^. from itext) :: Text
 --   "foobar"
+{-# INLINE itext #-}
 itext :: Iso' Text IText
 itext = Control.Lens.iso internText uninternText
 
