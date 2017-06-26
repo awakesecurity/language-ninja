@@ -30,7 +30,7 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   A rudimentary pretty-printer for 'Ninja.PNinja'.
 module Language.Ninja.Pretty
   ( -- * Pretty-printers
     prettyNinja
@@ -72,9 +72,11 @@ import qualified Data.HashMap.Strict   as HM
 import           Data.Char             (isSpace)
 import           Data.Monoid           ((<>))
 
-import           Flow                  ((|>), (.>))
+import           Flow                  ((.>), (|>))
 
--- | FIXME: doc
+--------------------------------------------------------------------------------
+
+-- | Pretty-print a 'Ninja.PNinja'.
 prettyNinja :: PNinja -> Text
 prettyNinja ninja
   = [ map prettyRule     (HM.toList (ninja ^. Ninja.pninjaRules))
@@ -85,7 +87,7 @@ prettyNinja ninja
     , map prettyPool     (HM.toList (ninja ^. Ninja.pninjaPools))
     ] |> mconcat |> mconcat
 
--- | FIXME: doc
+-- | Pretty-print a 'Ninja.PExpr'
 prettyExpr :: Ninja.PExpr -> Text
 prettyExpr = go .> mconcat
   where
@@ -93,7 +95,7 @@ prettyExpr = go .> mconcat
     go (Ninja.PLit  str) = [str]
     go (Ninja.PVar name) = ["${", name, "}"]
 
--- | FIXME: doc
+-- | Pretty-print a Ninja @rule@ declaration.
 prettyRule :: (Text, PRule) -> Text
 prettyRule (name, rule) = do
   let binds = rule ^. Ninja.pruleBind
@@ -102,11 +104,11 @@ prettyRule (name, rule) = do
               |> mconcat
   mconcat ["rule ", name, "\n", binds]
 
--- | FIXME: doc
+-- | Pretty-print a Ninja @build@ declaration with one output.
 prettySingle :: (FileText, PBuild) -> Text
 prettySingle (output, build) = prettyMultiple (HS.singleton output, build)
 
--- | FIXME: doc
+-- | Pretty-print a Ninja @build@ declaration with multiple outputs.
 prettyMultiple :: (HashSet FileText, PBuild) -> Text
 prettyMultiple (outputs, build) = do
   let prefixIfThere :: Text -> Text -> Text
@@ -129,28 +131,32 @@ prettyMultiple (outputs, build) = do
     , HM.toList binds |> map prettyBind |> mconcat
     ]
 
--- | FIXME: doc
+-- | Pretty-print a Ninja phony @build@ declaration.
 prettyPhony :: (Text, HashSet FileText) -> Text
 prettyPhony (name, inputs)
   = [ ["build ", name, ": phony ", T.unwords (HS.toList inputs)]
     ] |> map mconcat |> T.unlines
 
--- | FIXME: doc
+-- | Pretty-print a Ninja @default@ declaration.
 prettyDefault :: FileText -> Text
 prettyDefault target
   = [ ["default ", target]
     ] |> map mconcat |> T.unlines
 
--- | FIXME: doc
+-- | Pretty-print a Ninja @pool@ declaration.
 prettyPool :: (Text, Int) -> Text
 prettyPool (name, depth)
   = [ ["pool ", name]
     , ["    depth = ", tshow depth]
     ] |> map mconcat |> T.unlines
 
--- | FIXME: doc
+-- | Pretty-print a Ninja indented binding.
 prettyBind :: (Text, Text) -> Text
 prettyBind (name, value) = mconcat ["    ", name, " = ", value, "\n"]
 
+--------------------------------------------------------------------------------
+
 tshow :: (Show s) => s -> Text
 tshow = show .> T.pack
+
+--------------------------------------------------------------------------------
