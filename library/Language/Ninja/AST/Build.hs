@@ -120,14 +120,14 @@ instance FromJSON Build where
                   _buildDeps <- (o .: "dependencies") >>= pure
                   pure (MkBuild {..}))
 
--- | FIXME: doc
+-- | Default 'SC.Serial' instance via 'Generic'.
 instance ( Monad m
          , SC.Serial m Text
          , SC.Serial m (HashSet Output)
          , SC.Serial m (HashSet Dependency)
          ) => SC.Serial m Build
 
--- | FIXME: doc
+-- | Default 'SC.CoSerial' instance via 'Generic'.
 instance ( Monad m
          , SC.CoSerial m Text
          , SC.CoSerial m (HashSet Output)

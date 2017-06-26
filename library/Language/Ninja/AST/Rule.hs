@@ -219,12 +219,12 @@ instance FromJSON Rule where
                   _ruleResponseFile <- (o .: "rsp")       >>= pure
                   pure (MkRule {..}))
 
--- | FIXME: doc
+-- | Default 'SC.Serial' instance via 'Generic'.
 instance ( Monad m
          , SC.Serial m Text
          ) => SC.Serial m Rule
 
--- | FIXME: doc
+-- | Default 'SC.CoSerial' instance via 'Generic'.
 instance ( Monad m
          , SC.CoSerial m Text
          ) => SC.CoSerial m Rule
@@ -298,12 +298,12 @@ instance FromJSON SpecialDeps where
                 , "should be one of [\"gcc\", \"msvc\"]."
                 ] |> mconcat |> T.unpack |> fail
 
--- | FIXME: doc
+-- | Default 'SC.Serial' instance via 'Generic'.
 instance ( Monad m
          , SC.Serial m Text
          ) => SC.Serial m SpecialDeps
 
--- | FIXME: doc
+-- | Default 'SC.CoSerial' instance via 'Generic'.
 instance ( Monad m
          , SC.CoSerial m Text
          ) => SC.CoSerial m SpecialDeps
@@ -359,12 +359,12 @@ instance FromJSON ResponseFile where
       <$> (o .: "path")
       <*> (o .: "content")
 
--- | FIXME: doc
+-- | Default 'SC.Serial' instance via 'Generic'.
 instance ( Monad m
          , SC.Serial m Text
          ) => SC.Serial m ResponseFile
 
--- | FIXME: doc
+-- | Default 'SC.CoSerial' instance via 'Generic'.
 instance ( Monad m
          , SC.CoSerial m Text
          ) => SC.CoSerial m ResponseFile

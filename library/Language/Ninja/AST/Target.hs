@@ -115,10 +115,10 @@ instance ( Monad m
   coseries rs = SC.newtypeAlts rs
                 >>- \f -> pure (_targetIText .> f)
 
--- | FIXME: doc
+-- | Default 'SC.Serial' instance via 'Generic'.
 instance (Monad m, SC.Serial m Text) => SC.Serial m Output
 
--- | FIXME: doc
+-- | Default 'SC.CoSerial' instance via 'Generic'.
 instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Output
 
 --------------------------------------------------------------------------------
@@ -214,10 +214,10 @@ instance FromJSON OutputType where
                                 , "[\"explict\", \"implicit\"]"
                                 ] |> mconcat |> T.unpack |> fail)
 
--- | FIXME: doc
+-- | Default 'SC.Serial' instance via 'Generic'.
 instance (Monad m) => SC.Serial m OutputType
 
--- | FIXME: doc
+-- | Default 'SC.CoSerial' instance via 'Generic'.
 instance (Monad m) => SC.CoSerial m OutputType
 
 --------------------------------------------------------------------------------
@@ -273,10 +273,10 @@ instance FromJSON Dependency where
                   _dependencyType   <- (o .: "type")   >>= pure
                   pure (MkDependency {..}))
 
--- | FIXME: doc
+-- | Default 'SC.Serial' instance via 'Generic'.
 instance (Monad m, SC.Serial m Text) => SC.Serial m Dependency
 
--- | FIXME: doc
+-- | Default 'SC.CoSerial' instance via 'Generic'.
 instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Dependency
 
 --------------------------------------------------------------------------------
@@ -338,10 +338,10 @@ instance FromJSON DependencyType where
                                   , "[\"normal\", \"implicit\", \"order-only\"]"
                                   ] |> mconcat |> T.unpack |> fail)
 
--- | FIXME: doc
+-- | Default 'SC.Serial' instance via 'Generic'.
 instance (Monad m) => SC.Serial m DependencyType
 
--- | FIXME: doc
+-- | Default 'SC.CoSerial' instance via 'Generic'.
 instance (Monad m) => SC.CoSerial m DependencyType
 
 --------------------------------------------------------------------------------
