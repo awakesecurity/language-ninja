@@ -34,11 +34,16 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   Errors thrown during Ninja compilation.
+--   Errors thrown during Ninja parsing.
 module Language.Ninja.Errors.Parse
   ( -- * @ParseError@
     ParseError (..)
   , throwParseError, throwGenericParseError
+  , throwLexBindingFailure
+  , throwLexExpectedColon
+  , throwLexUnexpectedDollar
+  , throwParseBadDepthField
+  , throwParseUnexpectedBinding
   ) where
 
 import           Control.Exception         (Exception)
@@ -49,12 +54,24 @@ import           Data.Text                 (Text)
 
 import           Flow                      ((.>), (|>))
 
+import qualified Language.Ninja.AST.Expr   as AST
+
 --------------------------------------------------------------------------------
 
 -- | The type of errors encountered during parsing.
 data ParseError
   = -- | Generic catch-all error constructor. Avoid using this.
-    GenericParseError !Text
+    GenericParseError      !Text
+  | -- | @Lexer failed at binding: <text>@
+    LexBindingFailure      !Text
+  | -- | @Expected a colon@
+    LexExpectedColon
+  | -- | @Unexpected $ followed by unexpected stuff@
+    LexUnexpectedDollar
+  | -- | @Could not parse depth field in pool, got: <text>@
+    ParseBadDepthField     !Text
+  | -- | @Unexpected binding defining <text>@
+    ParseUnexpectedBinding !Text
   deriving (Eq, Show, Generic)
 
 -- | Default instance.
@@ -67,5 +84,25 @@ throwParseError = throwError
 -- | Throw a generic catch-all 'ParseError'.
 throwGenericParseError :: (MonadError ParseError m) => Text -> m a
 throwGenericParseError msg = throwParseError (GenericParseError msg)
+
+-- | Throw a 'LexBindingFailure' error.
+throwLexBindingFailure :: (MonadError ParseError m) => Text -> m a
+throwLexBindingFailure t = throwParseError (LexBindingFailure t)
+
+-- | Throw a 'LexExpectedColon' error.
+throwLexExpectedColon :: (MonadError ParseError m) => m a
+throwLexExpectedColon = throwParseError LexExpectedColon
+
+-- | Throw a 'LexUnexpectedColon' error.
+throwLexUnexpectedDollar :: (MonadError ParseError m) => m a
+throwLexUnexpectedDollar = throwParseError LexUnexpectedDollar
+
+-- | Throw a 'ParseBadDepthField' error.
+throwParseBadDepthField :: (MonadError ParseError m) => Text -> m a
+throwParseBadDepthField t = throwParseError (ParseBadDepthField t)
+
+-- | Throw a 'ParseUnexpectedBinding' error.
+throwParseUnexpectedBinding :: (MonadError ParseError m) => Text -> m a
+throwParseUnexpectedBinding t = throwParseError (ParseUnexpectedBinding t)
 
 --------------------------------------------------------------------------------

@@ -256,7 +256,7 @@ lexxBind ctor x0 =
       (expr, x3) = lexxExpr False False $ dropSpace x2
    in if eq == '='
       then ctor (MkLBinding (MkLName var) expr) : lexerLoop x3
-      else [ "parse failed when parsing binding: "
+      else [ "lexer failed at binding: "
            , show (Str0.take0 100 x0)
            ] |> mconcat |> error
 
