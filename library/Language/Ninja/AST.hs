@@ -75,8 +75,8 @@ module Language.Ninja.AST
   , BuildConstraint
 
     -- * @Deps@
-  , Deps, makeDeps
-  , depsNormal, depsImplicit, depsOrderOnly
+  , AST.Deps, AST.makeDeps
+  , AST.depsNormal, AST.depsImplicit, AST.depsOrderOnly
 
     -- * @Rule@
   , AST.Rule, AST.makeRule
@@ -131,6 +131,7 @@ import qualified Data.Aeson.Types        as Aeson
 
 import qualified Test.SmallCheck.Series  as SC
 
+import qualified Language.Ninja.AST.Deps as AST
 import qualified Language.Ninja.AST.Env  as AST
 import qualified Language.Ninja.AST.Expr as AST
 import qualified Language.Ninja.AST.Rule as AST
@@ -284,7 +285,7 @@ data Build
   = MkBuild
     { _buildRule :: !Text
     , _buildEnv  :: !(AST.Env Text Text)
-    , _buildDeps :: !Deps
+    , _buildDeps :: !AST.Deps
     , _buildBind :: !(HashMap Text Text)
     }
   deriving (Eq, Show, Generic)
@@ -299,7 +300,7 @@ makeBuild :: Text
 makeBuild rule env = MkBuild
                      { _buildRule = rule
                      , _buildEnv  = env
-                     , _buildDeps = makeDeps
+                     , _buildDeps = AST.makeDeps
                      , _buildBind = mempty
                      }
 
@@ -317,7 +318,7 @@ buildEnv = lens _buildEnv
 
 -- | A lens into the dependencies associated with a 'Build'.
 {-# INLINE buildDeps #-}
-buildDeps :: Lens' Build Deps
+buildDeps :: Lens' Build AST.Deps
 buildDeps = lens _buildDeps
             $ \(MkBuild {..}) x -> MkBuild { _buildDeps = x, .. }
 
@@ -359,67 +360,5 @@ type BuildConstraint (c :: * -> Constraint)
     , c (HashMap Text Text)
     , c (AST.Maps Text Text)
     )
-
---------------------------------------------------------------------------------
-
--- | A set of Ninja build dependencies.
-data Deps
-  = MkDeps
-    { _depsNormal    :: !(HashSet FileText)
-    , _depsImplicit  :: !(HashSet FileText)
-    , _depsOrderOnly :: !(HashSet FileText)
-    }
-  deriving (Eq, Show, Generic)
-
--- | Construct a 'Deps' with all default values
-{-# INLINE makeDeps #-}
-makeDeps :: Deps
-makeDeps = MkDeps
-            { _depsNormal    = mempty
-            , _depsImplicit  = mempty
-            , _depsOrderOnly = mempty
-            }
-
--- | A lens into the set of normal dependencies in a 'Deps'.
-{-# INLINE depsNormal #-}
-depsNormal :: Lens' Deps (HashSet FileText)
-depsNormal = Control.Lens.lens _depsNormal
-             $ \(MkDeps {..}) x -> MkDeps { _depsNormal = x, .. }
-
--- | A lens into the set of implicit dependencies in a 'Deps'.
-{-# INLINE depsImplicit #-}
-depsImplicit :: Lens' Deps (HashSet FileText)
-depsImplicit = Control.Lens.lens _depsImplicit
-               $ \(MkDeps {..}) x -> MkDeps { _depsImplicit = x, .. }
-
--- | A lens into the set of order-only dependencies in a 'Deps'.
-{-# INLINE depsOrderOnly #-}
-depsOrderOnly :: Lens' Deps (HashSet FileText)
-depsOrderOnly = Control.Lens.lens _depsOrderOnly
-                $ \(MkDeps {..}) x -> MkDeps { _depsOrderOnly = x, .. }
-
--- | Converts to @{normal: …, implicit: …, order-only: …}@.
-instance ToJSON Deps where
-  toJSON (MkDeps {..})
-    = [ "normal"     .= _depsNormal
-      , "implicit"   .= _depsImplicit
-      , "order-only" .= _depsOrderOnly
-      ] |> Aeson.object
-
--- | Inverse of the 'ToJSON' instance.
-instance FromJSON Deps where
-  parseJSON = (Aeson.withObject "Deps" $ \o -> do
-                  _depsNormal    <- (o .: "normal")     >>= pure
-                  _depsImplicit  <- (o .: "implicit")   >>= pure
-                  _depsOrderOnly <- (o .: "order-only") >>= pure
-                  pure (MkDeps {..}))
-
--- | Default 'SC.Serial' instance via 'Generic'.
-instance ( Monad m, SC.Serial m (HashSet FileText)
-         ) => SC.Serial m Deps
-
--- | Default 'SC.CoSerial' instance via 'Generic'.
-instance ( Monad m, SC.CoSerial m (HashSet FileText)
-         ) => SC.CoSerial m Deps
 
 --------------------------------------------------------------------------------

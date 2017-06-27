@@ -53,6 +53,7 @@ library
                           -- FIXME: remove unneeded dependencies
     exposed-modules:      Language.Ninja
                         , Language.Ninja.AST
+                        , Language.Ninja.AST.Deps
                         , Language.Ninja.AST.Env
                         , Language.Ninja.AST.Expr
                         , Language.Ninja.AST.Rule
