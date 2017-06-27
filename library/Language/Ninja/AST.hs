@@ -69,14 +69,14 @@ module Language.Ninja.AST
   , ninjaSpecials
   , NinjaConstraint
 
-    -- * @PBuild@
-  , PBuild, makePBuild
-  , pbuildRule, pbuildEnv, pbuildDeps, pbuildBind
-  , PBuildConstraint
+    -- * @Build@
+  , Build, makeBuild
+  , buildRule, buildEnv, buildDeps, buildBind
+  , BuildConstraint
 
-    -- * @PDeps@
-  , PDeps, makePDeps
-  , pdepsNormal, pdepsImplicit, pdepsOrderOnly
+    -- * @Deps@
+  , Deps, makeDeps
+  , depsNormal, depsImplicit, depsOrderOnly
 
     -- * @Rule@
   , AST.Rule, AST.makeRule
@@ -154,8 +154,8 @@ type FileText = Text
 data Ninja
   = MkNinja
     { _ninjaRules     :: !(HashMap Text AST.Rule)
-    , _ninjaSingles   :: !(HashMap FileText PBuild)
-    , _ninjaMultiples :: !(HashMap (HashSet FileText) PBuild)
+    , _ninjaSingles   :: !(HashMap FileText Build)
+    , _ninjaMultiples :: !(HashMap (HashSet FileText) Build)
     , _ninjaPhonys    :: !(HashMap Text (HashSet FileText))
     , _ninjaDefaults  :: !(HashSet FileText)
     , _ninjaPools     :: !(HashMap Text Int)
@@ -184,13 +184,13 @@ ninjaRules = Control.Lens.lens _ninjaRules
 
 -- | The set of build declarations with precisely one output.
 {-# INLINE ninjaSingles #-}
-ninjaSingles :: Lens' Ninja (HashMap FileText PBuild)
+ninjaSingles :: Lens' Ninja (HashMap FileText Build)
 ninjaSingles = Control.Lens.lens _ninjaSingles
                $ \(MkNinja {..}) x -> MkNinja { _ninjaSingles = x, .. }
 
 -- | The set of build declarations with two or more outputs.
 {-# INLINE ninjaMultiples #-}
-ninjaMultiples :: Lens' Ninja (HashMap (HashSet FileText) PBuild)
+ninjaMultiples :: Lens' Ninja (HashMap (HashSet FileText) Build)
 ninjaMultiples = Control.Lens.lens _ninjaMultiples
                  $ \(MkNinja {..}) x -> MkNinja { _ninjaMultiples = x, .. }
 
@@ -232,10 +232,10 @@ instance ToJSON Ninja where
       , "specials"  .= _ninjaPools
       ] |> Aeson.object
     where
-      fixMultiples :: HashMap (HashSet FileText) PBuild -> Value
+      fixMultiples :: HashMap (HashSet FileText) Build -> Value
       fixMultiples = HM.toList .> map (uncurry printPair) .> toJSON
 
-      printPair :: HashSet FileText -> PBuild -> Value
+      printPair :: HashSet FileText -> Build -> Value
       printPair outputs build =
         Aeson.object ["outputs" .= outputs, "build" .= build]
 
@@ -251,10 +251,10 @@ instance FromJSON Ninja where
                   _ninjaSpecials  <- (o .: "specials")  >>= pure
                   pure (MkNinja {..}))
     where
-      fixMultiples :: Value -> Aeson.Parser (HashMap (HashSet FileText) PBuild)
+      fixMultiples :: Value -> Aeson.Parser (HashMap (HashSet FileText) Build)
       fixMultiples = parseJSON >=> mapM parsePair >=> (HM.fromList .> pure)
 
-      parsePair :: Value -> Aeson.Parser (HashSet FileText, PBuild)
+      parsePair :: Value -> Aeson.Parser (HashSet FileText, Build)
       parsePair = (Aeson.withObject "Ninja.multiples" $ \o -> do
                       outputs <- (o .: "outputs") >>= pure
                       build   <- (o .: "build")   >>= pure
@@ -269,91 +269,91 @@ instance (Monad m, NinjaConstraint (SC.CoSerial m)) => SC.CoSerial m Ninja
 -- | The set of constraints required for a given constraint to be automatically
 --   computed for a 'Ninja'.
 type NinjaConstraint (c :: * -> Constraint)
-  = ( PBuildConstraint c
-    , c (HashMap (HashSet FileText) PBuild)
+  = ( BuildConstraint c
+    , c (HashMap (HashSet FileText) Build)
     , c (HashMap Text (HashSet FileText))
     , c (HashMap Text AST.Rule)
-    , c (HashMap FileText PBuild)
+    , c (HashMap FileText Build)
     , c (HashMap Text Int)
     )
 
 --------------------------------------------------------------------------------
 
 -- | A parsed Ninja @build@ declaration.
-data PBuild
-  = MkPBuild
-    { _pbuildRule :: !Text
-    , _pbuildEnv  :: !(AST.Env Text Text)
-    , _pbuildDeps :: !PDeps
-    , _pbuildBind :: !(HashMap Text Text)
+data Build
+  = MkBuild
+    { _buildRule :: !Text
+    , _buildEnv  :: !(AST.Env Text Text)
+    , _buildDeps :: !Deps
+    , _buildBind :: !(HashMap Text Text)
     }
   deriving (Eq, Show, Generic)
 
--- | Construct a 'PBuild' with all default values.
-{-# INLINE makePBuild #-}
-makePBuild :: Text
-           -- ^ The rule name
-           -> AST.Env Text Text
-           -- ^ The environment
-           -> PBuild
-makePBuild rule env = MkPBuild
-                      { _pbuildRule = rule
-                      , _pbuildEnv  = env
-                      , _pbuildDeps = makePDeps
-                      , _pbuildBind = mempty
-                      }
+-- | Construct a 'Build' with all default values.
+{-# INLINE makeBuild #-}
+makeBuild :: Text
+          -- ^ The rule name
+          -> AST.Env Text Text
+          -- ^ The environment
+          -> Build
+makeBuild rule env = MkBuild
+                     { _buildRule = rule
+                     , _buildEnv  = env
+                     , _buildDeps = makeDeps
+                     , _buildBind = mempty
+                     }
 
--- | A lens into the rule name associated with a 'PBuild'.
-{-# INLINE pbuildRule #-}
-pbuildRule :: Lens' PBuild Text
-pbuildRule = Control.Lens.lens _pbuildRule
-             $ \(MkPBuild {..}) x -> MkPBuild { _pbuildRule = x, .. }
+-- | A lens into the rule name associated with a 'Build'.
+{-# INLINE buildRule #-}
+buildRule :: Lens' Build Text
+buildRule = lens _buildRule
+            $ \(MkBuild {..}) x -> MkBuild { _buildRule = x, .. }
 
--- | A lens into the environment associated with a 'PBuild'.
-{-# INLINE pbuildEnv #-}
-pbuildEnv :: Lens' PBuild (AST.Env Text Text)
-pbuildEnv = Control.Lens.lens _pbuildEnv
-            $ \(MkPBuild {..}) x -> MkPBuild { _pbuildEnv = x, .. }
+-- | A lens into the environment associated with a 'Build'.
+{-# INLINE buildEnv #-}
+buildEnv :: Lens' Build (AST.Env Text Text)
+buildEnv = lens _buildEnv
+           $ \(MkBuild {..}) x -> MkBuild { _buildEnv = x, .. }
 
--- | A lens into the dependencies associated with a 'PBuild'.
-{-# INLINE pbuildDeps #-}
-pbuildDeps :: Lens' PBuild PDeps
-pbuildDeps = Control.Lens.lens _pbuildDeps
-             $ \(MkPBuild {..}) x -> MkPBuild { _pbuildDeps = x, .. }
+-- | A lens into the dependencies associated with a 'Build'.
+{-# INLINE buildDeps #-}
+buildDeps :: Lens' Build Deps
+buildDeps = lens _buildDeps
+            $ \(MkBuild {..}) x -> MkBuild { _buildDeps = x, .. }
 
--- | A lens into the bindings associated with a 'PBuild'.
-{-# INLINE pbuildBind #-}
-pbuildBind :: Lens' PBuild (HashMap Text Text)
-pbuildBind = Control.Lens.lens _pbuildBind
-             $ \(MkPBuild {..}) x -> MkPBuild { _pbuildBind = x, .. }
+-- | A lens into the bindings associated with a 'Build'.
+{-# INLINE buildBind #-}
+buildBind :: Lens' Build (HashMap Text Text)
+buildBind = lens _buildBind
+            $ \(MkBuild {..}) x -> MkBuild { _buildBind = x, .. }
 
 -- | Converts to @{rule: …, env: …, deps: …, bind: …}@.
-instance ToJSON PBuild where
-  toJSON (MkPBuild {..})
-    = [ "rule" .= _pbuildRule
-      , "env"  .= _pbuildEnv
-      , "deps" .= _pbuildDeps
-      , "bind" .= _pbuildBind
+instance ToJSON Build where
+  toJSON (MkBuild {..})
+    = [ "rule" .= _buildRule
+      , "env"  .= _buildEnv
+      , "deps" .= _buildDeps
+      , "bind" .= _buildBind
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
-instance FromJSON PBuild where
-  parseJSON = (Aeson.withObject "PBuild" $ \o -> do
-                  _pbuildRule <- (o .: "rule") >>= pure
-                  _pbuildEnv  <- (o .: "env")  >>= pure
-                  _pbuildDeps <- (o .: "deps") >>= pure
-                  _pbuildBind <- (o .: "bind") >>= pure
-                  pure (MkPBuild {..}))
+instance FromJSON Build where
+  parseJSON = (Aeson.withObject "Build" $ \o -> do
+                  _buildRule <- (o .: "rule") >>= pure
+                  _buildEnv  <- (o .: "env")  >>= pure
+                  _buildDeps <- (o .: "deps") >>= pure
+                  _buildBind <- (o .: "bind") >>= pure
+                  pure (MkBuild {..}))
 
 -- | Default 'SC.Serial' instance via 'Generic'.
-instance (Monad m, PBuildConstraint (SC.Serial m)) => SC.Serial m PBuild
+instance (Monad m, BuildConstraint (SC.Serial m)) => SC.Serial m Build
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
-instance (Monad m, PBuildConstraint (SC.CoSerial m)) => SC.CoSerial m PBuild
+instance (Monad m, BuildConstraint (SC.CoSerial m)) => SC.CoSerial m Build
 
 -- | The set of constraints required for a given constraint to be automatically
---   computed for a 'PBuild'.
-type PBuildConstraint (c :: * -> Constraint)
+--   computed for a 'Build'.
+type BuildConstraint (c :: * -> Constraint)
   = ( c Text
     , c (HashSet FileText)
     , c (HashMap Text Text)
@@ -363,63 +363,63 @@ type PBuildConstraint (c :: * -> Constraint)
 --------------------------------------------------------------------------------
 
 -- | A set of Ninja build dependencies.
-data PDeps
-  = MkPDeps
-    { _pdepsNormal    :: !(HashSet FileText)
-    , _pdepsImplicit  :: !(HashSet FileText)
-    , _pdepsOrderOnly :: !(HashSet FileText)
+data Deps
+  = MkDeps
+    { _depsNormal    :: !(HashSet FileText)
+    , _depsImplicit  :: !(HashSet FileText)
+    , _depsOrderOnly :: !(HashSet FileText)
     }
   deriving (Eq, Show, Generic)
 
--- | Construct a 'PDeps' with all default values
-{-# INLINE makePDeps #-}
-makePDeps :: PDeps
-makePDeps = MkPDeps
-            { _pdepsNormal    = mempty
-            , _pdepsImplicit  = mempty
-            , _pdepsOrderOnly = mempty
+-- | Construct a 'Deps' with all default values
+{-# INLINE makeDeps #-}
+makeDeps :: Deps
+makeDeps = MkDeps
+            { _depsNormal    = mempty
+            , _depsImplicit  = mempty
+            , _depsOrderOnly = mempty
             }
 
--- | A lens into the set of normal dependencies in a 'PDeps'.
-{-# INLINE pdepsNormal #-}
-pdepsNormal :: Lens' PDeps (HashSet FileText)
-pdepsNormal = Control.Lens.lens _pdepsNormal
-              $ \(MkPDeps {..}) x -> MkPDeps { _pdepsNormal = x, .. }
+-- | A lens into the set of normal dependencies in a 'Deps'.
+{-# INLINE depsNormal #-}
+depsNormal :: Lens' Deps (HashSet FileText)
+depsNormal = Control.Lens.lens _depsNormal
+             $ \(MkDeps {..}) x -> MkDeps { _depsNormal = x, .. }
 
--- | A lens into the set of implicit dependencies in a 'PDeps'.
-{-# INLINE pdepsImplicit #-}
-pdepsImplicit :: Lens' PDeps (HashSet FileText)
-pdepsImplicit = Control.Lens.lens _pdepsImplicit
-                $ \(MkPDeps {..}) x -> MkPDeps { _pdepsImplicit = x, .. }
+-- | A lens into the set of implicit dependencies in a 'Deps'.
+{-# INLINE depsImplicit #-}
+depsImplicit :: Lens' Deps (HashSet FileText)
+depsImplicit = Control.Lens.lens _depsImplicit
+               $ \(MkDeps {..}) x -> MkDeps { _depsImplicit = x, .. }
 
--- | A lens into the set of order-only dependencies in a 'PDeps'.
-{-# INLINE pdepsOrderOnly #-}
-pdepsOrderOnly :: Lens' PDeps (HashSet FileText)
-pdepsOrderOnly = Control.Lens.lens _pdepsOrderOnly
-                 $ \(MkPDeps {..}) x -> MkPDeps { _pdepsOrderOnly = x, .. }
+-- | A lens into the set of order-only dependencies in a 'Deps'.
+{-# INLINE depsOrderOnly #-}
+depsOrderOnly :: Lens' Deps (HashSet FileText)
+depsOrderOnly = Control.Lens.lens _depsOrderOnly
+                $ \(MkDeps {..}) x -> MkDeps { _depsOrderOnly = x, .. }
 
 -- | Converts to @{normal: …, implicit: …, order-only: …}@.
-instance ToJSON PDeps where
-  toJSON (MkPDeps {..})
-    = [ "normal"     .= _pdepsNormal
-      , "implicit"   .= _pdepsImplicit
-      , "order-only" .= _pdepsOrderOnly
+instance ToJSON Deps where
+  toJSON (MkDeps {..})
+    = [ "normal"     .= _depsNormal
+      , "implicit"   .= _depsImplicit
+      , "order-only" .= _depsOrderOnly
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
-instance FromJSON PDeps where
-  parseJSON = (Aeson.withObject "PDeps" $ \o -> do
-                  _pdepsNormal    <- (o .: "normal")     >>= pure
-                  _pdepsImplicit  <- (o .: "implicit")   >>= pure
-                  _pdepsOrderOnly <- (o .: "order-only") >>= pure
-                  pure (MkPDeps {..}))
+instance FromJSON Deps where
+  parseJSON = (Aeson.withObject "Deps" $ \o -> do
+                  _depsNormal    <- (o .: "normal")     >>= pure
+                  _depsImplicit  <- (o .: "implicit")   >>= pure
+                  _depsOrderOnly <- (o .: "order-only") >>= pure
+                  pure (MkDeps {..}))
 
 -- | Default 'SC.Serial' instance via 'Generic'.
 instance ( Monad m, SC.Serial m (HashSet FileText)
-         ) => SC.Serial m PDeps
+         ) => SC.Serial m Deps
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
 instance ( Monad m, SC.CoSerial m (HashSet FileText)
-         ) => SC.CoSerial m PDeps
+         ) => SC.CoSerial m Deps
 
 --------------------------------------------------------------------------------

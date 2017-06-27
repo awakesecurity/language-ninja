@@ -92,7 +92,7 @@ import qualified Language.Ninja.Parse         as Ninja
 
 import qualified Language.Ninja.IR            as IR
 
-import           Language.Ninja.AST           (FileText, PBuild)
+import           Language.Ninja.AST           (FileText)
 import qualified Language.Ninja.AST           as AST
 import qualified Language.Ninja.AST.Env       as AST
 import qualified Language.Ninja.AST.Expr      as AST
@@ -155,14 +155,14 @@ compile ast = result
     poolsM :: m (HashSet IR.Pool)
     poolsM = HM.toList ppools |> mapM compilePool |> fmap HS.fromList
 
-    compileBuild :: (HashSet FileText, AST.PBuild) -> m IR.Build
-    compileBuild (outputs, pbuild) = do
-      let pdeps         = pbuild ^. AST.pbuildDeps
-      let normalDeps    = HS.toList (pdeps ^. AST.pdepsNormal)
-      let implicitDeps  = HS.toList (pdeps ^. AST.pdepsImplicit)
-      let orderOnlyDeps = HS.toList (pdeps ^. AST.pdepsOrderOnly)
+    compileBuild :: (HashSet FileText, AST.Build) -> m IR.Build
+    compileBuild (outputs, buildAST) = do
+      let depsAST       = buildAST ^. AST.buildDeps
+      let normalDeps    = HS.toList (depsAST ^. AST.depsNormal)
+      let implicitDeps  = HS.toList (depsAST ^. AST.depsImplicit)
+      let orderOnlyDeps = HS.toList (depsAST ^. AST.depsOrderOnly)
 
-      rule <- compileRule (outputs, pbuild)
+      rule <- compileRule (outputs, buildAST)
       outs <- HS.toList outputs |> mapM compileOutput |> fmap HS.fromList
       deps <- let compileDep = flip (curry compileDependency)
               in (\n i o -> HS.fromList (n <> i <> o))
@@ -194,14 +194,14 @@ compile ast = result
                                  |> maybe (Ninja.throwInvalidPoolDepth d) pure
                            pure (IR.makePoolCustom name dp)
 
-    compileRule :: (HashSet FileText, PBuild) -> m IR.Rule
-    compileRule (outputs, pbuild) = do
-      (name, prule) <- lookupRule pbuild
+    compileRule :: (HashSet FileText, AST.Build) -> m IR.Rule
+    compileRule (outputs, buildAST) = do
+      (name, prule) <- lookupRule buildAST
 
       let orLookupError :: Text -> Maybe a -> m a
           orLookupError var = maybe (Ninja.throwRuleLookupFailure var) pure
 
-      let env = computeRuleEnv (outputs, pbuild) prule
+      let env = computeRuleEnv (outputs, buildAST) prule
 
       let lookupBind :: Text -> m (Maybe Text)
           lookupBind = AST.askEnv env .> pure
@@ -211,7 +211,7 @@ compile ast = result
 
       command      <- lookupBind_ "command" >>= compileCommand
       description  <- lookupBind "description"
-      pool         <- let buildBind = pbuild ^. AST.pbuildBind
+      pool         <- let buildBind = buildAST ^. AST.buildBind
                       in (HM.lookup "pool" buildBind <|> AST.askEnv env "pool")
                          |> fmap IR.parsePoolName
                          |> fromMaybe IR.makePoolNameDefault
@@ -270,18 +270,18 @@ compile ast = result
     compileCommand :: Text -> m IR.Command
     compileCommand = IR.makeCommand .> pure
 
-    lookupRule :: PBuild -> m (Text, AST.Rule)
-    lookupRule pbuild = do
-      let name = pbuild ^. AST.pbuildRule
+    lookupRule :: AST.Build -> m (Text, AST.Rule)
+    lookupRule buildAST = do
+      let name = buildAST ^. AST.buildRule
       prule <- HM.lookup name prules
                |> maybe (Ninja.throwBuildRuleNotFound name) pure
       pure (name, prule)
 
-    computeRuleEnv :: (HashSet Text, AST.PBuild)
+    computeRuleEnv :: (HashSet Text, AST.Build)
                    -> AST.Rule
                    -> AST.Env Text Text
-    computeRuleEnv (outs, pbuild) prule = do
-      let deps = pbuild ^. AST.pbuildDeps . AST.pdepsNormal
+    computeRuleEnv (outs, buildAST) prule = do
+      let deps = buildAST ^. AST.buildDeps . AST.depsNormal
 
       let composeList :: [a -> a] -> (a -> a)
           composeList = map Endo .> mconcat .> appEndo
@@ -290,19 +290,19 @@ compile ast = result
           quote x | T.any isSpace x = mconcat ["\"", x, "\""]
           quote x                   = x
 
-          pbuildBind = pbuild ^. AST.pbuildBind
+          bindings = buildAST ^. AST.buildBind
 
       -- the order of adding new environment variables matters
-      AST.scopeEnv (pbuild ^. AST.pbuildEnv)
+      AST.scopeEnv (buildAST ^. AST.buildEnv)
         |> AST.addEnv "out"        (T.unwords (map quote (HS.toList outs)))
         |> AST.addEnv "in"         (T.unwords (map quote (HS.toList deps)))
         |> AST.addEnv "in_newline" (T.unlines (HS.toList deps))
-        |> composeList (map (uncurry AST.addEnv) (HM.toList pbuildBind))
+        |> composeList (map (uncurry AST.addEnv) (HM.toList bindings))
         |> AST.addBinds (HM.toList (prule ^. AST.ruleBind))
 
     prules     :: HashMap Text AST.Rule
-    psingles   :: HashMap FileText AST.PBuild
-    pmultiples :: HashMap (HashSet FileText) AST.PBuild
+    psingles   :: HashMap FileText AST.Build
+    pmultiples :: HashMap (HashSet FileText) AST.Build
     pphonys    :: HashMap Text (HashSet FileText)
     pdefaults  :: HashSet FileText
     ppools     :: HashMap Text Int

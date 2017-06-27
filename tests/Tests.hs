@@ -285,16 +285,16 @@ opticsTests
         -- , testLens 1 "ninjaDefaults"  AST.ninjaDefaults
         -- , testLens 1 "ninjaSpecials"  AST.ninjaSpecials
         -- ]
-      , testType "PBuild" [] -- FIXME: combinatorial explosion
-        -- [ testLens 1 "pbuildRule" AST.pbuildRule
-        -- , testLens 1 "pbuildEnv"  AST.pbuildEnv
-        -- , testLens 1 "pbuildDeps" AST.pbuildDeps
-        -- , testLens 1 "pbuildBind" AST.pbuildBind
+      , testType "Build" [] -- FIXME: combinatorial explosion
+        -- [ testLens 1 "buildRule" AST.buildRule
+        -- , testLens 1 "buildEnv"  AST.buildEnv
+        -- , testLens 1 "buildDeps" AST.buildDeps
+        -- , testLens 1 "buildBind" AST.buildBind
         -- ]
-      , testType "PDeps"
-        [ testLens def "pdepsNormal"    AST.pdepsNormal
-        , testLens def "pdepsImplicit"  AST.pdepsImplicit
-        , testLens def "pdepsOrderOnly" AST.pdepsOrderOnly
+      , testType "Deps"
+        [ testLens def "depsNormal"    AST.depsNormal
+        , testLens def "depsImplicit"  AST.depsImplicit
+        , testLens def "depsOrderOnly" AST.depsOrderOnly
         ]
       ]
     , testModule "Language.Ninja.Misc.Command"

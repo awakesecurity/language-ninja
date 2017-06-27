@@ -148,10 +148,9 @@ leafTargets (sn@(MkSNinja builds _)) = HS.difference (allTargets sn) outputs
 
 -- | Compute the set of targets that the given target depends on.
 targetReferences :: SNinja -> Target -> HashSet Target
-targetReferences (sn@(MkSNinja builds _)) target
-  = case lookupBuild sn target of
-      Just (MkSBuild _ deps) -> deps
-      Nothing                -> HS.empty
+targetReferences sninja target = case lookupBuild sninja target of
+                                   Just (MkSBuild _ deps) -> deps
+                                   Nothing                -> HS.empty
 
 -- | Compute the set of targets that depend on the given target.
 targetReferrers :: SNinja -> Target -> HashSet Target
@@ -181,18 +180,18 @@ compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
     simpleDefaults :: HashSet Target
     simpleDefaults = HS.map makeTarget defaults
 
-    simplifyBuild :: AST.PBuild -> SBuild
+    simplifyBuild :: AST.Build -> SBuild
     simplifyBuild build = MkSBuild (Just rule) deps
       where
-        deps = [ build ^. AST.pbuildDeps . AST.pdepsNormal
-               , build ^. AST.pbuildDeps . AST.pdepsImplicit
-               , build ^. AST.pbuildDeps . AST.pdepsOrderOnly
+        deps = [ build ^. AST.buildDeps . AST.depsNormal
+               , build ^. AST.buildDeps . AST.depsImplicit
+               , build ^. AST.buildDeps . AST.depsOrderOnly
                ] |> mconcat |> HS.map makeTarget
 
         rule = fromMaybe (error ("rule not found: " <> show ruleName))
                $ HM.lookup (makeTarget ruleName) ruleMap
 
-        ruleName = build ^. AST.pbuildRule
+        ruleName = build ^. AST.buildRule
 
     simplifyPhony :: (Text, HashSet Text)
                   -> (HashSet Target, SBuild)
@@ -211,7 +210,7 @@ compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
            Just _           -> error "rule uses variables"
            Nothing          -> error "\"command\" not found"
 
-    combined :: HashMap (HashSet Target) AST.PBuild
+    combined :: HashMap (HashSet Target) AST.Build
     combined = multiples <> onHM (first HS.singleton) singles
                |> onHM (first (HS.map makeTarget))
 

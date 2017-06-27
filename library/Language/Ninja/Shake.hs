@@ -135,20 +135,20 @@ ninjaDispatch (NinjaOptionsUnknown tool)  =
   [ "Unknown tool: ", tool
   ] |> mconcat |> T.unpack |> Control.Exception.Extra.errorIO
 
-computeRuleEnv :: HashSet Text -> AST.PBuild -> AST.Rule -> AST.Env Text Text
+computeRuleEnv :: HashSet Text -> AST.Build -> AST.Rule -> AST.Env Text Text
 computeRuleEnv outputs b r = do
-  let deps = b ^. AST.pbuildDeps . AST.pdepsNormal
+  let deps = b ^. AST.buildDeps . AST.depsNormal
   -- the order of adding new environment variables matters
 
   let composeList :: [a -> a] -> (a -> a)
       composeList = map Endo .> mconcat .> appEndo
 
-  AST.scopeEnv (b ^. AST.pbuildEnv)
+  AST.scopeEnv (b ^. AST.buildEnv)
     |> AST.addEnv "out"        (T.unwords (map quote (HS.toList outputs)))
     |> AST.addEnv "in"         (T.unwords (map quote (HS.toList deps)))
     |> AST.addEnv "in_newline" (T.unlines (HS.toList deps))
     |> composeList
-        (map (uncurry AST.addEnv) (HM.toList (b ^. AST.pbuildBind)))
+        (map (uncurry AST.addEnv) (HM.toList (b ^. AST.buildBind)))
     |> AST.addBinds (HM.toList (r ^. AST.ruleBind))
 
 ninjaCompDB :: AST.Ninja -> [Text] -> IO (Maybe (Rules ()))
@@ -161,21 +161,21 @@ ninjaCompDB ninja args = do
   let rules = HM.filterWithKey (curry inArgs) rules
 
   -- the build items are generated in reverse order, hence the reverse
-  let itemsToBuild :: [(HashSet Text, AST.PBuild, Text, AST.Rule)]
+  let itemsToBuild :: [(HashSet Text, AST.Build, Text, AST.Rule)]
       itemsToBuild = do
         let multiples = ninja ^. AST.ninjaMultiples
         let singles   = ninja ^. AST.ninjaSingles
         (outputs, build) <- [ HM.toList multiples
                             , map (first HS.singleton) (HM.toList singles)
                             ] |> mconcat |> reverse
-        (Just rule) <- [HM.lookup (build ^. AST.pbuildRule) rules]
-        (file:_) <- [build ^. AST.pbuildDeps . AST.pdepsNormal . to HS.toList]
+        (Just rule) <- [HM.lookup (build ^. AST.buildRule) rules]
+        (file:_) <- [build ^. AST.buildDeps . AST.depsNormal . to HS.toList]
         pure (outputs, build, file, rule)
 
   compDB <- Control.Monad.forM itemsToBuild $ \(outputs, build, _, rule) -> do
     let env = computeRuleEnv outputs build rule
     let commandLine = T.unpack (AST.askVar env "command")
-    let deps = build ^. AST.pbuildDeps . AST.pdepsNormal
+    let deps = build ^. AST.buildDeps . AST.depsNormal
     pure $ MkCompDB dir commandLine (T.unpack (head (HS.toList deps)))
 
   putStr $ printCompDB compDB
@@ -204,7 +204,7 @@ ninjaBuild ninja args = pure $ Just $ do
   let pools     = poolList
   let defaults  = ninja ^. AST.ninjaDefaults
 
-  let build :: HashSet Text -> AST.PBuild -> Action ()
+  let build :: HashSet Text -> AST.Build -> Action ()
       build = runBuild (needDeps ninja) phonys rules pools
 
   let targets :: HashSet Text
@@ -253,21 +253,21 @@ quote x                             =
   x
 
 
-runBuild :: (AST.PBuild -> [Text] -> Action ())
+runBuild :: (AST.Build -> [Text] -> Action ())
          -> HashMap Text (HashSet Text)
          -> HashMap Text AST.Rule
          -> HashMap Text Shake.Resource
          -> HashSet Text
-         -> AST.PBuild
+         -> AST.Build
          -> Action ()
 runBuild needD phonys rules pools outputs build = do
   let errorA :: Text -> Action a
       errorA = T.unpack .> Control.Exception.Extra.errorIO .> liftIO
 
-  let ruleName      = build ^. AST.pbuildRule
-  let depsNormal    = build ^. AST.pbuildDeps . AST.pdepsNormal
-  let depsImplicit  = build ^. AST.pbuildDeps . AST.pdepsImplicit
-  let depsOrderOnly = build ^. AST.pbuildDeps . AST.pdepsOrderOnly
+  let ruleName      = build ^. AST.buildRule
+  let depsNormal    = build ^. AST.buildDeps . AST.depsNormal
+  let depsImplicit  = build ^. AST.buildDeps . AST.depsImplicit
+  let depsOrderOnly = build ^. AST.buildDeps . AST.depsOrderOnly
 
   let setConcatMap :: (Eq b, Hashable b) => (a -> HashSet b) -> HashSet a -> [b]
       setConcatMap f = HS.map f .> HS.toList .> HS.unions .> HS.toList
@@ -329,7 +329,7 @@ runBuild needD phonys rules pools outputs build = do
       -- Control.Monad.when (deps == "gcc") $ liftIO $ do
       --   System.Directory.removeFile depfile
 
-needDeps :: AST.Ninja -> AST.PBuild -> [Text] -> Action ()
+needDeps :: AST.Ninja -> AST.Build -> [Text] -> Action ()
 needDeps ninja = \build xs -> do
   let errorA :: Text -> Action a
       errorA = T.unpack .> Control.Exception.Extra.errorIO .> liftIO
@@ -349,7 +349,7 @@ needDeps ninja = \build xs -> do
                , "file in deps is generated and not a pre-dependency"
                ] |> mconcat |> errorA
   where
-    builds :: HashMap Text AST.PBuild
+    builds :: HashMap Text AST.Build
     builds = let singles   = ninja ^. AST.ninjaSingles
                  multiples = ninja ^. AST.ninjaMultiples
              in singles <> explodeHM multiples
@@ -378,16 +378,15 @@ needDeps ninja = \build xs -> do
 
     -- find all dependencies of a rule, no duplicates, with all dependencies of
     -- this rule listed first
-    allDependencies :: AST.PBuild -> [Text]
+    allDependencies :: AST.Build -> [Text]
     allDependencies rule = f HS.empty [] [rule]
       where
         f _    []     []                = []
         f seen []     (x:xs)            =
           let fpNorm = filepathNormalise
-              pdeps  = x ^. AST.pbuildDeps
-              deps   = [ pdeps ^. AST.pdepsNormal
-                       , pdeps ^. AST.pdepsImplicit
-                       , pdeps ^. AST.pdepsOrderOnly
+              deps   = [ x ^. AST.buildDeps . AST.depsNormal
+                       , x ^. AST.buildDeps . AST.depsImplicit
+                       , x ^. AST.buildDeps . AST.depsOrderOnly
                        ] |> mconcat
               paths  = HS.toList deps
                        |> map fpNorm

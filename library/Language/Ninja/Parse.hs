@@ -160,11 +160,11 @@ applyBuild (MkLBuild lexOutputs lexRule lexDeps) lexBinds (ninja, env) = do
   let deps    = HS.fromList (map (AST.askExpr env) lexDeps)
   let binds   = HM.fromList (map (second (AST.askExpr env)) lexBinds)
   let (normal, implicit, orderOnly) = splitDeps deps
-  let build = AST.makePBuild (T.decodeUtf8 lexRule) env
-              |> (AST.pbuildDeps . AST.pdepsNormal    .~ normal   )
-              |> (AST.pbuildDeps . AST.pdepsImplicit  .~ implicit )
-              |> (AST.pbuildDeps . AST.pdepsOrderOnly .~ orderOnly)
-              |> (AST.pbuildBind                      .~ binds    )
+  let build = AST.makeBuild (T.decodeUtf8 lexRule) env
+              |> (AST.buildDeps . AST.depsNormal    .~ normal   )
+              |> (AST.buildDeps . AST.depsImplicit  .~ implicit )
+              |> (AST.buildDeps . AST.depsOrderOnly .~ orderOnly)
+              |> (AST.buildBind                     .~ binds    )
   let allDeps = normal <> implicit <> orderOnly
   let addP = \p -> [(x, allDeps) | x <- outputs] <> (HM.toList p)
                    |> HM.fromList

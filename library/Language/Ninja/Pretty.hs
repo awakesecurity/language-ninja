@@ -107,11 +107,11 @@ prettyRule (name, rule) = do
   mconcat ["rule ", name, "\n", binds]
 
 -- | Pretty-print a Ninja @build@ declaration with one output.
-prettySingle :: (FileText, AST.PBuild) -> Text
+prettySingle :: (FileText, AST.Build) -> Text
 prettySingle (output, build) = prettyMultiple (HS.singleton output, build)
 
 -- | Pretty-print a Ninja @build@ declaration with multiple outputs.
-prettyMultiple :: (HashSet FileText, AST.PBuild) -> Text
+prettyMultiple :: (HashSet FileText, AST.Build) -> Text
 prettyMultiple (outputs, build) = do
   let prefixIfThere :: Text -> Text -> Text
       prefixIfThere pfx rest = if T.all isSpace rest then "" else pfx <> rest
@@ -119,12 +119,12 @@ prettyMultiple (outputs, build) = do
   let unwordsSet :: HashSet Text -> Text
       unwordsSet = HS.toList .> T.unwords
 
-  let ruleName  = build ^. AST.pbuildRule
-  let deps      = build ^. AST.pbuildDeps
-  let binds     = build ^. AST.pbuildBind
-  let normal    = deps ^. AST.pdepsNormal
-  let implicit  = deps ^. AST.pdepsImplicit
-  let orderOnly = deps ^. AST.pdepsOrderOnly
+  let ruleName  = build ^. AST.buildRule
+  let deps      = build ^. AST.buildDeps
+  let binds     = build ^. AST.buildBind
+  let normal    = deps ^. AST.depsNormal
+  let implicit  = deps ^. AST.depsImplicit
+  let orderOnly = deps ^. AST.depsOrderOnly
 
   mconcat
     [ "build ", T.unwords (HS.toList outputs), ": "
