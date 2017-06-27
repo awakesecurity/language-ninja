@@ -21,6 +21,7 @@
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
@@ -70,6 +71,10 @@ import qualified Data.Text.IO             as T
 import           Data.Map.Strict          (Map)
 import qualified Data.Map.Strict          as Map
 
+import           Control.DeepSeq          (NFData)
+import           Data.Hashable            (Hashable)
+import           GHC.Generics             (Generic)
+
 import           Data.Aeson
                  (FromJSON (..), KeyValue (..), ToJSON (..), (.:))
 import qualified Data.Aeson               as Aeson
@@ -88,7 +93,7 @@ data Located t
     { _locatedPos :: {-# UNPACK #-} !Position
     , _locatedVal ::                !t
     }
-  deriving (Eq, Show, Functor)
+  deriving (Eq, Show, Functor, Generic)
 
 -- | Construct a 'Located' value directly.
 {-# INLINE makeLocated #-}
@@ -142,6 +147,12 @@ instance (FromJSON t) => FromJSON (Located t) where
                   _locatedVal <- (o .: "val") >>= pure
                   pure (MkLocated {..}))
 
+-- | Default 'Hashable' instance via 'Generic'.
+instance (Hashable t) => Hashable (Located t)
+
+-- | Default 'NFData' instance via 'Generic'.
+instance (NFData t) => NFData (Located t)
+
 --------------------------------------------------------------------------------
 
 -- | This datatype represents position of a cursor
@@ -151,7 +162,7 @@ data Position
     , _positionLine :: {-# UNPACK #-} !Line
     , _positionCol  :: {-# UNPACK #-} !Column
     }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | Construct a 'Position' from a (nullable) path and a @(line, column)@ pair.
 {-# INLINE makePosition #-}
@@ -191,6 +202,12 @@ instance FromJSON Position where
                   _positionLine <- (o .: "line") >>= pure
                   _positionCol  <- (o .: "col")  >>= pure
                   pure (MkPosition {..}))
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable Position
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData Position
 
 --------------------------------------------------------------------------------
 

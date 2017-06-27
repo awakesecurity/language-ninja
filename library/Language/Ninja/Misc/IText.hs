@@ -52,7 +52,7 @@ import qualified Data.Aeson.Types       as Aeson
 import qualified Data.Interned          as Interned
 import qualified Data.Interned.Text     as Interned (InternedText)
 
-import           Data.Data              (Data)
+import           Control.DeepSeq        (NFData (..))
 import           Data.Hashable          (Hashable (..))
 import           Data.String            (IsString (..))
 import           GHC.Generics           (Generic)
@@ -116,6 +116,10 @@ instance Read IText where
 -- | Uses the 'Hashable' instance for 'Text'. Not very efficient.
 instance Hashable IText where
   hashWithSalt n = uninternText .> hashWithSalt n
+
+-- | Defined by @rnf a = seq a ()@, since 'IText' is a newtype of strict types.
+instance NFData IText where
+  rnf a = seq a ()
 
 -- | Converts to JSON string via 'uninternText'.
 instance ToJSON IText where

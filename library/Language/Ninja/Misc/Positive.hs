@@ -45,6 +45,7 @@ import           Data.Text              (Text)
 
 import           Data.Aeson             as Aeson
 
+import           Control.DeepSeq        (NFData)
 import           Data.Hashable          (Hashable)
 import           GHC.Generics           (Generic)
 import           Test.SmallCheck        as SC
@@ -61,7 +62,8 @@ newtype Positive
   = MkPositive
     { _fromPositive :: Int
     }
-  deriving ( Eq, Ord, Real, Integral, Enum, Show, Read, Generic, Hashable
+  deriving ( Eq, Ord, Real, Integral, Enum, Show, Read, Generic
+           , Hashable, NFData
            , ToJSON, FromJSON )
 
 -- | This instance uses 'error' to preserve the 'Positive' invariant.

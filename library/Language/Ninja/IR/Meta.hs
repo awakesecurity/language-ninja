@@ -50,7 +50,8 @@ import qualified Data.Aeson.Types         as Aeson
 import           Data.Text                (Text)
 import qualified Data.Text                as T
 
-import           Data.Hashable            (Hashable (..))
+import           Control.DeepSeq          (NFData)
+import           Data.Hashable            (Hashable)
 import           GHC.Generics             (Generic)
 import qualified Test.SmallCheck.Series   as SC
 
@@ -96,9 +97,6 @@ metaBuildDir :: Lens' Meta (Maybe Path)
 metaBuildDir = Control.Lens.lens _metaBuildDir
                $ \(MkMeta {..}) x -> MkMeta { _metaBuildDir = x, .. }
 
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Meta
-
 -- | Converts to @{req-version: …, build-dir: …}@.
 instance ToJSON Meta where
   toJSON (MkMeta {..})
@@ -121,6 +119,12 @@ instance FromJSON Meta where
 
       versionP :: Value -> Aeson.Parser Ver.Version
       versionP = withText "Version" (megaparsecToAeson Ver.version')
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable Meta
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData Meta
 
 -- | Default 'SC.Serial' instance via 'Generic'.
 instance ( Monad m

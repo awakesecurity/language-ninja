@@ -65,6 +65,7 @@ import qualified Data.Aeson               as Aeson
 
 import qualified Data.Versions            as Ver
 
+import           Control.DeepSeq          (NFData)
 import           Data.Hashable            (Hashable)
 import           GHC.Generics             (Generic)
 import qualified Test.SmallCheck.Series   as SC
@@ -132,9 +133,6 @@ ninjaPools :: Lens' Ninja (HashSet Pool)
 ninjaPools = Control.Lens.lens _ninjaPools
              $ \(MkNinja {..}) x -> MkNinja { _ninjaPools = x, .. }
 
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Ninja
-
 -- | Converts to @{meta: …, builds: …, phonys: …, defaults: …, pools: …}@.
 instance ToJSON Ninja where
   toJSON (MkNinja {..})
@@ -155,21 +153,27 @@ instance FromJSON Ninja where
                   _ninjaPools    <- (o .: "pools")    >>= pure
                   pure (MkNinja {..}))
 
-type NinjaConstraint
-     (constraint :: (* -> *) -> * -> Constraint)
-     (m :: * -> *)
-  = ( constraint m Text
-    , constraint m Ver.Version
-    , constraint m (HashMap Target (HashSet Target))
-    , constraint m (HashSet Build)
-    , constraint m (HashSet Target)
-    , constraint m (HashSet Pool)
-    )
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable Ninja
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData Ninja
 
 -- | Default 'SC.Serial' instance via 'Generic'.
-instance (Monad m, NinjaConstraint SC.Serial m) => SC.Serial m Ninja
+instance (Monad m, NinjaConstraint (SC.Serial m)) => SC.Serial m Ninja
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
-instance (Monad m, NinjaConstraint SC.CoSerial m) => SC.CoSerial m Ninja
+instance (Monad m, NinjaConstraint (SC.CoSerial m)) => SC.CoSerial m Ninja
+
+-- | The set of constraints required for a given constraint to be automatically
+--   computed for a 'Ninja'.
+type NinjaConstraint (c :: * -> Constraint)
+  = ( c Text
+    , c Ver.Version
+    , c (HashMap Target (HashSet Target))
+    , c (HashSet Build)
+    , c (HashSet Target)
+    , c (HashSet Pool)
+    )
 
 --------------------------------------------------------------------------------

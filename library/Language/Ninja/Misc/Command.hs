@@ -43,6 +43,7 @@ import           Data.Text              (Text)
 
 import           Data.Aeson             (FromJSON, ToJSON)
 
+import           Control.DeepSeq        (NFData)
 import           Data.Hashable          (Hashable)
 import           GHC.Generics           (Generic)
 import           Test.SmallCheck.Series as SC
@@ -59,7 +60,7 @@ newtype Command
   = MkCommand
     { _commandText :: Text
     }
-  deriving ( Eq, Ord, Show, Read, Generic, Hashable
+  deriving ( Eq, Ord, Show, Read, Generic, Hashable, NFData
            , ToJSON, FromJSON )
 
 -- | Constructor for a 'Command'.

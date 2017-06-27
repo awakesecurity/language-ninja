@@ -70,7 +70,8 @@ import qualified Data.Text                    as T
 import           Data.Aeson                   as Aeson
 import qualified Data.Aeson.Types             as Aeson
 
-import           Data.Hashable                (Hashable (..))
+import           Control.DeepSeq              (NFData)
+import           Data.Hashable                (Hashable)
 import           Data.String                  (IsString (..))
 import           GHC.Generics                 (Generic)
 import           Test.SmallCheck.Series       as SC hiding (Positive)
@@ -130,9 +131,6 @@ poolName = Lens.to _poolName
 poolDepth :: Lens.Getter Pool PoolDepth
 poolDepth = Lens.to _poolDepth
 
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Pool
-
 -- | Converts to @{name: …, depth: …}@.
 instance ToJSON Pool where
   toJSON (MkPool {..})
@@ -166,6 +164,12 @@ instance ( Monad m
     where
       convert :: Pool -> (PoolName, PoolDepth)
       convert pool = (Lens.view poolName pool, Lens.view poolDepth pool)
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable Pool
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData Pool
 
 --------------------------------------------------------------------------------
 
@@ -256,9 +260,6 @@ parsePoolName ""        = makePoolNameDefault
 parsePoolName "console" = makePoolNameConsole
 parsePoolName t         = makePoolNameCustom t
 
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable PoolName
-
 -- | Converts from string via 'parsePoolName'.
 instance IsString PoolName where
   fromString = T.pack .> parsePoolName
@@ -291,6 +292,12 @@ instance ( Monad m
          ) => SC.CoSerial m PoolName where
   coseries = SC.coseries
              .> fmap (\f -> printPoolName .> f)
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable PoolName
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData PoolName
 
 --------------------------------------------------------------------------------
 
@@ -332,9 +339,6 @@ poolDepthPositive = Lens.iso fromPD toPD
     toPD (Just p) = PoolDepth p
     toPD Nothing  = PoolInfinite
 
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable PoolDepth
-
 -- | Converts 'PoolInfinite' to @"infinite"@ and 'PoolDepth' to the
 --   corresponding JSON number.
 instance ToJSON PoolDepth where
@@ -357,5 +361,11 @@ instance (Monad m) => SC.CoSerial m PoolDepth where
   coseries = SC.coseries
              .> fmap (\f -> \case (PoolDepth i) -> f (Just i)
                                   PoolInfinite  -> f Nothing)
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable PoolDepth
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData PoolDepth
 
 --------------------------------------------------------------------------------

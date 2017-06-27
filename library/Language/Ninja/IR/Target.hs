@@ -61,7 +61,8 @@ import           Data.Aeson
                  ToJSONKey, (.:))
 import qualified Data.Aeson                as Aeson
 
-import           Data.Hashable             (Hashable (..))
+import           Control.DeepSeq           (NFData)
+import           Data.Hashable             (Hashable)
 import           Data.String               (IsString (..))
 import           GHC.Generics              (Generic)
 import           Test.SmallCheck.Series    ((>>-))
@@ -81,7 +82,7 @@ newtype Target
   = MkTarget
     { _targetIText :: IText
     }
-  deriving ( Eq, Ord, Show, Read, IsString, Generic, Hashable
+  deriving ( Eq, Ord, Show, Read, IsString, Generic, Hashable, NFData
            , ToJSON, FromJSON, ToJSONKey, FromJSONKey )
 
 -- | Construct a 'Target' from some 'Text'.
@@ -114,12 +115,6 @@ instance ( Monad m
          ) => SC.CoSerial m Target where
   coseries rs = SC.newtypeAlts rs
                 >>- \f -> pure (_targetIText .> f)
-
--- | Default 'SC.Serial' instance via 'Generic'.
-instance (Monad m, SC.Serial m Text) => SC.Serial m Output
-
--- | Default 'SC.CoSerial' instance via 'Generic'.
-instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Output
 
 --------------------------------------------------------------------------------
 
@@ -155,9 +150,6 @@ outputType :: Lens' Output OutputType
 outputType = lens _outputType
              $ \(MkOutput {..}) new -> MkOutput { _outputType = new, .. }
 
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Output
-
 -- | Converts to @{target: …, type: …}@.
 instance ToJSON Output where
   toJSON (MkOutput {..})
@@ -171,6 +163,18 @@ instance FromJSON Output where
                   _outputTarget <- (o .: "target") >>= pure
                   _outputType   <- (o .: "type")   >>= pure
                   pure (MkOutput {..}))
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable Output
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData Output
+
+-- | Default 'SC.Serial' instance via 'Generic'.
+instance (Monad m, SC.Serial m Text) => SC.Serial m Output
+
+-- | Default 'SC.CoSerial' instance via 'Generic'.
+instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Output
 
 --------------------------------------------------------------------------------
 
@@ -196,9 +200,6 @@ _ImplicitOutput = prism' (const ImplicitOutput)
                    $ \case ImplicitOutput -> Just ()
                            _              -> Nothing
 
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable OutputType
-
 -- | Converts to @"explicit"@ and @"implicit"@ respectively.
 instance ToJSON OutputType where
   toJSON ExplicitOutput = "explicit"
@@ -213,6 +214,12 @@ instance FromJSON OutputType where
                                 , "\"", owise, "\"; should be one of "
                                 , "[\"explict\", \"implicit\"]"
                                 ] |> mconcat |> T.unpack |> fail)
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable OutputType
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData OutputType
 
 -- | Default 'SC.Serial' instance via 'Generic'.
 instance (Monad m) => SC.Serial m OutputType
@@ -256,9 +263,6 @@ dependencyType
   = lens _dependencyType
     $ \(MkDependency {..}) new -> MkDependency { _dependencyType = new, .. }
 
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Dependency
-
 -- | Converts to @{target: …, type: …}@.
 instance ToJSON Dependency where
   toJSON (MkDependency {..})
@@ -272,6 +276,12 @@ instance FromJSON Dependency where
                   _dependencyTarget <- (o .: "target") >>= pure
                   _dependencyType   <- (o .: "type")   >>= pure
                   pure (MkDependency {..}))
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable Dependency
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData Dependency
 
 -- | Default 'SC.Serial' instance via 'Generic'.
 instance (Monad m, SC.Serial m Text) => SC.Serial m Dependency
@@ -318,9 +328,6 @@ _OrderOnlyDependency = prism' (const OrderOnlyDependency)
                        $ \case OrderOnlyDependency -> Just ()
                                _                   -> Nothing
 
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable DependencyType
-
 -- | Converts to @"normal"@, @"implicit"@, and @"order-only"@ respectively.
 instance ToJSON DependencyType where
   toJSON NormalDependency    = "normal"
@@ -337,6 +344,12 @@ instance FromJSON DependencyType where
                                   , "\"", owise, "\"; should be one of "
                                   , "[\"normal\", \"implicit\", \"order-only\"]"
                                   ] |> mconcat |> T.unpack |> fail)
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable DependencyType
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData DependencyType
 
 -- | Default 'SC.Serial' instance via 'Generic'.
 instance (Monad m) => SC.Serial m DependencyType

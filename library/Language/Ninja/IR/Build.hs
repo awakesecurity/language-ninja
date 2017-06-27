@@ -50,7 +50,8 @@ import           Data.Text                (Text)
 import           Data.HashSet             (HashSet)
 import qualified Data.HashSet             as HS
 
-import           Data.Hashable            (Hashable (..))
+import           Control.DeepSeq          (NFData)
+import           Data.Hashable            (Hashable)
 import           GHC.Generics             (Generic)
 import qualified Test.SmallCheck.Series   as SC
 
@@ -101,9 +102,6 @@ buildDeps :: Lens' Build (HashSet Dependency)
 buildDeps = Control.Lens.lens _buildDeps
             $ \(MkBuild {..}) x -> MkBuild { _buildDeps = x, .. }
 
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Build
-
 -- | Converts to @{rule: …, outputs: …, dependencies: …}@.
 instance ToJSON Build where
   toJSON (MkBuild {..})
@@ -119,6 +117,12 @@ instance FromJSON Build where
                   _buildOuts <- (o .: "outputs")      >>= pure
                   _buildDeps <- (o .: "dependencies") >>= pure
                   pure (MkBuild {..}))
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable Build
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData Build
 
 -- | Default 'SC.Serial' instance via 'Generic'.
 instance ( Monad m

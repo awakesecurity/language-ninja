@@ -63,6 +63,7 @@ import           Data.Aeson
                  (.:?))
 import qualified Data.Aeson                  as Aeson
 
+import           Control.DeepSeq             (NFData)
 import           Data.Hashable               (Hashable (..))
 import           GHC.Generics                (Generic)
 import qualified Test.SmallCheck.Series      as SC
@@ -186,9 +187,6 @@ ruleResponseFile :: Lens' Rule (Maybe ResponseFile)
 ruleResponseFile = lens _ruleResponseFile
                    $ \(MkRule {..}) x -> MkRule { _ruleResponseFile = x, .. }
 
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Rule
-
 -- | Converts to
 --   @{name: …, command: …, desc: …, pool: …, depfile: …,
 --     deps: …, generator: …, restat: …, rsp: …}@.
@@ -218,6 +216,12 @@ instance FromJSON Rule where
                   _ruleRestat       <- (o .: "restat")    >>= pure
                   _ruleResponseFile <- (o .: "rsp")       >>= pure
                   pure (MkRule {..}))
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable Rule
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData Rule
 
 -- | Default 'SC.Serial' instance via 'Generic'.
 instance ( Monad m
@@ -271,9 +275,6 @@ _SpecialDepsMSVC = prism makeSpecialDepsMSVC
                    $ \case (SpecialDepsMSVC prefix) -> Right prefix
                            owise                    -> Left owise
 
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable SpecialDeps
-
 -- | Converts to @{deps: "gcc"}@ or @{deps: "msvc", prefix: …}@.
 instance ToJSON SpecialDeps where
   toJSON = go
@@ -297,6 +298,12 @@ instance FromJSON SpecialDeps where
       owise  -> ["Invalid deps type ", "\"", owise, "\"; "
                 , "should be one of [\"gcc\", \"msvc\"]."
                 ] |> mconcat |> T.unpack |> fail
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable SpecialDeps
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData SpecialDeps
 
 -- | Default 'SC.Serial' instance via 'Generic'.
 instance ( Monad m
@@ -342,9 +349,6 @@ responseFileContent = lens _responseFileContent
                       $ \(MkResponseFile {..}) x ->
                           MkResponseFile { _responseFileContent = x, .. }
 
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable ResponseFile
-
 -- | Converts to @{path: …, content: …}@.
 instance ToJSON ResponseFile where
   toJSON (MkResponseFile {..})
@@ -358,6 +362,12 @@ instance FromJSON ResponseFile where
     MkResponseFile
       <$> (o .: "path")
       <*> (o .: "content")
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable ResponseFile
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData ResponseFile
 
 -- | Default 'SC.Serial' instance via 'Generic'.
 instance ( Monad m

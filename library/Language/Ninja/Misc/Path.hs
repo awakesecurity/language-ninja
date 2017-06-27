@@ -50,7 +50,8 @@ import           Data.Aeson
                  (FromJSON, FromJSONKey, ToJSON, ToJSONKey)
 import qualified Data.Aeson                as Aeson
 
-import           Data.Hashable             (Hashable (..))
+import           Control.DeepSeq           (NFData)
+import           Data.Hashable             (Hashable)
 import           Data.String               (IsString (..))
 import           GHC.Generics              (Generic)
 import           Test.SmallCheck.Series    ((>>-))
@@ -69,7 +70,7 @@ newtype Path
   = MkPath
     { _pathIText :: IText
     }
-  deriving ( Eq, Ord, Show, Read, IsString, Generic, Hashable
+  deriving ( Eq, Ord, Show, Read, IsString, Generic, Hashable, NFData
            , ToJSON, FromJSON, ToJSONKey, FromJSONKey )
 
 -- | Construct a 'Path' from some 'Text'.

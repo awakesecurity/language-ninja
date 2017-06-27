@@ -37,6 +37,7 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PatternGuards              #-}
@@ -81,13 +82,17 @@ import           Flow                         ((|>))
 
 import qualified Data.Aeson                   as Aeson
 
+import           Control.DeepSeq              (NFData)
+import           Data.Hashable                (Hashable)
+import           GHC.Generics                 (Generic)
+
 import           Language.Ninja.AST           (Str)
 import qualified Language.Ninja.AST           as AST
 
 import qualified Language.Ninja.Misc.Located  as Loc
 
 import           Language.Ninja.Internal.Str0 (Str0 (..))
-import qualified Language.Ninja.Internal.Str0
+import qualified Language.Ninja.Internal.Str0 as Str0
 
 --------------------------------------------------------------------------------
 
@@ -109,21 +114,45 @@ data Lexeme
     LexPool     !LName
   | -- | @default foo bar@
     LexDefault  ![AST.Expr]
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable Lexeme
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData Lexeme
+
+--------------------------------------------------------------------------------
 
 -- | The name of a Ninja rule or pool.
 newtype LName
   = MkLName
     { _lnameStr :: Str
     }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable LName
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData LName
+
+--------------------------------------------------------------------------------
 
 -- | A reference to a file in an @include@ or @subninja@ declaration.
 newtype LFile
   = MkLFile
     { _lfileExpr :: AST.Expr
     }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable LFile
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData LFile
+
+--------------------------------------------------------------------------------
 
 -- | A Ninja variable binding, top-level or otherwise.
 data LBinding
@@ -131,7 +160,15 @@ data LBinding
     { _lbindingName  :: !LName
     , _lbindingValue :: !AST.Expr
     }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable LBinding
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData LBinding
+
+--------------------------------------------------------------------------------
 
 -- | The data contained within a Ninja @build@ declaration.
 data LBuild
@@ -140,7 +177,13 @@ data LBuild
     , _lbuildRule :: !Str
     , _lbuildDeps :: ![AST.Expr]
     }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable LBuild
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData LBuild
 
 --------------------------------------------------------------------------------
 
@@ -167,12 +210,12 @@ lexerLoop c_x
       'p'  | Just x1 <- strip "ool "     x0 -> lexPool     $ dropSpace x1
       'i'  | Just x1 <- strip "nclude "  x0 -> lexInclude  $ dropSpace x1
       's'  | Just x1 <- strip "ubninja " x0 -> lexSubninja $ dropSpace x1
-      '\0'                                -> []
-      _                                   -> lexDefine c_x
+      '\0'                                  -> []
+      _                                     -> lexDefine c_x
   where
-    removeComment = Language.Ninja.Internal.Str0.dropWhile0 (/= '\n')
+    removeComment = Str0.dropWhile0 (/= '\n')
 
-    (c, x0) = Language.Ninja.Internal.Str0.list0 c_x
+    (c, x0) = Str0.list0 c_x
 
     strip str (MkStr0 x) = let b = BSC8.pack str
                            in if b `BSC8.isPrefixOf` x
@@ -180,18 +223,18 @@ lexerLoop c_x
                               else Nothing
 
 lexBind :: Str0 -> [Lexeme]
-lexBind c_x | (c, x) <- Language.Ninja.Internal.Str0.list0 c_x
+lexBind c_x | (c, x) <- Str0.list0 c_x
   = case c of
       '\r' -> lexerLoop x
       '\n' -> lexerLoop x
-      '#'  -> lexerLoop $ Language.Ninja.Internal.Str0.dropWhile0 (/= '\n') x
+      '#'  -> lexerLoop $ Str0.dropWhile0 (/= '\n') x
       '\0' -> []
       _    -> lexxBind LexBind c_x
 
 lexBuild :: Str0 -> [Lexeme]
 lexBuild x0
   = let (outputs, x1) = lexxExprs True x0
-        (rule,    x2) = Language.Ninja.Internal.Str0.span0 isVarDot $ dropSpace x1
+        (rule,    x2) = Str0.span0 isVarDot $ dropSpace x1
         (deps,    x3) = lexxExprs False $ dropSpace x2
     in LexBuild (MkLBuild outputs rule deps) : lexerLoop x3
 
@@ -208,13 +251,13 @@ lexDefine   = lexxBind LexDefine
 
 lexxBind :: (LBinding -> Lexeme) -> Str0 -> [Lexeme]
 lexxBind ctor x0 =
-  let (var,  x1) = Language.Ninja.Internal.Str0.span0 isVarDot x0
-      (eq,   x2) = Language.Ninja.Internal.Str0.list0 $ dropSpace x1
+  let (var,  x1) = Str0.span0 isVarDot x0
+      (eq,   x2) = Str0.list0 $ dropSpace x1
       (expr, x3) = lexxExpr False False $ dropSpace x2
    in if eq == '='
       then ctor (MkLBinding (MkLName var) expr) : lexerLoop x3
       else [ "parse failed when parsing binding: "
-           , show (Language.Ninja.Internal.Str0.take0 100 x0)
+           , show (Str0.take0 100 x0)
            ] |> mconcat |> error
 
 lexxFile :: (LFile -> Lexeme) -> Str0 -> [Lexeme]
@@ -227,8 +270,8 @@ lexxName ctor x = let (name, rest) = splitLineCont x
 
 lexxExprs :: Bool -> Str0 -> ([AST.Expr], Str0)
 lexxExprs sColon x0
-  = let c  = Language.Ninja.Internal.Str0.head0 c_x
-        x1 = Language.Ninja.Internal.Str0.tail0 c_x
+  = let c  = Str0.head0 c_x
+        x1 = Str0.tail0 c_x
     in case c of -- FIXME: nonexhaustive pattern match
          ' '           -> first (a:) $ lexxExprs sColon $ dropSpace x1
          ':'  | sColon -> ([a], x1)
@@ -260,28 +303,28 @@ lexxExpr stopColon stopSpace = first exprs . f
                      (False, False) -> (x <= '$') && or [                    b]
 
     f :: Str0 -> ([AST.Expr], Str0)
-    f (Language.Ninja.Internal.Str0.break00 special -> (a, x))
+    f (Str0.break00 special -> (a, x))
       = if BSC8.null a then g x else AST.Lit (T.decodeUtf8 a) $: g x
 
     ($:) :: a -> ([a], b) -> ([a], b)
     x $: (xs, y) = (x:xs, y)
 
     g :: Str0 -> ([AST.Expr], Str0)
-    g x0 | (Language.Ninja.Internal.Str0.head0 x0 /= '$') =
+    g x0 | (Str0.head0 x0 /= '$') =
       ([], x0)
-    g (Language.Ninja.Internal.Str0.tail0 -> c_x) =
-      let (c, x0) = Language.Ninja.Internal.Str0.list0 c_x
+    g (Str0.tail0 -> c_x) =
+      let (c, x0) = Str0.list0 c_x
       in case c of
            '$'   -> AST.Lit (T.singleton '$') $: f x0
            ' '   -> AST.Lit (T.singleton ' ') $: f x0
            ':'   -> AST.Lit (T.singleton ':') $: f x0
            '\n'  -> f $ dropSpace x0
            '\r'  -> f $ dropSpace $ dropN x0
-           '{' | (name, x1) <- Language.Ninja.Internal.Str0.span0 isVarDot x0
-               , ('}',  x2) <- Language.Ninja.Internal.Str0.list0 x1
+           '{' | (name, x1) <- Str0.span0 isVarDot x0
+               , ('}',  x2) <- Str0.list0 x1
                , not (BSC8.null name)
                  -> AST.Var (T.decodeUtf8 name) $: f x2
-           _   | (name, x1) <- Language.Ninja.Internal.Str0.span0 isVar c_x
+           _   | (name, x1) <- Str0.span0 isVar c_x
                , not $ BSC8.null name
                  -> AST.Var (T.decodeUtf8 name) $: f x1
            _     -> unexpectedDollar
@@ -302,7 +345,7 @@ splitLineCR x = if BSC8.isSuffixOf (BSC8.singleton '\r') a
                 then (BSC8.init a, dropN b)
                 else (a, dropN b)
   where
-    (a, b) = Language.Ninja.Internal.Str0.break0 (== '\n') x
+    (a, b) = Str0.break0 (== '\n') x
 
 isVar :: Char -> Bool
 isVar x = [ (x == '-')
@@ -322,11 +365,11 @@ endsDollar = BSC8.isSuffixOf (BSC8.singleton '$')
 
 dropN :: Str0 -> Str0
 dropN x =
-  if (Language.Ninja.Internal.Str0.head0 x == '\n')
-  then Language.Ninja.Internal.Str0.tail0 x
+  if (Str0.head0 x == '\n')
+  then Str0.tail0 x
   else x
 
 dropSpace :: Str0 -> Str0
-dropSpace = Language.Ninja.Internal.Str0.dropWhile0 (== ' ')
+dropSpace = Str0.dropWhile0 (== ' ')
 
 --------------------------------------------------------------------------------
