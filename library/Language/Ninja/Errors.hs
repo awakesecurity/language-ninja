@@ -38,6 +38,10 @@ module Language.Ninja.Errors
   ( module Language.Ninja.Errors.Compile
   , module Language.Ninja.Errors.Parse
   , NinjaError (..)
+  , throwNinjaError
+  , throwGenericNinjaError
+  , throwNinjaParseError
+  , throwNinjaCompileError
   ) where
 
 import           Language.Ninja.Errors.Compile
