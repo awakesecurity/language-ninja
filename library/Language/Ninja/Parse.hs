@@ -56,35 +56,31 @@ module Language.Ninja.Parse
   ( parse, parseWithEnv
   ) where
 
-import           Control.Arrow           (second)
-import           Control.Monad           ((>=>))
+import           Control.Arrow         (second)
+import           Control.Monad         ((>=>))
 
-import           Control.Lens.Setter     ((%~), (.~))
+import           Control.Lens.Setter   ((%~), (.~))
 
-import           Data.Monoid             (Endo (..), (<>))
+import           Data.Monoid           (Endo (..), (<>))
 
-import qualified Data.ByteString.Char8   as BSC8
+import qualified Data.ByteString.Char8 as BSC8
 
-import           Data.Text               (Text)
-import qualified Data.Text               as T
-import qualified Data.Text.Encoding      as T
+import           Data.Text             (Text)
+import qualified Data.Text             as T
+import qualified Data.Text.Encoding    as T
 
-import           Data.HashMap.Strict     (HashMap)
-import qualified Data.HashMap.Strict     as HM
+import           Data.HashMap.Strict   (HashMap)
+import qualified Data.HashMap.Strict   as HM
 
-import           Data.HashSet            (HashSet)
-import qualified Data.HashSet            as HS
+import           Data.HashSet          (HashSet)
+import qualified Data.HashSet          as HS
 
+import qualified Language.Ninja.AST    as AST
 import           Language.Ninja.Lexer
                  (LBinding (..), LBuild (..), LFile (..), LName (..),
                  Lexeme (..), lexer)
 
-import qualified Language.Ninja.AST      as AST
-import qualified Language.Ninja.AST.Env  as AST
-import qualified Language.Ninja.AST.Expr as AST
-import qualified Language.Ninja.AST.Rule as AST
-
-import           Flow                    ((.>), (|>))
+import           Flow                  ((.>), (|>))
 
 --------------------------------------------------------------------------------
 

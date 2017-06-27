@@ -82,7 +82,7 @@ import           Flow                         ((|>))
 import qualified Data.Aeson                   as Aeson
 
 import           Language.Ninja.AST           (Str)
-import qualified Language.Ninja.AST.Expr      as AST
+import qualified Language.Ninja.AST           as AST
 
 import qualified Language.Ninja.Misc.Located  as Loc
 

@@ -44,37 +44,34 @@ module Language.Ninja.Pretty
   , prettyBind
   ) where
 
-import qualified Control.Arrow           as Arr
+import qualified Control.Arrow         as Arr
 
-import           Control.Lens.Getter     ((^.))
+import           Control.Lens.Getter   ((^.))
 
-import           Language.Ninja.AST      (FileText)
+import           Language.Ninja.AST    (FileText)
 
-import qualified Language.Ninja.AST      as AST
-import qualified Language.Ninja.AST.Env  as AST
-import qualified Language.Ninja.AST.Expr as AST
-import qualified Language.Ninja.AST.Rule as AST
+import qualified Language.Ninja.AST    as AST
 
-import           Data.ByteString         (ByteString)
-import qualified Data.ByteString         as BS
-import qualified Data.ByteString.Char8   as BSC8
+import           Data.ByteString       (ByteString)
+import qualified Data.ByteString       as BS
+import qualified Data.ByteString.Char8 as BSC8
 
-import           Data.HashMap.Strict     (HashMap)
-import qualified Data.HashMap.Strict     as HM
+import           Data.HashMap.Strict   (HashMap)
+import qualified Data.HashMap.Strict   as HM
 
-import           Data.HashSet            (HashSet)
-import qualified Data.HashSet            as HS
+import           Data.HashSet          (HashSet)
+import qualified Data.HashSet          as HS
 
-import           Data.Text               (Text)
-import qualified Data.Text               as T
-import qualified Data.Text.Encoding      as T
+import           Data.Text             (Text)
+import qualified Data.Text             as T
+import qualified Data.Text.Encoding    as T
 
-import qualified Data.HashMap.Strict     as HM
+import qualified Data.HashMap.Strict   as HM
 
-import           Data.Char               (isSpace)
-import           Data.Monoid             ((<>))
+import           Data.Char             (isSpace)
+import           Data.Monoid           ((<>))
 
-import           Flow                    ((.>), (|>))
+import           Flow                  ((.>), (|>))
 
 --------------------------------------------------------------------------------
 

@@ -68,12 +68,10 @@ import qualified Language.Ninja.Misc.Path    as Ninja
 import qualified Language.Ninja.Parse        as Ninja
 import qualified Language.Ninja.Pretty       as Ninja
 
-import qualified Language.Ninja.IR           as IR
-
 import qualified Language.Ninja.AST          as AST
-import qualified Language.Ninja.AST.Env      as AST
-import qualified Language.Ninja.AST.Expr     as AST
-import qualified Language.Ninja.AST.Rule     as AST
+import qualified Language.Ninja.AST.Env      as AST (Maps)
+
+import qualified Language.Ninja.IR           as IR
 
 import qualified Test.Tasty                  as T
 import qualified Test.Tasty.Golden           as T

@@ -73,8 +73,6 @@ import qualified Development.Shake.FilePath as Shake (normaliseEx, toStandard)
 import qualified Development.Shake.Util     as Shake (parseMakefile)
 
 import qualified Language.Ninja.AST         as AST
-import qualified Language.Ninja.AST.Env     as AST
-import qualified Language.Ninja.AST.Rule    as AST
 
 import qualified Language.Ninja.Parse       as Parse
 

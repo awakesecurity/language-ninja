@@ -58,7 +58,7 @@ module Language.Ninja.AST
 
     -- * @Env@
   , AST.Env
-  , AST.makeEnv, AST.fromEnv, AST.addEnv, AST.scopeEnv
+  , AST.makeEnv, AST.fromEnv, AST.addEnv, AST.askEnv, AST.scopeEnv
 
     -- * Miscellaneous
   , Str, FileStr, Text, FileText

@@ -82,26 +82,16 @@ import           GHC.Generics                 (Generic)
 
 import qualified Data.Versions                as Ver
 
-import qualified Language.Ninja.Errors        as Ninja
--- import           Language.Ninja.IR
---                  (Build, Command, Dependency, DependencyType (..), Meta, Ninja,
---                  Output, OutputType (..), Pool, ResponseFile, Rule,
---                  SpecialDeps, Target)
+import qualified Language.Ninja.AST           as AST
+import qualified Language.Ninja.Errors        as Errors
+import qualified Language.Ninja.IR            as IR
 import qualified Language.Ninja.Misc.Positive as Ninja
 import qualified Language.Ninja.Parse         as Ninja
-
-import qualified Language.Ninja.IR            as IR
-
-import           Language.Ninja.AST           (FileText)
-import qualified Language.Ninja.AST           as AST
-import qualified Language.Ninja.AST.Env       as AST
-import qualified Language.Ninja.AST.Expr      as AST
-import qualified Language.Ninja.AST.Rule      as AST
 
 -------------------------------------------------------------------------------
 
 -- | Compile an parsed Ninja file into a intermediate representation.
-compile :: forall m. (MonadError Ninja.CompileError m)
+compile :: forall m. (MonadError Errors.CompileError m)
         => AST.Ninja -> m IR.Ninja
 compile ast = result
   where
@@ -128,7 +118,7 @@ compile ast = result
 
       let parseVersion :: Text -> m Ver.Version
           parseVersion = Ver.version
-                         .> either Ninja.throwVersionParseFailure pure
+                         .> either Errors.throwVersionParseFailure pure
 
       reqversion <- getSpecial "ninja_required_version"
                     |> fmap parseVersion
@@ -155,7 +145,7 @@ compile ast = result
     poolsM :: m (HashSet IR.Pool)
     poolsM = HM.toList ppools |> mapM compilePool |> fmap HS.fromList
 
-    compileBuild :: (HashSet FileText, AST.Build) -> m IR.Build
+    compileBuild :: (HashSet Text, AST.Build) -> m IR.Build
     compileBuild (outputs, buildAST) = do
       let depsAST       = buildAST ^. AST.buildDeps
       let normalDeps    = HS.toList (depsAST ^. AST.depsNormal)
@@ -175,31 +165,31 @@ compile ast = result
         |> IR.buildDeps .~ deps
         |> pure
 
-    compilePhony :: (Text, HashSet FileText)
+    compilePhony :: (Text, HashSet Text)
                   -> m (IR.Target, HashSet IR.Target)
     compilePhony (name, deps) = do
       ename <- compileTarget name
       edeps <- HS.fromList <$> mapM compileTarget (HS.toList deps)
       pure (ename, edeps)
 
-    compileDefault :: FileText -> m IR.Target
+    compileDefault :: Text -> m IR.Target
     compileDefault = compileTarget
 
     compilePool :: (Text, Int) -> m IR.Pool
     compilePool pair = case pair of
       ("console", 1) -> pure IR.makePoolConsole
-      ("console", d) -> Ninja.throwInvalidPoolDepth d
-      ("",        _) -> Ninja.throwEmptyPoolName
+      ("console", d) -> Errors.throwInvalidPoolDepth d
+      ("",        _) -> Errors.throwEmptyPoolName
       (name,      d) -> do dp <- Ninja.makePositive d
-                                 |> maybe (Ninja.throwInvalidPoolDepth d) pure
+                                 |> maybe (Errors.throwInvalidPoolDepth d) pure
                            pure (IR.makePoolCustom name dp)
 
-    compileRule :: (HashSet FileText, AST.Build) -> m IR.Rule
+    compileRule :: (HashSet Text, AST.Build) -> m IR.Rule
     compileRule (outputs, buildAST) = do
       (name, prule) <- lookupRule buildAST
 
       let orLookupError :: Text -> Maybe a -> m a
-          orLookupError var = maybe (Ninja.throwRuleLookupFailure var) pure
+          orLookupError var = maybe (Errors.throwRuleLookupFailure var) pure
 
       let env = computeRuleEnv (outputs, buildAST) prule
 
@@ -242,10 +232,10 @@ compile ast = result
     compileSpecialDeps = (\case (Nothing,     _) -> pure Nothing
                                 (Just "gcc",  m) -> goGCC  m
                                 (Just "msvc", m) -> goMSVC m
-                                (Just d,      _) -> Ninja.throwUnknownDeps d)
+                                (Just d,      _) -> Errors.throwUnknownDeps d)
       where
         goGCC  Nothing  = pure (Just IR.makeSpecialDepsGCC)
-        goGCC  (Just _) = Ninja.throwUnexpectedMSVCPrefix "gcc"
+        goGCC  (Just _) = Errors.throwUnexpectedMSVCPrefix "gcc"
 
         goMSVC m        = pure (Just (IR.makeSpecialDepsMSVC m))
 
@@ -274,7 +264,7 @@ compile ast = result
     lookupRule buildAST = do
       let name = buildAST ^. AST.buildRule
       prule <- HM.lookup name prules
-               |> maybe (Ninja.throwBuildRuleNotFound name) pure
+               |> maybe (Errors.throwBuildRuleNotFound name) pure
       pure (name, prule)
 
     computeRuleEnv :: (HashSet Text, AST.Build)
@@ -301,10 +291,10 @@ compile ast = result
         |> AST.addBinds (HM.toList (prule ^. AST.ruleBind))
 
     prules     :: HashMap Text AST.Rule
-    psingles   :: HashMap FileText AST.Build
-    pmultiples :: HashMap (HashSet FileText) AST.Build
-    pphonys    :: HashMap Text (HashSet FileText)
-    pdefaults  :: HashSet FileText
+    psingles   :: HashMap Text AST.Build
+    pmultiples :: HashMap (HashSet Text) AST.Build
+    pphonys    :: HashMap Text (HashSet Text)
+    pdefaults  :: HashSet Text
     ppools     :: HashMap Text Int
     prules     = ast ^. AST.ninjaRules
     psingles   = ast ^. AST.ninjaSingles

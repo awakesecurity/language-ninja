@@ -17,7 +17,7 @@
 --     See the License for the specific language governing permissions and
 --     limitations under the License.
 
-{-# OPTIONS_GHC #-}
+{-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE OverloadedStrings #-}
@@ -31,15 +31,12 @@
 --   Stability   : experimental
 --
 --   FIXME: doc
-module Main where
+module Main
+  ( module Main -- FIXME: specific export list
+  ) where
 
 import           Control.Lens                as Lens hiding
                  ((.=), (.>), (<.), (<|), (|>))
-
-import qualified Data.Makefile               as Makefile
-import qualified Data.Makefile.Parse         as Makefile
-
--- import           Turtle
 
 import           Control.Arrow
 import           Data.Either
@@ -59,12 +56,6 @@ import qualified Data.ByteString.Char8       as BSC8
 import qualified Data.ByteString.Lazy        as LBS
 import qualified Data.ByteString.Lazy.Char8  as LBSC8
 
-import           Data.Map.Strict             (Map)
-import qualified Data.Map.Strict             as Map
-
-import           Data.Set                    (Set)
-import qualified Data.Set                    as Set
-
 import           Data.HashMap.Strict         (HashMap)
 import qualified Data.HashMap.Strict         as HM
 
@@ -73,19 +64,12 @@ import qualified Data.HashSet                as HS
 
 import           Data.Hashable               (Hashable)
 
-import qualified Language.Ninja.Lexer        as Ninja
 import qualified Language.Ninja.Parse        as Ninja
-import qualified Language.Ninja.Pretty       as Ninja
-import qualified Language.Ninja.Shake        as Ninja
 
-import           Language.Ninja.IR.Target
-import           Language.Ninja.Misc.Command
-import           Language.Ninja.Misc.IText   (IText, internText, uninternText)
+import           Language.Ninja.IR.Target    (Target, makeTarget)
+import           Language.Ninja.Misc.Command (Command, makeCommand)
 
 import qualified Language.Ninja.AST          as AST
-import qualified Language.Ninja.AST.Env      as AST
-import qualified Language.Ninja.AST.Expr     as AST
-import qualified Language.Ninja.AST.Rule     as AST
 
 import           Data.Aeson                  as Aeson
 import           Data.Aeson.Encode.Pretty    as Aeson
