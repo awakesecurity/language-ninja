@@ -75,13 +75,14 @@ import qualified Data.HashMap.Strict     as HM
 import           Data.HashSet            (HashSet)
 import qualified Data.HashSet            as HS
 
-import           Language.Ninja.Env      (askEnv)
 import           Language.Ninja.Lexer
                  (LBinding (..), LBuild (..), LFile (..), LName (..),
                  Lexeme (..), lexer)
-import           Language.Ninja.Types    (Env, PNinja)
+
+import           Language.Ninja.Types    (PNinja)
 import qualified Language.Ninja.Types    as Ninja
 
+import qualified Language.Ninja.AST.Env  as AST
 import qualified Language.Ninja.AST.Expr as AST
 
 import           Flow                    ((.>), (|>))
@@ -94,12 +95,12 @@ parse file = parseWithEnv file Ninja.makeEnv
 
 -- | Parse the file at the given path using the given Ninja variable context,
 --   resulting in a 'PNinja'.
-parseWithEnv :: FilePath -> Env Text Text -> IO PNinja
+parseWithEnv :: FilePath -> AST.Env Text Text -> IO PNinja
 parseWithEnv file env = fst <$> parseFile file (Ninja.makePNinja, env)
 
 --------------------------------------------------------------------------------
 
-type PNinjaWithEnv = (PNinja, Env Text Text)
+type PNinjaWithEnv = (PNinja, AST.Env Text Text)
 
 parseFile :: FilePath -> PNinjaWithEnv -> IO PNinjaWithEnv
 parseFile file (ninja, env) = do
@@ -120,7 +121,7 @@ addSpecialVars (ninja, env) = (mutator ninja, env)
     specialVars = ["ninja_required_version", "builddir"]
 
     addVariable :: Text -> (PNinja -> PNinja)
-    addVariable name = case askEnv env name of
+    addVariable name = case AST.askEnv env name of
       (Just val) -> Ninja.pninjaSpecials %~ HM.insert name val
       Nothing    -> id
 
@@ -226,11 +227,11 @@ splitDeps = HS.toList
       where
         (a, b, c) = go xs
 
-getDepth :: Env Text Text -> [(Text, AST.Expr)] -> IO Int
+getDepth :: AST.Env Text Text -> [(Text, AST.Expr)] -> IO Int
 getDepth env xs = do
   let poolDepthError x = [ "Could not parse depth field in pool, got: ", x
                          ] |> mconcat |> T.unpack |> error
-  case Ninja.askExpr env <$> lookup "depth" xs of
+  case AST.askExpr env <$> lookup "depth" xs of
     Nothing -> pure 1
     Just x  -> case BSC8.readInt (T.encodeUtf8 x) of
                  (Just (i, n)) | BSC8.null n -> pure i

@@ -50,9 +50,9 @@ import           Control.Lens.Getter     ((^.))
 
 import           Language.Ninja.Types    (FileText, PBuild, PNinja, PRule)
 
-import qualified Language.Ninja.Env      as Ninja
 import qualified Language.Ninja.Types    as Ninja
 
+import qualified Language.Ninja.AST.Env  as AST
 import qualified Language.Ninja.AST.Expr as AST
 
 import           Data.ByteString         (ByteString)

@@ -63,11 +63,11 @@ import qualified Control.Lens               as Lens
 
 import qualified Language.Ninja             as Ninja
 import qualified Language.Ninja.Compile     as Ninja
-import qualified Language.Ninja.Env         as Ninja
 import qualified Language.Ninja.IR          as Ninja
 import qualified Language.Ninja.Misc.IText  as Ninja
 import qualified Language.Ninja.Misc.Path   as Ninja
 
+import qualified Language.Ninja.AST.Env     as AST
 import qualified Language.Ninja.AST.Expr    as AST
 
 import qualified Test.Tasty                 as T
@@ -256,8 +256,7 @@ opticsTests
     , testModule "Language.Ninja.Env"
       [ testType "Env"
         [ testIso 1 "fromEnv"
-          (Ninja.fromEnv
-           :: Lens.Iso' (Ninja.Env Text Int) (Ninja.Maps Text Int))
+          (Ninja.fromEnv :: Lens.Iso' (AST.Env Text Int) (AST.Maps Text Int))
         ]
       ]
     , testModule "Language.Ninja.AST.Expr"

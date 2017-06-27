@@ -72,10 +72,10 @@ import qualified Development.Shake          as Shake
 import qualified Development.Shake.FilePath as Shake (normaliseEx, toStandard)
 import qualified Development.Shake.Util     as Shake (parseMakefile)
 
-import           Language.Ninja.Env         (Env)
 import           Language.Ninja.Types       (PBuild, PNinja, PRule)
 
-import qualified Language.Ninja.Env         as Ninja
+import qualified Language.Ninja.AST.Env     as AST
+
 import qualified Language.Ninja.Parse       as Ninja
 import qualified Language.Ninja.Types       as Ninja
 
@@ -136,7 +136,7 @@ ninjaDispatch (NinjaOptionsUnknown tool)  =
   [ "Unknown tool: ", tool
   ] |> mconcat |> T.unpack |> Control.Exception.Extra.errorIO
 
-computeRuleEnv :: HashSet Text -> PBuild -> PRule -> Env Text Text
+computeRuleEnv :: HashSet Text -> PBuild -> PRule -> AST.Env Text Text
 computeRuleEnv outputs b r = do
   let deps = b ^. Ninja.pbuildDeps . Ninja.pdepsNormal
   -- the order of adding new environment variables matters
@@ -310,7 +310,7 @@ runBuild needD phonys rules pools outputs build = do
     let (opts, prog, args) = toCommand commandline
       in if deps == "msvc"
          then do stdout <- withPool (Shake.command opts prog args)
-                 let prefix = Ninja.askEnv env "msvc_deps_prefix"
+                 let prefix = AST.askEnv env "msvc_deps_prefix"
                               |> Data.Maybe.fromMaybe "Note: including file: "
                  let outStr = T.pack (Shake.fromStdout stdout)
                  needD build (parseShowIncludes prefix outStr)
@@ -403,7 +403,7 @@ needDeps ninja = \build xs -> do
     (∈) :: (Eq a, Hashable a) => a -> HashSet a -> Bool
     (∈) = HS.member
 
-applyRspfile :: Env Text Text -> Action a -> Action a
+applyRspfile :: AST.Env Text Text -> Action a -> Action a
 applyRspfile env act = do
   let rspfile         = Ninja.askVar env "rspfile"
   let rspfile_content = Ninja.askVar env "rspfile_content"

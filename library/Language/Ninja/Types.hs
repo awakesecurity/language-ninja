@@ -56,8 +56,7 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   The IO in this module is only to evaluate an environment variable,
---   the 'Env' itself is passed around purely.
+--   FIXME: split this module up
 module Language.Ninja.Types
   ( -- * @PNinja@
     PNinja, makePNinja
@@ -89,7 +88,8 @@ module Language.Ninja.Types
   , AST.askVar, AST.askExpr, AST.addBind, AST.addBinds
 
     -- * @Env@
-  , Env, Ninja.makeEnv, Ninja.fromEnv, Ninja.addEnv, Ninja.scopeEnv
+  , AST.Env
+  , AST.makeEnv, AST.fromEnv, AST.addEnv, AST.scopeEnv
 
     -- * Miscellaneous
   , Str, FileStr, Text, FileText
@@ -131,9 +131,7 @@ import qualified Data.Aeson.Types        as Aeson
 
 import qualified Test.SmallCheck.Series  as SC
 
-import           Language.Ninja.Env      (Env)
-import qualified Language.Ninja.Env      as Ninja
-
+import qualified Language.Ninja.AST.Env  as AST
 import qualified Language.Ninja.AST.Expr as AST
 
 import           Flow                    ((.>), (|>))
@@ -284,7 +282,7 @@ type PNinjaConstraint (c :: * -> Constraint)
 data PBuild
   = MkPBuild
     { _pbuildRule :: !Text
-    , _pbuildEnv  :: !(Env Text Text)
+    , _pbuildEnv  :: !(AST.Env Text Text)
     , _pbuildDeps :: !PDeps
     , _pbuildBind :: !(HashMap Text Text)
     }
@@ -294,7 +292,7 @@ data PBuild
 {-# INLINE makePBuild #-}
 makePBuild :: Text
            -- ^ The rule name
-           -> Env Text Text
+           -> AST.Env Text Text
            -- ^ The environment
            -> PBuild
 makePBuild rule env = MkPBuild
@@ -312,7 +310,7 @@ pbuildRule = Control.Lens.lens _pbuildRule
 
 -- | A lens into the environment associated with a 'PBuild'.
 {-# INLINE pbuildEnv #-}
-pbuildEnv :: Lens' PBuild (Env Text Text)
+pbuildEnv :: Lens' PBuild (AST.Env Text Text)
 pbuildEnv = Control.Lens.lens _pbuildEnv
             $ \(MkPBuild {..}) x -> MkPBuild { _pbuildEnv = x, .. }
 
@@ -358,7 +356,7 @@ type PBuildConstraint (c :: * -> Constraint)
   = ( c Text
     , c (HashSet FileText)
     , c (HashMap Text Text)
-    , c (Ninja.Maps Text Text)
+    , c (AST.Maps Text Text)
     )
 
 --------------------------------------------------------------------------------

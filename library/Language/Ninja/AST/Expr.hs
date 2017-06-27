@@ -68,8 +68,7 @@ import           Data.Aeson                (FromJSON, ToJSON, (.:), (.=))
 import qualified Data.Aeson                as Aeson
 import qualified Data.Aeson.Types          as Aeson
 
-import           Language.Ninja.Env        (Env)
-import qualified Language.Ninja.Env        as Ninja
+import qualified Language.Ninja.AST.Env    as AST
 
 --------------------------------------------------------------------------------
 
@@ -105,20 +104,20 @@ _Var = prism' Var
                _       -> Nothing
 
 -- | Evaluate the given 'PExpr' in the given context (@'Env' 'Text' 'Text'@).
-askExpr :: Env Text Text -> Expr -> Text
+askExpr :: AST.Env Text Text -> Expr -> Text
 askExpr e (Exprs xs) = Text.concat (map (askExpr e) xs)
 askExpr _ (Lit x)    = x
 askExpr e (Var x)    = askVar e x
 
 -- | Look up the given variable in the given context, returning the empty string
 --   if the variable was not found.
-askVar :: Env Text Text -> Text -> Text
-askVar e x = fromMaybe Text.empty (Ninja.askEnv e x)
+askVar :: AST.Env Text Text -> Text -> Text
+askVar e x = fromMaybe Text.empty (AST.askEnv e x)
 
 -- | Add a binding with the given name ('Text') and value ('PExpr') to the
 --   given context.
-addBind :: Text -> Expr -> Env Text Text -> Env Text Text
-addBind k v e = Ninja.addEnv k (askExpr e v) e
+addBind :: Text -> Expr -> AST.Env Text Text -> AST.Env Text Text
+addBind k v e = AST.addEnv k (askExpr e v) e
 
 -- | Add bindings from a list. Note that this function evaluates all the
 --   right-hand-sides first, and then adds them all to the environment.
@@ -126,10 +125,10 @@ addBind k v e = Ninja.addEnv k (askExpr e v) e
 --   For example:
 --
 --   >>> let binds = [("x", PLit "5"), ("y", PVar "x")]
---   >>> Ninja.headEnv (addBinds binds Ninja.makeEnv)
+--   >>> AST.headEnv (addBinds binds AST.makeEnv)
 --   fromList [("x","5"),("y","")]
-addBinds :: [(Text, Expr)] -> Env Text Text -> Env Text Text
-addBinds bs e = map (second (askExpr e) .> uncurry Ninja.addEnv .> Endo) bs
+addBinds :: [(Text, Expr)] -> AST.Env Text Text -> AST.Env Text Text
+addBinds bs e = map (second (askExpr e) .> uncurry AST.addEnv .> Endo) bs
                 |> mconcat
                 |> (\endo -> appEndo endo e)
 

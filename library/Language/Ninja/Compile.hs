@@ -82,7 +82,6 @@ import           GHC.Generics                 (Generic)
 
 import qualified Data.Versions                as Ver
 
-import           Language.Ninja.Env           (askEnv)
 import qualified Language.Ninja.Errors        as Ninja
 import           Language.Ninja.IR
                  (Build, Command, Dependency, DependencyType (..), Meta, Ninja,
@@ -91,9 +90,11 @@ import           Language.Ninja.IR
 import qualified Language.Ninja.IR            as Ninja
 import qualified Language.Ninja.Misc.Positive as Ninja
 import qualified Language.Ninja.Parse         as Ninja
-import           Language.Ninja.Types
-                 (Env, FileText, PBuild, PNinja, PRule)
+import           Language.Ninja.Types         (FileText, PBuild, PNinja, PRule)
 import qualified Language.Ninja.Types         as Ninja
+
+import qualified Language.Ninja.AST.Env       as AST
+import qualified Language.Ninja.AST.Expr      as AST
 
 -------------------------------------------------------------------------------
 
@@ -200,7 +201,7 @@ compile pninja = result
       let env = computeRuleEnv (outputs, pbuild) prule
 
       let lookupBind :: Text -> m (Maybe Text)
-          lookupBind = askEnv env .> pure
+          lookupBind = AST.askEnv env .> pure
 
       let lookupBind_ :: Text -> m Text
           lookupBind_ var = lookupBind var >>= orLookupError var
@@ -208,7 +209,7 @@ compile pninja = result
       command      <- lookupBind_ "command" >>= compileCommand
       description  <- lookupBind "description"
       pool         <- let buildBind = pbuild ^. Ninja.pbuildBind
-                      in (HM.lookup "pool" buildBind <|> askEnv env "pool")
+                      in (HM.lookup "pool" buildBind <|> AST.askEnv env "pool")
                          |> fmap Ninja.parsePoolName
                          |> fromMaybe Ninja.makePoolNameDefault
                          |> pure
@@ -275,7 +276,7 @@ compile pninja = result
 
     computeRuleEnv :: (HashSet Text, PBuild)
                    -> PRule
-                   -> Env Text Text
+                   -> AST.Env Text Text
     computeRuleEnv (outs, pbuild) prule = do
       let deps = pbuild ^. Ninja.pbuildDeps . Ninja.pdepsNormal
 
@@ -289,12 +290,12 @@ compile pninja = result
           pbuildBind = pbuild ^. Ninja.pbuildBind
 
       -- the order of adding new environment variables matters
-      Ninja.scopeEnv (pbuild ^. Ninja.pbuildEnv)
-        |> Ninja.addEnv "out"        (T.unwords (map quote (HS.toList outs)))
-        |> Ninja.addEnv "in"         (T.unwords (map quote (HS.toList deps)))
-        |> Ninja.addEnv "in_newline" (T.unlines (HS.toList deps))
+      AST.scopeEnv (pbuild ^. Ninja.pbuildEnv)
+        |> AST.addEnv "out"        (T.unwords (map quote (HS.toList outs)))
+        |> AST.addEnv "in"         (T.unwords (map quote (HS.toList deps)))
+        |> AST.addEnv "in_newline" (T.unlines (HS.toList deps))
         |> composeList (map (uncurry Ninja.addEnv) (HM.toList pbuildBind))
-        |> Ninja.addBinds (HM.toList (prule ^. Ninja.pruleBind))
+        |> AST.addBinds (HM.toList (prule ^. Ninja.pruleBind))
 
     prules     :: HashMap Text PRule
     psingles   :: HashMap FileText PBuild

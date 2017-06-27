@@ -73,7 +73,6 @@ import qualified Data.HashSet                as HS
 
 import           Data.Hashable               (Hashable)
 
-import qualified Language.Ninja.Env          as Ninja
 import qualified Language.Ninja.Lexer        as Ninja
 import qualified Language.Ninja.Parse        as Ninja
 import qualified Language.Ninja.Pretty       as Ninja
@@ -84,6 +83,7 @@ import           Language.Ninja.IR.Target
 import           Language.Ninja.Misc.Command
 import           Language.Ninja.Misc.IText   (IText, internText, uninternText)
 
+import qualified Language.Ninja.AST.Env      as AST
 import qualified Language.Ninja.AST.Expr     as AST
 
 import           Data.Aeson                  as Aeson

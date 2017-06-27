@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/Env.hs
+-- File: library/Language/Ninja/AST/Env.hs
 --
 -- License:
 --     Copyright Neil Mitchell 2011-2017.
@@ -46,14 +46,14 @@
 {-# LANGUAGE UndecidableInstances  #-}
 
 -- |
---   Module      : Language.Ninja.Env
+--   Module      : Language.Ninja.AST.Env
 --   Copyright   : Copyright 2011-2017 Neil Mitchell
 --   License     : BSD3
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
 --   A Ninja-style environment, basically a nonempty list of hash tables.
-module Language.Ninja.Env
+module Language.Ninja.AST.Env
   ( Key, Maps
   , Env, makeEnv, fromEnv, headEnv, tailEnv
   , scopeEnv, addEnv, askEnv
