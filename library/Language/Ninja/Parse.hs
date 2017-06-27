@@ -56,33 +56,35 @@ module Language.Ninja.Parse
   ( parse, parseWithEnv
   ) where
 
-import           Control.Arrow         (second)
-import           Control.Monad         ((>=>))
+import           Control.Arrow           (second)
+import           Control.Monad           ((>=>))
 
-import           Control.Lens.Setter   ((%~), (.~))
+import           Control.Lens.Setter     ((%~), (.~))
 
-import           Data.Monoid           (Endo (..), (<>))
+import           Data.Monoid             (Endo (..), (<>))
 
-import qualified Data.ByteString.Char8 as BSC8
+import qualified Data.ByteString.Char8   as BSC8
 
-import           Data.Text             (Text)
-import qualified Data.Text             as T
-import qualified Data.Text.Encoding    as T
+import           Data.Text               (Text)
+import qualified Data.Text               as T
+import qualified Data.Text.Encoding      as T
 
-import           Data.HashMap.Strict   (HashMap)
-import qualified Data.HashMap.Strict   as HM
+import           Data.HashMap.Strict     (HashMap)
+import qualified Data.HashMap.Strict     as HM
 
-import           Data.HashSet          (HashSet)
-import qualified Data.HashSet          as HS
+import           Data.HashSet            (HashSet)
+import qualified Data.HashSet            as HS
 
-import           Language.Ninja.Env    (askEnv)
+import           Language.Ninja.Env      (askEnv)
 import           Language.Ninja.Lexer
                  (LBinding (..), LBuild (..), LFile (..), LName (..),
                  Lexeme (..), lexer)
-import           Language.Ninja.Types  (Env, PExpr, PNinja)
-import qualified Language.Ninja.Types  as Ninja
+import           Language.Ninja.Types    (Env, PNinja)
+import qualified Language.Ninja.Types    as Ninja
 
-import           Flow                  ((.>), (|>))
+import qualified Language.Ninja.AST.Expr as AST
+
+import           Flow                    ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
@@ -125,7 +127,7 @@ addSpecialVars (ninja, env) = (mutator ninja, env)
     mutator :: PNinja -> PNinja
     mutator = map addVariable specialVars |> map Endo |> mconcat |> appEndo
 
-withBinds :: [Lexeme] -> [(Lexeme, [(Text, PExpr)])]
+withBinds :: [Lexeme] -> [(Lexeme, [(Text, AST.Expr)])]
 withBinds = go
   where
     go []     = []
@@ -137,7 +139,7 @@ withBinds = go
                                  in ((T.decodeUtf8 a, b) : as, bs)
     f xs                       = ([], xs)
 
-type ApplyFun = [(Text, PExpr)] -> PNinjaWithEnv -> IO PNinjaWithEnv
+type ApplyFun = [(Text, AST.Expr)] -> PNinjaWithEnv -> IO PNinjaWithEnv
 
 applyStmt :: Lexeme -> ApplyFun
 applyStmt lexeme binds (ninja, env)
@@ -180,7 +182,7 @@ applyRule (MkLName name) binds (ninja, env) = do
   let rule = Ninja.makePRule |> Ninja.pruleBind .~ HM.fromList binds
   pure (ninja |> Ninja.pninjaRules %~ HM.insert (T.decodeUtf8 name) rule, env)
 
-applyDefault :: [PExpr] -> ApplyFun
+applyDefault :: [AST.Expr] -> ApplyFun
 applyDefault lexDefaults _ (ninja, env) = do
   let defaults = HS.fromList (map (Ninja.askExpr env) lexDefaults)
   pure (ninja |> Ninja.pninjaDefaults %~ (defaults <>), env)
@@ -224,7 +226,7 @@ splitDeps = HS.toList
       where
         (a, b, c) = go xs
 
-getDepth :: Env Text Text -> [(Text, PExpr)] -> IO Int
+getDepth :: Env Text Text -> [(Text, AST.Expr)] -> IO Int
 getDepth env xs = do
   let poolDepthError x = [ "Could not parse depth field in pool, got: ", x
                          ] |> mconcat |> T.unpack |> error

@@ -81,7 +81,9 @@ import           Flow                         ((|>))
 
 import qualified Data.Aeson                   as Aeson
 
-import           Language.Ninja.Types         (PExpr (..), Str)
+import           Language.Ninja.Types         (Str)
+
+import qualified Language.Ninja.AST.Expr      as AST
 
 import qualified Language.Ninja.Misc.Located  as Loc
 
@@ -100,14 +102,14 @@ data Lexeme
     LexInclude  !LFile
   | -- | @subninja file@
     LexSubninja !LFile
-  | -- | @build foo: bar | baz || qux@ (@|@ and @||@ are represented as 'PExpr')
+  | -- | @build foo: bar | baz || qux@
     LexBuild    !LBuild
   | -- | @rule name@
     LexRule     !LName
   | -- | @pool name@
     LexPool     !LName
   | -- | @default foo bar@
-    LexDefault  ![PExpr]
+    LexDefault  ![AST.Expr]
   deriving (Eq, Show)
 
 -- | The name of a Ninja rule or pool.
@@ -120,7 +122,7 @@ newtype LName
 -- | A reference to a file in an @include@ or @subninja@ declaration.
 newtype LFile
   = MkLFile
-    { _lfileExpr :: PExpr
+    { _lfileExpr :: AST.Expr
     }
   deriving (Eq, Show)
 
@@ -128,16 +130,16 @@ newtype LFile
 data LBinding
   = MkLBinding
     { _lbindingName  :: !LName
-    , _lbindingValue :: !PExpr
+    , _lbindingValue :: !AST.Expr
     }
   deriving (Eq, Show)
 
 -- | The data contained within a Ninja @build@ declaration.
 data LBuild
   = MkLBuild
-    { _lbuildOuts :: ![PExpr]
+    { _lbuildOuts :: ![AST.Expr]
     , _lbuildRule :: !Str
-    , _lbuildDeps :: ![PExpr]
+    , _lbuildDeps :: ![AST.Expr]
     }
   deriving (Eq, Show)
 
@@ -224,7 +226,7 @@ lexxName :: (LName -> Lexeme) -> Str0 -> [Lexeme]
 lexxName ctor x = let (name, rest) = splitLineCont x
                   in ctor (MkLName name) : lexerLoop rest
 
-lexxExprs :: Bool -> Str0 -> ([PExpr], Str0)
+lexxExprs :: Bool -> Str0 -> ([AST.Expr], Str0)
 lexxExprs sColon x0
   = let c  = Language.Ninja.Internal.Str0.head0 c_x
         x1 = Language.Ninja.Internal.Str0.tail0 c_x
@@ -237,18 +239,18 @@ lexxExprs sColon x0
          '\0'          -> a $: c_x
   where
     (a, c_x) = lexxExpr sColon True x0
-    ($:) :: PExpr -> Str0 -> ([PExpr], Str0)
-    (PExprs []) $: s = ([],     s)
-    expr        $: s = ([expr], s)
+    ($:) :: AST.Expr -> Str0 -> ([AST.Expr], Str0)
+    (AST.Exprs []) $: s = ([],     s)
+    expr           $: s = ([expr], s)
 
 {-# NOINLINE lexxExpr #-}
 lexxExpr :: Bool -> Bool -> Str0
-         -> (PExpr, Str0) -- snd will start with one of " :\n\r" or be empty
+         -> (AST.Expr, Str0) -- snd will start with one of " :\n\r" or be empty
 lexxExpr stopColon stopSpace = first exprs . f
   where
-    exprs :: [PExpr] -> PExpr
+    exprs :: [AST.Expr] -> AST.Expr
     exprs [x] = x
-    exprs xs  = PExprs xs
+    exprs xs  = AST.Exprs xs
 
     special :: Char -> Bool
     special x = let b = x `elem` ['$', '\r', '\n', '\0']
@@ -258,32 +260,32 @@ lexxExpr stopColon stopSpace = first exprs . f
                      (False, True ) -> (x <= '$') && or [          x == ' ', b]
                      (False, False) -> (x <= '$') && or [                    b]
 
-    f :: Str0 -> ([PExpr], Str0)
+    f :: Str0 -> ([AST.Expr], Str0)
     f (Language.Ninja.Internal.Str0.break00 special -> (a, x))
-      = if BSC8.null a then g x else PLit (T.decodeUtf8 a) $: g x
+      = if BSC8.null a then g x else AST.Lit (T.decodeUtf8 a) $: g x
 
     ($:) :: a -> ([a], b) -> ([a], b)
     x $: (xs, y) = (x:xs, y)
 
-    g :: Str0 -> ([PExpr], Str0)
+    g :: Str0 -> ([AST.Expr], Str0)
     g x0 | (Language.Ninja.Internal.Str0.head0 x0 /= '$') =
       ([], x0)
     g (Language.Ninja.Internal.Str0.tail0 -> c_x) =
       let (c, x0) = Language.Ninja.Internal.Str0.list0 c_x
       in case c of
-            '$'   -> PLit (T.singleton '$') $: f x0
-            ' '   -> PLit (T.singleton ' ') $: f x0
-            ':'   -> PLit (T.singleton ':') $: f x0
-            '\n'  -> f $ dropSpace x0
-            '\r'  -> f $ dropSpace $ dropN x0
-            '{' | (name, x1) <- Language.Ninja.Internal.Str0.span0 isVarDot x0
-                , ('}',  x2) <- Language.Ninja.Internal.Str0.list0 x1
-                , not (BSC8.null name)
-                -> PVar (T.decodeUtf8 name) $: f x2
-            _   | (name, x1) <- Language.Ninja.Internal.Str0.span0 isVar c_x
-                , not $ BSC8.null name
-                -> PVar (T.decodeUtf8 name) $: f x1
-            _   -> unexpectedDollar
+           '$'   -> AST.Lit (T.singleton '$') $: f x0
+           ' '   -> AST.Lit (T.singleton ' ') $: f x0
+           ':'   -> AST.Lit (T.singleton ':') $: f x0
+           '\n'  -> f $ dropSpace x0
+           '\r'  -> f $ dropSpace $ dropN x0
+           '{' | (name, x1) <- Language.Ninja.Internal.Str0.span0 isVarDot x0
+               , ('}',  x2) <- Language.Ninja.Internal.Str0.list0 x1
+               , not (BSC8.null name)
+                 -> AST.Var (T.decodeUtf8 name) $: f x2
+           _   | (name, x1) <- Language.Ninja.Internal.Str0.span0 isVar c_x
+               , not $ BSC8.null name
+                 -> AST.Var (T.decodeUtf8 name) $: f x1
+           _     -> unexpectedDollar
 
     unexpectedDollar :: a
     unexpectedDollar = error "Unexpect $ followed by unexpected stuff"

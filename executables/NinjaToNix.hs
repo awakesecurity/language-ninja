@@ -84,6 +84,8 @@ import           Language.Ninja.IR.Target
 import           Language.Ninja.Misc.Command
 import           Language.Ninja.Misc.IText   (IText, internText, uninternText)
 
+import qualified Language.Ninja.AST.Expr     as AST
+
 import           Data.Aeson                  as Aeson
 import           Data.Aeson.Encode.Pretty    as Aeson
 
@@ -204,9 +206,9 @@ compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
     computeCommand :: Ninja.PRule -> Command
     computeCommand rule
       = case HM.lookup "command" (rule ^. pruleBind)
-        of Just (Ninja.PLit x) -> makeCommand x
-           Just _              -> error "rule uses variables"
-           Nothing             -> error "\"command\" not found"
+        of Just (AST.Lit x) -> makeCommand x
+           Just _           -> error "rule uses variables"
+           Nothing          -> error "\"command\" not found"
 
     combined :: HashMap (HashSet Target) Ninja.PBuild
     combined = multiples <> onHM (first HS.singleton) singles

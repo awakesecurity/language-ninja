@@ -68,6 +68,8 @@ import qualified Language.Ninja.IR          as Ninja
 import qualified Language.Ninja.Misc.IText  as Ninja
 import qualified Language.Ninja.Misc.Path   as Ninja
 
+import qualified Language.Ninja.AST.Expr    as AST
+
 import qualified Test.Tasty                 as T
 import qualified Test.Tasty.Golden          as T
 import qualified Test.Tasty.HUnit           as T
@@ -258,6 +260,13 @@ opticsTests
            :: Lens.Iso' (Ninja.Env Text Int) (Ninja.Maps Text Int))
         ]
       ]
+    , testModule "Language.Ninja.AST.Expr"
+      [ testType "Expr"
+        [ testPrism 4 "_Exprs" AST._Exprs
+        , testPrism 4 "_Lit"   AST._Lit
+        , testPrism 4 "_Var"   AST._Var
+        ]
+      ]
     , testModule "Language.Ninja.Types"
       [ testType "PNinja" [] -- FIXME: combinatorial explosion
         -- [ testLens 1 "pninjaRules"     Ninja.pninjaRules
@@ -280,11 +289,6 @@ opticsTests
         ]
       , testType "PRule"
         [ testLens 4 "pruleBind" Ninja.pruleBind
-        ]
-      , testType "PExpr"
-        [ testPrism 4 "_PExprs" Ninja._PExprs
-        , testPrism 4 "_PLit"   Ninja._PLit
-        , testPrism 4 "_PVar"   Ninja._PVar
         ]
       ]
     , testModule "Language.Ninja.Misc.Command"

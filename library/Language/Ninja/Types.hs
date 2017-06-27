@@ -83,10 +83,10 @@ module Language.Ninja.Types
   , PRule, makePRule
   , pruleBind
 
-    -- * @PExpr@
-  , PExpr (..)
-  , _PExprs, _PLit, _PVar
-  , askVar, askExpr, addBind, addBinds
+    -- * @Expr@
+  , AST.Expr (..)
+  , AST._Exprs, AST._Lit, AST._Var
+  , AST.askVar, AST.askExpr, AST.addBind, AST.addBinds
 
     -- * @Env@
   , Env, Ninja.makeEnv, Ninja.fromEnv, Ninja.addEnv, Ninja.scopeEnv
@@ -95,51 +95,48 @@ module Language.Ninja.Types
   , Str, FileStr, Text, FileText
   ) where
 
-import           Control.Arrow             (second)
-import           Control.Monad             ((>=>))
+import           Control.Arrow           (second)
+import           Control.Monad           ((>=>))
 
 import qualified Control.Lens
-import           Control.Lens.Lens         (Lens')
+import           Control.Lens.Lens       (Lens')
 import           Control.Lens.Lens
 import           Control.Lens.Prism
 
-import           Data.Foldable             (asum)
+import           Data.Foldable           (asum)
 import qualified Data.Maybe
-import           Data.Monoid               (Endo (..))
+import           Data.Monoid             (Endo (..))
 
-import qualified Data.ByteString.Char8     as BSC8
+import qualified Data.ByteString.Char8   as BSC8
 
-import           Data.Text                 (Text)
-import qualified Data.Text                 as T
-import qualified Data.Text.Encoding        as T
+import           Data.Text               (Text)
+import qualified Data.Text               as T
+import qualified Data.Text.Encoding      as T
 
-import           Data.HashMap.Strict       (HashMap)
-import qualified Data.HashMap.Strict       as HM
+import           Data.HashMap.Strict     (HashMap)
+import qualified Data.HashMap.Strict     as HM
 
-import           Data.HashSet              (HashSet)
-import qualified Data.HashSet              as HS
+import           Data.HashSet            (HashSet)
+import qualified Data.HashSet            as HS
 
-import           Data.Hashable             (Hashable)
-import           GHC.Generics              (Generic)
+import           Data.Hashable           (Hashable)
+import           GHC.Generics            (Generic)
 
-import           GHC.Exts                  (Constraint)
+import           GHC.Exts                (Constraint)
 
 import           Data.Aeson
                  (FromJSON (..), KeyValue (..), ToJSON (..), Value, (.:))
-import qualified Data.Aeson                as Aeson
-import qualified Data.Aeson.Types          as Aeson
+import qualified Data.Aeson              as Aeson
+import qualified Data.Aeson.Types        as Aeson
 
-import qualified Test.QuickCheck           as Q
-import           Test.QuickCheck.Arbitrary (Arbitrary (..))
-import           Test.QuickCheck.Gen       (Gen (..))
-import           Test.QuickCheck.Instances ()
+import qualified Test.SmallCheck.Series  as SC
 
-import qualified Test.SmallCheck.Series    as SC
+import           Language.Ninja.Env      (Env)
+import qualified Language.Ninja.Env      as Ninja
 
-import           Language.Ninja.Env        (Env)
-import qualified Language.Ninja.Env        as Ninja
+import qualified Language.Ninja.AST.Expr as AST
 
-import           Flow                      ((.>), (|>))
+import           Flow                    ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
@@ -151,111 +148,6 @@ type FileStr = BSC8.ByteString
 
 -- | A type alias for 'Text', representing a path.
 type FileText = Text
-
---------------------------------------------------------------------------------
-
--- | An expression containing variable references in the Ninja language.
-data PExpr
-  = -- | Sequencing of expressions.
-    PExprs [PExpr]
-  | -- | A literal string.
-    PLit Text
-  | -- | A variable reference.
-    PVar Text
-  deriving (Eq, Show, Generic)
-
--- | A prism for the 'PExprs' constructor.
-{-# INLINE _PExprs #-}
-_PExprs :: Prism' PExpr [PExpr]
-_PExprs = prism' PExprs
-          $ \case (PExprs xs) -> Just xs
-                  _           -> Nothing
-
--- | A prism for the 'PLit' constructor.
-{-# INLINE _PLit #-}
-_PLit :: Prism' PExpr Text
-_PLit = prism' PLit
-        $ \case (PLit t) -> Just t
-                _        -> Nothing
-
--- | A prism for the 'PVar' constructor.
-{-# INLINE _PVar #-}
-_PVar :: Prism' PExpr Text
-_PVar = prism' PVar
-        $ \case (PVar t) -> Just t
-                _        -> Nothing
-
--- | Evaluate the given 'PExpr' in the given context (@'Env' 'Text' 'Text'@).
-askExpr :: Env Text Text -> PExpr -> Text
-askExpr e (PExprs xs) = T.concat (map (askExpr e) xs)
-askExpr _ (PLit x)    = x
-askExpr e (PVar x)    = askVar e x
-
--- | Look up the given variable in the given context, returning the empty string
---   if the variable was not found.
-askVar :: Env Text Text -> Text -> Text
-askVar e x = Data.Maybe.fromMaybe T.empty (Ninja.askEnv e x)
-
--- | Add a binding with the given name ('Text') and value ('PExpr') to the
---   given context.
-addBind :: Text -> PExpr -> Env Text Text -> Env Text Text
-addBind k v e = Ninja.addEnv k (askExpr e v) e
-
--- | Add bindings from a list. Note that this function evaluates all the
---   right-hand-sides first, and then adds them all to the environment.
---
---   For example:
---
---   >>> let binds = [("x", PLit "5"), ("y", PVar "x")]
---   >>> Ninja.headEnv (addBinds binds Ninja.makeEnv)
---   fromList [("x","5"),("y","")]
-addBinds :: [(Text, PExpr)] -> Env Text Text -> Env Text Text
-addBinds bs e = map (second (askExpr e) .> uncurry Ninja.addEnv .> Endo) bs
-                |> mconcat
-                |> (\endo -> appEndo endo e)
-
--- | Converts 'PExprs' to a JSON list, 'PLit' to a JSON string,
---   and 'PVar' to @{var: …}@.
-instance ToJSON PExpr where
-  toJSON (PExprs xs) = toJSON xs
-  toJSON (PLit  str) = toJSON str
-  toJSON (PVar  var) = Aeson.object ["var" .= var]
-
--- | Inverse of the 'ToJSON' instance.
-instance FromJSON PExpr where
-  parseJSON = [ \v -> PExprs <$> parseJSON v
-              , \v -> PLit   <$> parseJSON v
-              , Aeson.withObject "PExpr" $ \o -> PVar <$> (o .: "var")
-              ] |> choice
-    where
-      choice :: [Value -> Aeson.Parser a] -> (Value -> Aeson.Parser a)
-      choice = flip (\v -> map (\f -> f v)) .> fmap asum
-
--- | Reasonable 'Arbitrary' instance for 'PExpr'.
-instance Arbitrary PExpr where
-  arbitrary = Q.sized go
-    where
-      go :: Int -> Gen PExpr
-      go n | n <= 0 = [ PLit <$> Q.resize litLength arbitrary
-                      , PVar <$> Q.resize varLength arbitrary
-                      ] |> Q.oneof
-      go n          = [ go 0
-                      , do width <- (`mod` maxWidth) <$> arbitrary
-                           let subtree = go (n `div` lossRate)
-                           PExprs <$> Q.vectorOf width subtree
-                      ] |> Q.oneof
-
-      litLength, varLength, lossRate, maxWidth :: Int
-      litLength = 10
-      varLength = 10
-      maxWidth  = 5
-      lossRate  = 2
-
--- | Default 'SC.Serial' instance via 'Generic'.
-instance (Monad m, SC.Serial m Text) => SC.Serial m PExpr
-
--- | Default 'SC.CoSerial' instance via 'Generic'.
-instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m PExpr
 
 --------------------------------------------------------------------------------
 
@@ -536,7 +428,7 @@ instance ( Monad m, SC.CoSerial m (HashSet FileText)
 -- | A parsed Ninja @rule@ declaration.
 newtype PRule
   = MkPRule
-    { _pruleBind :: HashMap Text PExpr
+    { _pruleBind :: HashMap Text AST.Expr
     }
   deriving (Eq, Show, Generic)
 
@@ -549,7 +441,7 @@ makePRule = MkPRule
 
 -- | The set of bindings in scope during the execution of this rule.
 {-# INLINE pruleBind #-}
-pruleBind :: Lens' PRule (HashMap Text PExpr)
+pruleBind :: Lens' PRule (HashMap Text AST.Expr)
 pruleBind = Control.Lens.lens _pruleBind (const MkPRule)
 
 -- | Uses the 'ToJSON' instance of the underlying @'HashMap' 'Text' 'PEXpr'@.
@@ -561,11 +453,11 @@ instance FromJSON PRule where
   parseJSON = parseJSON .> fmap MkPRule
 
 -- | Default 'SC.Serial' instance via 'Generic'.
-instance ( Monad m, SC.Serial m (HashMap Text PExpr)
+instance ( Monad m, SC.Serial m (HashMap Text AST.Expr)
          ) => SC.Serial m PRule
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
-instance ( Monad m, SC.CoSerial m (HashMap Text PExpr)
+instance ( Monad m, SC.CoSerial m (HashMap Text AST.Expr)
          ) => SC.CoSerial m PRule
 
 --------------------------------------------------------------------------------

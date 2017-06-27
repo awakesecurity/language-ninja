@@ -44,35 +44,37 @@ module Language.Ninja.Pretty
   , prettyBind
   ) where
 
-import qualified Control.Arrow         as Arr
+import qualified Control.Arrow           as Arr
 
-import           Control.Lens.Getter   ((^.))
+import           Control.Lens.Getter     ((^.))
 
-import           Language.Ninja.Types  (FileText, PBuild, PNinja, PRule)
+import           Language.Ninja.Types    (FileText, PBuild, PNinja, PRule)
 
-import qualified Language.Ninja.Env    as Ninja
-import qualified Language.Ninja.Types  as Ninja
+import qualified Language.Ninja.Env      as Ninja
+import qualified Language.Ninja.Types    as Ninja
 
-import           Data.ByteString       (ByteString)
-import qualified Data.ByteString       as BS
-import qualified Data.ByteString.Char8 as BSC8
+import qualified Language.Ninja.AST.Expr as AST
 
-import           Data.HashMap.Strict   (HashMap)
-import qualified Data.HashMap.Strict   as HM
+import           Data.ByteString         (ByteString)
+import qualified Data.ByteString         as BS
+import qualified Data.ByteString.Char8   as BSC8
 
-import           Data.HashSet          (HashSet)
-import qualified Data.HashSet          as HS
+import           Data.HashMap.Strict     (HashMap)
+import qualified Data.HashMap.Strict     as HM
 
-import           Data.Text             (Text)
-import qualified Data.Text             as T
-import qualified Data.Text.Encoding    as T
+import           Data.HashSet            (HashSet)
+import qualified Data.HashSet            as HS
 
-import qualified Data.HashMap.Strict   as HM
+import           Data.Text               (Text)
+import qualified Data.Text               as T
+import qualified Data.Text.Encoding      as T
 
-import           Data.Char             (isSpace)
-import           Data.Monoid           ((<>))
+import qualified Data.HashMap.Strict     as HM
 
-import           Flow                  ((.>), (|>))
+import           Data.Char               (isSpace)
+import           Data.Monoid             ((<>))
+
+import           Flow                    ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
@@ -87,13 +89,13 @@ prettyNinja ninja
     , map prettyPool     (HM.toList (ninja ^. Ninja.pninjaPools))
     ] |> mconcat |> mconcat
 
--- | Pretty-print a 'Ninja.PExpr'
-prettyExpr :: Ninja.PExpr -> Text
+-- | Pretty-print an 'AST.Expr'
+prettyExpr :: AST.Expr -> Text
 prettyExpr = go .> mconcat
   where
-    go (Ninja.PExprs es) = map prettyExpr es
-    go (Ninja.PLit  str) = [str]
-    go (Ninja.PVar name) = ["${", name, "}"]
+    go (AST.Exprs es) = map prettyExpr es
+    go (AST.Lit  str) = [str]
+    go (AST.Var name) = ["${", name, "}"]
 
 -- | Pretty-print a Ninja @rule@ declaration.
 prettyRule :: (Text, PRule) -> Text
