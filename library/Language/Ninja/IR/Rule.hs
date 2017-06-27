@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/AST/Rule.hs
+-- File: library/Language/Ninja/IR/Rule.hs
 --
 -- License:
 --     Copyright 2017 Awake Security
@@ -30,14 +30,14 @@
 {-# LANGUAGE UndecidableInstances  #-}
 
 -- |
---   Module      : Language.Ninja.AST.Rule
+--   Module      : Language.Ninja.IR.Rule
 --   Copyright   : Copyright 2017 Awake Security
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
 --   A datatype for Ninja @rule@ declarations.
-module Language.Ninja.AST.Rule
+module Language.Ninja.IR.Rule
   ( -- * @Rule@
     Rule, makeRule
   , ruleName, ruleCommand, ruleDescription, rulePool, ruleDepfile
@@ -51,7 +51,7 @@ module Language.Ninja.AST.Rule
   , ResponseFile, makeResponseFile, responseFilePath, responseFileContent
   ) where
 
-import           Language.Ninja.AST.Pool     (PoolName, makePoolNameDefault)
+import           Language.Ninja.IR.Pool      (PoolName, makePoolNameDefault)
 import           Language.Ninja.Misc.Command (Command)
 import           Language.Ninja.Misc.Path    (Path)
 

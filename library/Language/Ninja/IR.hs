@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/AST.hs
+-- File: library/Language/Ninja/IR.hs
 --
 -- License:
 --     Copyright 2017 Awake Security
@@ -25,31 +25,31 @@
 {-# LANGUAGE RecordWildCards   #-}
 
 -- |
---   Module      : Language.Ninja.AST
+--   Module      : Language.Ninja.IR
 --   Copyright   : Copyright 2017 Awake Security
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   The Ninja build language AST after normalization.
-module Language.Ninja.AST
-  ( module Language.Ninja.AST.Build
-  , module Language.Ninja.AST.Meta
-  , module Language.Ninja.AST.Ninja
-  , module Language.Ninja.AST.Pool
-  , module Language.Ninja.AST.Rule
-  , module Language.Ninja.AST.Target
+--   The Ninja build language intermediate representation after compilation.
+module Language.Ninja.IR
+  ( module Language.Ninja.IR.Build
+  , module Language.Ninja.IR.Meta
+  , module Language.Ninja.IR.Ninja
+  , module Language.Ninja.IR.Pool
+  , module Language.Ninja.IR.Rule
+  , module Language.Ninja.IR.Target
   , module Language.Ninja.Misc.Command
   , module Language.Ninja.Misc.IText
   , module Language.Ninja.Misc.Path
   ) where
 
-import           Language.Ninja.AST.Build
-import           Language.Ninja.AST.Meta
-import           Language.Ninja.AST.Ninja
-import           Language.Ninja.AST.Pool
-import           Language.Ninja.AST.Rule
-import           Language.Ninja.AST.Target
+import           Language.Ninja.IR.Build
+import           Language.Ninja.IR.Meta
+import           Language.Ninja.IR.Ninja
+import           Language.Ninja.IR.Pool
+import           Language.Ninja.IR.Rule
+import           Language.Ninja.IR.Target
 import           Language.Ninja.Misc.Command
 import           Language.Ninja.Misc.IText
 import           Language.Ninja.Misc.Path

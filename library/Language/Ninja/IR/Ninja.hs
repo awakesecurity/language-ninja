@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/AST/Ninja.hs
+-- File: library/Language/Ninja/IR/Ninja.hs
 --
 -- License:
 --     Copyright 2017 Awake Security
@@ -31,49 +31,50 @@
 {-# LANGUAGE UndecidableInstances  #-}
 
 -- |
---   Module      : Language.Ninja.AST.Ninja
+--   Module      : Language.Ninja.IR.Ninja
 --   Copyright   : Copyright 2017 Awake Security
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   A datatype for the Ninja build system AST.
-module Language.Ninja.AST.Ninja
+--   A datatype representing the intermediate representation of a Ninja file
+--   after compilation.
+module Language.Ninja.IR.Ninja
   ( -- * @Ninja@
     Ninja, makeNinja
   , ninjaMeta, ninjaBuilds, ninjaPhonys, ninjaDefaults, ninjaPools
   ) where
 
-import           Language.Ninja.AST.Build  (Build)
-import           Language.Ninja.AST.Meta   (Meta)
-import qualified Language.Ninja.AST.Meta   as Ninja
-import           Language.Ninja.AST.Pool   (Pool)
-import           Language.Ninja.AST.Target (Target)
+import           Language.Ninja.IR.Build  (Build)
+import           Language.Ninja.IR.Meta   (Meta)
+import qualified Language.Ninja.IR.Meta   as Ninja
+import           Language.Ninja.IR.Pool   (Pool)
+import           Language.Ninja.IR.Target (Target)
 
-import           Data.Text                 (Text)
+import           Data.Text                (Text)
 
-import           Data.HashMap.Strict       (HashMap)
-import qualified Data.HashMap.Strict       as HM
+import           Data.HashMap.Strict      (HashMap)
+import qualified Data.HashMap.Strict      as HM
 
-import           Data.HashSet              (HashSet)
-import qualified Data.HashSet              as HS
+import           Data.HashSet             (HashSet)
+import qualified Data.HashSet             as HS
 
 import           Data.Aeson
                  (FromJSON, KeyValue (..), ToJSON, (.:))
-import qualified Data.Aeson                as Aeson
+import qualified Data.Aeson               as Aeson
 
-import qualified Data.Versions             as Ver
+import qualified Data.Versions            as Ver
 
-import           Data.Hashable             (Hashable)
-import           GHC.Generics              (Generic)
-import qualified Test.SmallCheck.Series    as SC
+import           Data.Hashable            (Hashable)
+import           GHC.Generics             (Generic)
+import qualified Test.SmallCheck.Series   as SC
 
-import           GHC.Exts                  (Constraint)
+import           GHC.Exts                 (Constraint)
 
 import qualified Control.Lens
-import           Control.Lens.Lens         (Lens')
+import           Control.Lens.Lens        (Lens')
 
-import           Flow                      ((|>))
+import           Flow                     ((|>))
 
 --------------------------------------------------------------------------------
 

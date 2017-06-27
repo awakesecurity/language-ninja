@@ -62,9 +62,9 @@ import           Control.Monad.Trans.Except
 import qualified Control.Lens               as Lens
 
 import qualified Language.Ninja             as Ninja
-import qualified Language.Ninja.AST         as Ninja
 import qualified Language.Ninja.Compile     as Ninja
 import qualified Language.Ninja.Env         as Ninja
+import qualified Language.Ninja.IR          as Ninja
 import qualified Language.Ninja.Misc.IText  as Ninja
 import qualified Language.Ninja.Misc.Path   as Ninja
 
@@ -174,20 +174,20 @@ pninjaTests name pninja
 opticsTests :: T.TestTree
 opticsTests
   = T.testGroup "Testing optics with SmallCheck"
-    [ testModule "Language.Ninja.AST.Build"
+    [ testModule "Language.Ninja.IR.Build"
       [ testType "Build" [] -- FIXME: combinatorial explosion
         -- [ testLens 1 "buildRule" Ninja.buildRule
         -- , testLens 1 "buildOuts" Ninja.buildOuts
         -- , testLens 1 "buildDeps" Ninja.buildDeps
         -- ]
       ]
-    , testModule "Language.Ninja.AST.Meta"
+    , testModule "Language.Ninja.IR.Meta"
       [ testType "Meta"
         [ testLens def "metaReqVersion" Ninja.metaReqVersion
         , testLens def "metaBuildDir"   Ninja.metaBuildDir
         ]
       ]
-    , testModule "Language.Ninja.AST.Ninja"
+    , testModule "Language.Ninja.IR.Ninja"
       [ testType "Ninja" [] -- FIXME: combinatorial explosion
         -- [ testLens 1 "ninjaMeta"     Ninja.ninjaMeta
         -- , testLens 1 "ninjaBuilds"   Ninja.ninjaBuilds
@@ -196,7 +196,7 @@ opticsTests
         -- , testLens 1 "ninjaPools"    Ninja.ninjaPools
         -- ]
       ]
-    , testModule "Language.Ninja.AST.Pool"
+    , testModule "Language.Ninja.IR.Pool"
       [ testType "Pool"
         [
         ]
@@ -207,7 +207,7 @@ opticsTests
         [ testIso def "poolDepthPositive" Ninja.poolDepthPositive
         ]
       ]
-    , testModule "Language.Ninja.AST.Rule"
+    , testModule "Language.Ninja.IR.Rule"
       [ testType "Rule" [] -- FIXME: combinatorial explosion
         -- [ testLens 1 "ruleName"         Ninja.ruleName
         -- , testLens 1 "ruleCommand"      Ninja.ruleCommand
@@ -228,7 +228,7 @@ opticsTests
         , testLens def "responseFileContent" Ninja.responseFileContent
         ]
       ]
-    , testModule "Language.Ninja.AST.Target"
+    , testModule "Language.Ninja.IR.Target"
       [ testType "Target"
         [ testIso def "targetIText" Ninja.targetIText
         , testIso def "targetText"  Ninja.targetText

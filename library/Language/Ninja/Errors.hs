@@ -35,14 +35,13 @@
 --   which are related to error types used in @language-ninja@.
 --   It also defines the 'NinjaError'
 module Language.Ninja.Errors
-  ( module Exported
+  ( module Language.Ninja.Errors.Compile
+  , module Language.Ninja.Errors.Parse
   , NinjaError (..)
   ) where
 
-import           Language.Ninja.Errors.Compile as Exported
-import           Language.Ninja.Errors.Parse   as Exported
-
---------------------------------------------------------------------------------
+import           Language.Ninja.Errors.Compile
+import           Language.Ninja.Errors.Parse
 
 import           Control.Exception             (Exception)
 import           Control.Monad.Error.Class     (MonadError (..))

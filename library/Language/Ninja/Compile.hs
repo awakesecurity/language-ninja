@@ -82,13 +82,13 @@ import           GHC.Generics                 (Generic)
 
 import qualified Data.Versions                as Ver
 
-import           Language.Ninja.AST
+import           Language.Ninja.Env           (askEnv)
+import qualified Language.Ninja.Errors        as Ninja
+import           Language.Ninja.IR
                  (Build, Command, Dependency, DependencyType (..), Meta, Ninja,
                  Output, OutputType (..), Pool, ResponseFile, Rule,
                  SpecialDeps, Target)
-import qualified Language.Ninja.AST           as Ninja
-import           Language.Ninja.Env           (askEnv)
-import qualified Language.Ninja.Errors        as Ninja
+import qualified Language.Ninja.IR            as Ninja
 import qualified Language.Ninja.Misc.Positive as Ninja
 import qualified Language.Ninja.Parse         as Ninja
 import           Language.Ninja.Types

@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/AST/Build.hs
+-- File: library/Language/Ninja/IR/Build.hs
 --
 -- License:
 --     Copyright 2017 Awake Security
@@ -29,38 +29,38 @@
 {-# LANGUAGE UndecidableInstances  #-}
 
 -- |
---   Module      : Language.Ninja.AST.Build
+--   Module      : Language.Ninja.IR.Build
 --   Copyright   : Copyright 2017 Awake Security
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
 --   A datatype for Ninja @build@ declarations.
-module Language.Ninja.AST.Build
+module Language.Ninja.IR.Build
   ( -- * @Build@
     Build, makeBuild, buildRule, buildOuts, buildDeps
   ) where
 
 import           Data.Aeson
                  (FromJSON, KeyValue (..), ToJSON, (.:))
-import qualified Data.Aeson                as Aeson
+import qualified Data.Aeson               as Aeson
 
-import           Data.Text                 (Text)
+import           Data.Text                (Text)
 
-import           Data.HashSet              (HashSet)
-import qualified Data.HashSet              as HS
+import           Data.HashSet             (HashSet)
+import qualified Data.HashSet             as HS
 
-import           Data.Hashable             (Hashable (..))
-import           GHC.Generics              (Generic)
-import qualified Test.SmallCheck.Series    as SC
+import           Data.Hashable            (Hashable (..))
+import           GHC.Generics             (Generic)
+import qualified Test.SmallCheck.Series   as SC
 
-import           Language.Ninja.AST.Rule   (Rule)
-import           Language.Ninja.AST.Target (Dependency, Output)
+import           Language.Ninja.IR.Rule   (Rule)
+import           Language.Ninja.IR.Target (Dependency, Output)
 
 import qualified Control.Lens
-import           Control.Lens.Lens         (Lens')
+import           Control.Lens.Lens        (Lens')
 
-import           Flow                      ((|>))
+import           Flow                     ((|>))
 
 --------------------------------------------------------------------------------
 

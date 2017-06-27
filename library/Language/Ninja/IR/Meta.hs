@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/AST/Meta.hs
+-- File: library/Language/Ninja/IR/Meta.hs
 --
 -- License:
 --     Copyright 2017 Awake Security
@@ -32,14 +32,14 @@
 {-# LANGUAGE UndecidableInstances  #-}
 
 -- |
---   Module      : Language.Ninja.AST.Meta
+--   Module      : Language.Ninja.IR.Meta
 --   Copyright   : Copyright 2017 Awake Security
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
 --   A datatype for Ninja top-level variables and other metadata.
-module Language.Ninja.AST.Meta
+module Language.Ninja.IR.Meta
   ( -- * @Meta@
     Meta, makeMeta, metaReqVersion, metaBuildDir
   ) where

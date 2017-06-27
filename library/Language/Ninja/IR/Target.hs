@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/AST/Target.hs
+-- File: library/Language/Ninja/IR/Target.hs
 --
 -- License:
 --     Copyright 2017 Awake Security
@@ -31,14 +31,14 @@
 {-# LANGUAGE UndecidableInstances       #-}
 
 -- |
---   Module      : Language.Ninja.AST.Target
+--   Module      : Language.Ninja.IR.Target
 --   Copyright   : Copyright 2017 Awake Security
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
 --   Types relating to Ninja build targets, outputs, and dependencies.
-module Language.Ninja.AST.Target
+module Language.Ninja.IR.Target
   ( -- * @Target@
     Target, makeTarget, targetIText, targetText
     -- * @Output@

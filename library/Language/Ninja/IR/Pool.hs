@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/AST/Pool.hs
+-- File: library/Language/Ninja/IR/Pool.hs
 --
 -- License:
 --     Copyright 2017 Awake Security
@@ -31,14 +31,14 @@
 {-# LANGUAGE UndecidableInstances       #-}
 
 -- |
---   Module      : Language.Ninja.AST.Pool
+--   Module      : Language.Ninja.IR.Pool
 --   Copyright   : Copyright 2017 Awake Security
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
 --   Types relating to Ninja @pool@s.
-module Language.Ninja.AST.Pool
+module Language.Ninja.IR.Pool
   ( -- * @Pool@
     Pool, makePool, makePoolDefault, makePoolConsole, makePoolCustom
   , poolName, poolDepth

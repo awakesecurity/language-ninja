@@ -52,13 +52,13 @@ library
                         , versions              >= 3.1.1 && < 3.2
                           -- FIXME: remove unneeded dependencies
     exposed-modules:      Language.Ninja
-                        , Language.Ninja.AST
-                        , Language.Ninja.AST.Build
-                        , Language.Ninja.AST.Meta
-                        , Language.Ninja.AST.Ninja
-                        , Language.Ninja.AST.Pool
-                        , Language.Ninja.AST.Rule
-                        , Language.Ninja.AST.Target
+                        , Language.Ninja.IR
+                        , Language.Ninja.IR.Build
+                        , Language.Ninja.IR.Meta
+                        , Language.Ninja.IR.Ninja
+                        , Language.Ninja.IR.Pool
+                        , Language.Ninja.IR.Rule
+                        , Language.Ninja.IR.Target
                         , Language.Ninja.Compile
                         , Language.Ninja.Env
                         , Language.Ninja.Errors
