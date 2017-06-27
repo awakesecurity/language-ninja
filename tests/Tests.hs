@@ -41,74 +41,78 @@ import           Data.Either
 import           Data.Maybe
 import           Data.Monoid
 
-import           Data.ByteString            (ByteString)
-import qualified Data.ByteString            as BS
+import           Data.ByteString             (ByteString)
+import qualified Data.ByteString             as BS
 
-import qualified Data.ByteString.Lazy       as LBS
-import qualified Data.ByteString.Lazy.Char8 as LBSC8
+import qualified Data.ByteString.Lazy        as LBS
+import qualified Data.ByteString.Lazy.Char8  as LBSC8
 
-import           Data.Text                  (Text)
-import qualified Data.Text                  as Text
-import qualified Data.Text.Encoding         as Text
-import qualified Data.Text.IO               as Text
+import           Data.Text                   (Text)
+import qualified Data.Text                   as Text
+import qualified Data.Text.Encoding          as Text
+import qualified Data.Text.IO                as Text
 
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.Error.Class
-import           Control.Monad.Identity     (Identity)
+import           Control.Monad.Identity      (Identity)
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Except
 
-import qualified Control.Lens               as Lens
+import qualified Control.Lens                as Lens
 
-import qualified Language.Ninja             as Ninja
-import qualified Language.Ninja.Compile     as Ninja
-import qualified Language.Ninja.IR          as Ninja
-import qualified Language.Ninja.Misc.IText  as Ninja
-import qualified Language.Ninja.Misc.Path   as Ninja
+import qualified Language.Ninja.Compile      as Ninja
+import qualified Language.Ninja.Misc.Command as Ninja
+import qualified Language.Ninja.Misc.IText   as Ninja
+import qualified Language.Ninja.Misc.Path    as Ninja
+import qualified Language.Ninja.Parse        as Ninja
+import qualified Language.Ninja.Pretty       as Ninja
 
-import qualified Language.Ninja.AST.Env     as AST
-import qualified Language.Ninja.AST.Expr    as AST
-import qualified Language.Ninja.AST.Rule    as AST
+import qualified Language.Ninja.IR           as IR
 
-import qualified Test.Tasty                 as T
-import qualified Test.Tasty.Golden          as T
-import qualified Test.Tasty.HUnit           as T
-import qualified Test.Tasty.Ingredients     as T
-import qualified Test.Tasty.Options         as T
-import qualified Test.Tasty.Runners.Html    as T
-import qualified Test.Tasty.SmallCheck      as T
+import qualified Language.Ninja.AST          as AST
+import qualified Language.Ninja.AST.Env      as AST
+import qualified Language.Ninja.AST.Expr     as AST
+import qualified Language.Ninja.AST.Rule     as AST
 
-import qualified Test.Tasty.Lens.Iso        as T.Iso
-import qualified Test.Tasty.Lens.Lens       as T.Lens
-import qualified Test.Tasty.Lens.Prism      as T.Prism
+import qualified Test.Tasty                  as T
+import qualified Test.Tasty.Golden           as T
+import qualified Test.Tasty.HUnit            as T
+import qualified Test.Tasty.Ingredients      as T
+import qualified Test.Tasty.Options          as T
+import qualified Test.Tasty.Runners.Html     as T
+import qualified Test.Tasty.SmallCheck       as T
 
-import qualified Test.SmallCheck.Series     as SC
+import qualified Test.Tasty.Lens.Iso         as T.Iso
+import qualified Test.Tasty.Lens.Lens        as T.Lens
+import qualified Test.Tasty.Lens.Prism       as T.Prism
 
-import qualified Data.Versions              as Ver
+import qualified Test.SmallCheck.Series      as SC
 
-import           Filesystem.Path.CurrentOS  ((</>))
-import qualified Filesystem.Path.CurrentOS  as FP
+import qualified Data.Versions               as Ver
 
-import qualified Data.Aeson                 as Aeson
-import qualified Data.Aeson.Diff            as Aeson
-import qualified Data.Aeson.Encode.Pretty   as Aeson
+import           Filesystem.Path.CurrentOS   ((</>))
+import qualified Filesystem.Path.CurrentOS   as FP
 
-import           Data.Hashable              (Hashable)
+import qualified Data.Aeson                  as Aeson
+import qualified Data.Aeson.Diff             as Aeson
+import qualified Data.Aeson.Encode.Pretty    as Aeson
 
-import           Data.HashMap.Strict        (HashMap)
-import qualified Data.HashMap.Strict        as HM
+import           Data.Hashable               (Hashable)
 
-import           Data.HashSet               (HashSet)
-import qualified Data.HashSet               as HS
+import           Data.HashMap.Strict         (HashMap)
+import qualified Data.HashMap.Strict         as HM
 
-import qualified Data.List.NonEmpty         as NE
+import           Data.HashSet                (HashSet)
+import qualified Data.HashSet                as HS
+
+import qualified Data.List.NonEmpty          as NE
 
 import qualified Turtle
 
 import           Flow
 
-import           Tests.Orphans              ()
+import           Tests.Orphans               ()
 
 --------------------------------------------------------------------------------
 
@@ -132,7 +136,7 @@ testFiles = [ "buildseparate"
             , "test6"
             ]
 
-parseTestNinja :: String -> IO Ninja.PNinja
+parseTestNinja :: String -> IO AST.PNinja
 parseTestNinja name = do
   old <- Turtle.pwd
   Turtle.cd (FP.decodeString dataPrefix)
@@ -140,7 +144,7 @@ parseTestNinja name = do
   Turtle.cd old
   pure result
 
-roundtripTest :: Ninja.PNinja -> IO ()
+roundtripTest :: AST.PNinja -> IO ()
 roundtripTest pninja = do
   let withTempDir = Turtle.with (Turtle.mktempdir "." "test")
 
@@ -161,11 +165,11 @@ roundtripTest pninja = do
     -- Aeson.encode actualJ `H.shouldBe` Aeson.encode expectedJ
     T.assertEqual "prefix" expected actual
 
-compileTest :: Ninja.PNinja -> IO ()
+compileTest :: AST.PNinja -> IO ()
 compileTest pninja = void $ do
   either (displayException .> fail) pure (Ninja.compile pninja)
 
-pninjaTests :: String -> Ninja.PNinja -> T.TestTree
+pninjaTests :: String -> AST.PNinja -> T.TestTree
 pninjaTests name pninja
   = T.testGroup ("Testing " <> name <> ".ninja")
     [ T.testCase "roundtrip through parser and pretty-printer" $ do
@@ -179,24 +183,24 @@ opticsTests
   = T.testGroup "Testing optics with SmallCheck"
     [ testModule "Language.Ninja.IR.Build"
       [ testType "Build" [] -- FIXME: combinatorial explosion
-        -- [ testLens 1 "buildRule" Ninja.buildRule
-        -- , testLens 1 "buildOuts" Ninja.buildOuts
-        -- , testLens 1 "buildDeps" Ninja.buildDeps
+        -- [ testLens 1 "buildRule" IR.buildRule
+        -- , testLens 1 "buildOuts" IR.buildOuts
+        -- , testLens 1 "buildDeps" IR.buildDeps
         -- ]
       ]
     , testModule "Language.Ninja.IR.Meta"
       [ testType "Meta"
-        [ testLens def "metaReqVersion" Ninja.metaReqVersion
-        , testLens def "metaBuildDir"   Ninja.metaBuildDir
+        [ testLens def "metaReqVersion" IR.metaReqVersion
+        , testLens def "metaBuildDir"   IR.metaBuildDir
         ]
       ]
     , testModule "Language.Ninja.IR.Ninja"
       [ testType "Ninja" [] -- FIXME: combinatorial explosion
-        -- [ testLens 1 "ninjaMeta"     Ninja.ninjaMeta
-        -- , testLens 1 "ninjaBuilds"   Ninja.ninjaBuilds
-        -- , testLens 1 "ninjaPhonys"   Ninja.ninjaPhonys
-        -- , testLens 1 "ninjaDefaults" Ninja.ninjaDefaults
-        -- , testLens 1 "ninjaPools"    Ninja.ninjaPools
+        -- [ testLens 1 "ninjaMeta"     IR.ninjaMeta
+        -- , testLens 1 "ninjaBuilds"   IR.ninjaBuilds
+        -- , testLens 1 "ninjaPhonys"   IR.ninjaPhonys
+        -- , testLens 1 "ninjaDefaults" IR.ninjaDefaults
+        -- , testLens 1 "ninjaPools"    IR.ninjaPools
         -- ]
       ]
     , testModule "Language.Ninja.IR.Pool"
@@ -204,60 +208,60 @@ opticsTests
         [
         ]
       , testType "PoolName"
-        [ testIso def "poolNameText" Ninja.poolNameText
+        [ testIso def "poolNameText" IR.poolNameText
         ]
       , testType "PoolDepth"
-        [ testIso def "poolDepthPositive" Ninja.poolDepthPositive
+        [ testIso def "poolDepthPositive" IR.poolDepthPositive
         ]
       ]
     , testModule "Language.Ninja.IR.Rule"
       [ testType "Rule" [] -- FIXME: combinatorial explosion
-        -- [ testLens 1 "ruleName"         Ninja.ruleName
-        -- , testLens 1 "ruleCommand"      Ninja.ruleCommand
-        -- , testLens 1 "ruleDescription"  Ninja.ruleDescription
-        -- , testLens 1 "rulePool"         Ninja.rulePool
-        -- , testLens 1 "ruleDepfile"      Ninja.ruleDepfile
-        -- , testLens 1 "ruleSpecialDeps"  Ninja.ruleSpecialDeps
-        -- , testLens 1 "ruleGenerator"    Ninja.ruleGenerator
-        -- , testLens 1 "ruleRestat"       Ninja.ruleRestat
-        -- , testLens 1 "ruleResponseFile" Ninja.ruleResponseFile
+        -- [ testLens 1 "ruleName"         IR.ruleName
+        -- , testLens 1 "ruleCommand"      IR.ruleCommand
+        -- , testLens 1 "ruleDescription"  IR.ruleDescription
+        -- , testLens 1 "rulePool"         IR.rulePool
+        -- , testLens 1 "ruleDepfile"      IR.ruleDepfile
+        -- , testLens 1 "ruleSpecialDeps"  IR.ruleSpecialDeps
+        -- , testLens 1 "ruleGenerator"    IR.ruleGenerator
+        -- , testLens 1 "ruleRestat"       IR.ruleRestat
+        -- , testLens 1 "ruleResponseFile" IR.ruleResponseFile
         -- ]
       , testType "SpecialDeps"
-        [ testPrism def "_SpecialDepsGCC"  Ninja._SpecialDepsGCC
-        , testPrism def "_SpecialDepsMSVC" Ninja._SpecialDepsMSVC
+        [ testPrism def "_SpecialDepsGCC"  IR._SpecialDepsGCC
+        , testPrism def "_SpecialDepsMSVC" IR._SpecialDepsMSVC
         ]
       , testType "ResponseFile"
-        [ testLens def "responseFilePath"    Ninja.responseFilePath
-        , testLens def "responseFileContent" Ninja.responseFileContent
+        [ testLens def "responseFilePath"    IR.responseFilePath
+        , testLens def "responseFileContent" IR.responseFileContent
         ]
       ]
     , testModule "Language.Ninja.IR.Target"
       [ testType "Target"
-        [ testIso def "targetIText" Ninja.targetIText
-        , testIso def "targetText"  Ninja.targetText
+        [ testIso def "targetIText" IR.targetIText
+        , testIso def "targetText"  IR.targetText
         ]
       , testType "Output"
-        [ testLens def "outputTarget" Ninja.outputTarget
-        , testLens def "outputType"   Ninja.outputType
+        [ testLens def "outputTarget" IR.outputTarget
+        , testLens def "outputType"   IR.outputType
         ]
       , testType "OutputType"
-        [ testPrism def "_ExplicitOutput" Ninja._ExplicitOutput
-        , testPrism def "_ImplicitOutput" Ninja._ImplicitOutput
+        [ testPrism def "_ExplicitOutput" IR._ExplicitOutput
+        , testPrism def "_ImplicitOutput" IR._ImplicitOutput
         ]
       , testType "Dependency"
-        [ testLens def "dependencyTarget" Ninja.dependencyTarget
-        , testLens def "dependencyType"   Ninja.dependencyType
+        [ testLens def "dependencyTarget" IR.dependencyTarget
+        , testLens def "dependencyType"   IR.dependencyType
         ]
       , testType "DependencyType"
-        [ testPrism def "_NormalDependency"    Ninja._NormalDependency
-        , testPrism def "_ImplicitDependency"  Ninja._ImplicitDependency
-        , testPrism def "_OrderOnlyDependency" Ninja._OrderOnlyDependency
+        [ testPrism def "_NormalDependency"    IR._NormalDependency
+        , testPrism def "_ImplicitDependency"  IR._ImplicitDependency
+        , testPrism def "_OrderOnlyDependency" IR._OrderOnlyDependency
         ]
       ]
     , testModule "Language.Ninja.Env"
       [ testType "Env"
         [ testIso 1 "fromEnv"
-          (Ninja.fromEnv :: Lens.Iso' (AST.Env Text Int) (AST.Maps Text Int))
+          (AST.fromEnv :: Lens.Iso' (AST.Env Text Int) (AST.Maps Text Int))
         ]
       ]
     , testModule "Language.Ninja.AST.Expr"
@@ -272,25 +276,25 @@ opticsTests
         [ testLens 4 "ruleBind" AST.ruleBind
         ]
       ]
-    , testModule "Language.Ninja.Types"
+    , testModule "Language.Ninja.AST"
       [ testType "PNinja" [] -- FIXME: combinatorial explosion
-        -- [ testLens 1 "pninjaRules"     Ninja.pninjaRules
-        -- , testLens 1 "pninjaSingles"   Ninja.pninjaSingles
-        -- , testLens 1 "pninjaMultiples" Ninja.pninjaMultiples
-        -- , testLens 1 "pninjaPhonys"    Ninja.pninjaPhonys
-        -- , testLens 1 "pninjaDefaults"  Ninja.pninjaDefaults
-        -- , testLens 1 "pninjaSpecials"  Ninja.pninjaSpecials
+        -- [ testLens 1 "pninjaRules"     AST.pninjaRules
+        -- , testLens 1 "pninjaSingles"   AST.pninjaSingles
+        -- , testLens 1 "pninjaMultiples" AST.pninjaMultiples
+        -- , testLens 1 "pninjaPhonys"    AST.pninjaPhonys
+        -- , testLens 1 "pninjaDefaults"  AST.pninjaDefaults
+        -- , testLens 1 "pninjaSpecials"  AST.pninjaSpecials
         -- ]
       , testType "PBuild" [] -- FIXME: combinatorial explosion
-        -- [ testLens 1 "pbuildRule" Ninja.pbuildRule
-        -- , testLens 1 "pbuildEnv"  Ninja.pbuildEnv
-        -- , testLens 1 "pbuildDeps" Ninja.pbuildDeps
-        -- , testLens 1 "pbuildBind" Ninja.pbuildBind
+        -- [ testLens 1 "pbuildRule" AST.pbuildRule
+        -- , testLens 1 "pbuildEnv"  AST.pbuildEnv
+        -- , testLens 1 "pbuildDeps" AST.pbuildDeps
+        -- , testLens 1 "pbuildBind" AST.pbuildBind
         -- ]
       , testType "PDeps"
-        [ testLens def "pdepsNormal"    Ninja.pdepsNormal
-        , testLens def "pdepsImplicit"  Ninja.pdepsImplicit
-        , testLens def "pdepsOrderOnly" Ninja.pdepsOrderOnly
+        [ testLens def "pdepsNormal"    AST.pdepsNormal
+        , testLens def "pdepsImplicit"  AST.pdepsImplicit
+        , testLens def "pdepsOrderOnly" AST.pdepsOrderOnly
         ]
       ]
     , testModule "Language.Ninja.Misc.Command"

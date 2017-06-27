@@ -77,12 +77,12 @@ import qualified Language.Ninja.Lexer        as Ninja
 import qualified Language.Ninja.Parse        as Ninja
 import qualified Language.Ninja.Pretty       as Ninja
 import qualified Language.Ninja.Shake        as Ninja
-import           Language.Ninja.Types        as Ninja
 
 import           Language.Ninja.IR.Target
 import           Language.Ninja.Misc.Command
 import           Language.Ninja.Misc.IText   (IText, internText, uninternText)
 
+import qualified Language.Ninja.AST          as AST
 import qualified Language.Ninja.AST.Env      as AST
 import qualified Language.Ninja.AST.Expr     as AST
 import qualified Language.Ninja.AST.Rule     as AST
@@ -101,7 +101,7 @@ import           Misc.Hash
 pretty :: (ToJSON v) => v -> IO ()
 pretty = encodePretty .> LBSC8.putStrLn
 
-debugNinja :: IO Ninja.PNinja
+debugNinja :: IO AST.PNinja
 debugNinja = Ninja.parse "../data/build.ninja"
 
 debugSNinja :: IO SNinja
@@ -166,7 +166,7 @@ data SBuild
 
 -- | FIXME: doc
 --   Note: this function assumes a very simple subset of Ninja.
-compileNinja :: Ninja.PNinja -> SNinja
+compileNinja :: AST.PNinja -> SNinja
 compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
   where
     onHM :: (Eq k', Hashable k')
@@ -181,18 +181,18 @@ compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
     simpleDefaults :: HashSet Target
     simpleDefaults = HS.map makeTarget defaults
 
-    simplifyBuild :: Ninja.PBuild -> SBuild
+    simplifyBuild :: AST.PBuild -> SBuild
     simplifyBuild build = MkSBuild (Just rule) deps
       where
-        deps = [ build ^. pbuildDeps . pdepsNormal
-               , build ^. pbuildDeps . pdepsImplicit
-               , build ^. pbuildDeps . pdepsOrderOnly
+        deps = [ build ^. AST.pbuildDeps . AST.pdepsNormal
+               , build ^. AST.pbuildDeps . AST.pdepsImplicit
+               , build ^. AST.pbuildDeps . AST.pdepsOrderOnly
                ] |> mconcat |> HS.map makeTarget
 
         rule = fromMaybe (error ("rule not found: " <> show ruleName))
                $ HM.lookup (makeTarget ruleName) ruleMap
 
-        ruleName = build ^. pbuildRule
+        ruleName = build ^. AST.pbuildRule
 
     simplifyPhony :: (Text, HashSet Text)
                   -> (HashSet Target, SBuild)
@@ -211,7 +211,7 @@ compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
            Just _           -> error "rule uses variables"
            Nothing          -> error "\"command\" not found"
 
-    combined :: HashMap (HashSet Target) Ninja.PBuild
+    combined :: HashMap (HashSet Target) AST.PBuild
     combined = multiples <> onHM (first HS.singleton) singles
                |> onHM (first (HS.map makeTarget))
 
@@ -230,11 +230,11 @@ compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
     createEdge :: Target -> Target -> (Target, SBuild)
     createEdge x y = (x, MkSBuild Nothing (HS.singleton y))
 
-    rules     = ninja ^. pninjaRules
-    singles   = ninja ^. pninjaSingles
-    multiples = ninja ^. pninjaMultiples
-    phonys    = ninja ^. pninjaPhonys
-    defaults  = ninja ^. pninjaDefaults
+    rules     = ninja ^. AST.pninjaRules
+    singles   = ninja ^. AST.pninjaSingles
+    multiples = ninja ^. AST.pninjaMultiples
+    phonys    = ninja ^. AST.pninjaPhonys
+    defaults  = ninja ^. AST.pninjaDefaults
 
 sninjaToJSON :: SNinja -> Value
 sninjaToJSON (sn@(MkSNinja {..})) = [ "graph" .= builds, "defaults" .= defaults

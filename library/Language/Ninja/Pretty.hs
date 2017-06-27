@@ -48,10 +48,9 @@ import qualified Control.Arrow           as Arr
 
 import           Control.Lens.Getter     ((^.))
 
-import           Language.Ninja.Types    (FileText, PBuild, PNinja)
+import           Language.Ninja.AST      (FileText)
 
-import qualified Language.Ninja.Types    as Ninja
-
+import qualified Language.Ninja.AST      as AST
 import qualified Language.Ninja.AST.Env  as AST
 import qualified Language.Ninja.AST.Expr as AST
 import qualified Language.Ninja.AST.Rule as AST
@@ -79,15 +78,15 @@ import           Flow                    ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
--- | Pretty-print a 'Ninja.PNinja'.
-prettyNinja :: PNinja -> Text
+-- | Pretty-print a 'AST.PNinja'.
+prettyNinja :: AST.PNinja -> Text
 prettyNinja ninja
-  = [ map prettyRule     (HM.toList (ninja ^. Ninja.pninjaRules))
-    , map prettySingle   (HM.toList (ninja ^. Ninja.pninjaSingles))
-    , map prettyMultiple (HM.toList (ninja ^. Ninja.pninjaMultiples))
-    , map prettyPhony    (HM.toList (ninja ^. Ninja.pninjaPhonys))
-    , map prettyDefault  (HS.toList (ninja ^. Ninja.pninjaDefaults))
-    , map prettyPool     (HM.toList (ninja ^. Ninja.pninjaPools))
+  = [ map prettyRule     (HM.toList (ninja ^. AST.pninjaRules))
+    , map prettySingle   (HM.toList (ninja ^. AST.pninjaSingles))
+    , map prettyMultiple (HM.toList (ninja ^. AST.pninjaMultiples))
+    , map prettyPhony    (HM.toList (ninja ^. AST.pninjaPhonys))
+    , map prettyDefault  (HS.toList (ninja ^. AST.pninjaDefaults))
+    , map prettyPool     (HM.toList (ninja ^. AST.pninjaPools))
     ] |> mconcat |> mconcat
 
 -- | Pretty-print an 'AST.Expr'
@@ -108,11 +107,11 @@ prettyRule (name, rule) = do
   mconcat ["rule ", name, "\n", binds]
 
 -- | Pretty-print a Ninja @build@ declaration with one output.
-prettySingle :: (FileText, PBuild) -> Text
+prettySingle :: (FileText, AST.PBuild) -> Text
 prettySingle (output, build) = prettyMultiple (HS.singleton output, build)
 
 -- | Pretty-print a Ninja @build@ declaration with multiple outputs.
-prettyMultiple :: (HashSet FileText, PBuild) -> Text
+prettyMultiple :: (HashSet FileText, AST.PBuild) -> Text
 prettyMultiple (outputs, build) = do
   let prefixIfThere :: Text -> Text -> Text
       prefixIfThere pfx rest = if T.all isSpace rest then "" else pfx <> rest
@@ -120,11 +119,12 @@ prettyMultiple (outputs, build) = do
   let unwordsSet :: HashSet Text -> Text
       unwordsSet = HS.toList .> T.unwords
 
-  let ruleName  = build ^. Ninja.pbuildRule
-  let normal    = build ^. Ninja.pbuildDeps . Ninja.pdepsNormal
-  let implicit  = build ^. Ninja.pbuildDeps . Ninja.pdepsImplicit
-  let orderOnly = build ^. Ninja.pbuildDeps . Ninja.pdepsOrderOnly
-  let binds     = build ^. Ninja.pbuildBind
+  let ruleName  = build ^. AST.pbuildRule
+  let deps      = build ^. AST.pbuildDeps
+  let binds     = build ^. AST.pbuildBind
+  let normal    = deps ^. AST.pdepsNormal
+  let implicit  = deps ^. AST.pdepsImplicit
+  let orderOnly = deps ^. AST.pdepsOrderOnly
 
   mconcat
     [ "build ", T.unwords (HS.toList outputs), ": "

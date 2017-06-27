@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/Types.hs
+-- File: library/Language/Ninja/AST.hs
 --
 -- License:
 --     Copyright Neil Mitchell 2011-2017.
@@ -50,14 +50,14 @@
 {-# LANGUAGE UndecidableInstances  #-}
 
 -- |
---   Module      : Language.Ninja.Types
+--   Module      : Language.Ninja.AST
 --   Copyright   : Copyright 2011-2017 Neil Mitchell
 --   License     : BSD3
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
 --   FIXME: split this module up
-module Language.Ninja.Types
+module Language.Ninja.AST
   ( -- * @PNinja@
     PNinja, makePNinja
   , pninjaRules

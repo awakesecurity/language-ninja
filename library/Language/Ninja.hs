@@ -32,11 +32,13 @@
 --   The module re-exports most of the modules under the @Language.Ninja@
 --   namespace.
 module Language.Ninja
-  ( module Exported
+  ( module Language.Ninja.Lexer
+  , module Language.Ninja.Parse
+  , module Language.Ninja.Pretty
+  , module Language.Ninja.Shake
   ) where
 
-import           Language.Ninja.Lexer  as Exported
-import           Language.Ninja.Parse  as Exported
-import           Language.Ninja.Pretty as Exported
-import           Language.Ninja.Shake  as Exported
-import           Language.Ninja.Types  as Exported
+import           Language.Ninja.Lexer
+import           Language.Ninja.Parse
+import           Language.Ninja.Pretty
+import           Language.Ninja.Shake

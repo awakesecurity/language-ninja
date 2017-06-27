@@ -89,11 +89,11 @@ import           Language.Ninja.IR
                  SpecialDeps, Target)
 import qualified Language.Ninja.Misc.Positive as Ninja
 import qualified Language.Ninja.Parse         as Ninja
-import           Language.Ninja.Types         (FileText, PBuild, PNinja)
-import qualified Language.Ninja.Types         as Ninja
 
 import qualified Language.Ninja.IR            as IR
 
+import           Language.Ninja.AST           (FileText, PBuild, PNinja)
+import qualified Language.Ninja.AST           as AST
 import qualified Language.Ninja.AST.Env       as AST
 import qualified Language.Ninja.AST.Expr      as AST
 import qualified Language.Ninja.AST.Rule      as AST
@@ -123,7 +123,7 @@ compile pninja = result
     metaM :: m Meta
     metaM = do
       let getSpecial :: Text -> Maybe Text
-          getSpecial name = HM.lookup name (pninja ^. Ninja.pninjaSpecials)
+          getSpecial name = HM.lookup name (pninja ^. AST.pninjaSpecials)
 
       let parseVersion :: Text -> m Ver.Version
           parseVersion = Ver.version
@@ -156,10 +156,10 @@ compile pninja = result
 
     compileBuild :: (HashSet FileText, PBuild) -> m Build
     compileBuild (outputs, pbuild) = do
-      let pdeps         = pbuild ^. Ninja.pbuildDeps
-      let normalDeps    = HS.toList (pdeps ^. Ninja.pdepsNormal)
-      let implicitDeps  = HS.toList (pdeps ^. Ninja.pdepsImplicit)
-      let orderOnlyDeps = HS.toList (pdeps ^. Ninja.pdepsOrderOnly)
+      let pdeps         = pbuild ^. AST.pbuildDeps
+      let normalDeps    = HS.toList (pdeps ^. AST.pdepsNormal)
+      let implicitDeps  = HS.toList (pdeps ^. AST.pdepsImplicit)
+      let orderOnlyDeps = HS.toList (pdeps ^. AST.pdepsOrderOnly)
 
       rule <- compileRule (outputs, pbuild)
       outs <- HS.toList outputs |> mapM compileOutput |> fmap HS.fromList
@@ -210,7 +210,7 @@ compile pninja = result
 
       command      <- lookupBind_ "command" >>= compileCommand
       description  <- lookupBind "description"
-      pool         <- let buildBind = pbuild ^. Ninja.pbuildBind
+      pool         <- let buildBind = pbuild ^. AST.pbuildBind
                       in (HM.lookup "pool" buildBind <|> AST.askEnv env "pool")
                          |> fmap IR.parsePoolName
                          |> fromMaybe IR.makePoolNameDefault
@@ -271,7 +271,7 @@ compile pninja = result
 
     lookupRule :: PBuild -> m (Text, AST.Rule)
     lookupRule pbuild = do
-      let name = pbuild ^. Ninja.pbuildRule
+      let name = pbuild ^. AST.pbuildRule
       prule <- HM.lookup name prules
                |> maybe (Ninja.throwBuildRuleNotFound name) pure
       pure (name, prule)
@@ -280,7 +280,7 @@ compile pninja = result
                    -> AST.Rule
                    -> AST.Env Text Text
     computeRuleEnv (outs, pbuild) prule = do
-      let deps = pbuild ^. Ninja.pbuildDeps . Ninja.pdepsNormal
+      let deps = pbuild ^. AST.pbuildDeps . AST.pdepsNormal
 
       let composeList :: [a -> a] -> (a -> a)
           composeList = map Endo .> mconcat .> appEndo
@@ -289,14 +289,14 @@ compile pninja = result
           quote x | T.any isSpace x = mconcat ["\"", x, "\""]
           quote x                   = x
 
-          pbuildBind = pbuild ^. Ninja.pbuildBind
+          pbuildBind = pbuild ^. AST.pbuildBind
 
       -- the order of adding new environment variables matters
-      AST.scopeEnv (pbuild ^. Ninja.pbuildEnv)
+      AST.scopeEnv (pbuild ^. AST.pbuildEnv)
         |> AST.addEnv "out"        (T.unwords (map quote (HS.toList outs)))
         |> AST.addEnv "in"         (T.unwords (map quote (HS.toList deps)))
         |> AST.addEnv "in_newline" (T.unlines (HS.toList deps))
-        |> composeList (map (uncurry Ninja.addEnv) (HM.toList pbuildBind))
+        |> composeList (map (uncurry AST.addEnv) (HM.toList pbuildBind))
         |> AST.addBinds (HM.toList (prule ^. AST.ruleBind))
 
     prules     :: HashMap Text AST.Rule
@@ -305,12 +305,12 @@ compile pninja = result
     pphonys    :: HashMap Text (HashSet FileText)
     pdefaults  :: HashSet FileText
     ppools     :: HashMap Text Int
-    prules     = pninja ^. Ninja.pninjaRules
-    psingles   = pninja ^. Ninja.pninjaSingles
-    pmultiples = pninja ^. Ninja.pninjaMultiples
-    pphonys    = pninja ^. Ninja.pninjaPhonys
-    pdefaults  = pninja ^. Ninja.pninjaDefaults
-    ppools     = pninja ^. Ninja.pninjaPools
+    prules     = pninja ^. AST.pninjaRules
+    psingles   = pninja ^. AST.pninjaSingles
+    pmultiples = pninja ^. AST.pninjaMultiples
+    pphonys    = pninja ^. AST.pninjaPhonys
+    pdefaults  = pninja ^. AST.pninjaDefaults
+    ppools     = pninja ^. AST.pninjaPools
 
     onHM :: (Eq k', Hashable k')
          => ((k, v) -> (k', v')) -> HashMap k v -> HashMap k' v'

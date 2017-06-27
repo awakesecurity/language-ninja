@@ -72,13 +72,12 @@ import qualified Development.Shake          as Shake
 import qualified Development.Shake.FilePath as Shake (normaliseEx, toStandard)
 import qualified Development.Shake.Util     as Shake (parseMakefile)
 
-import           Language.Ninja.Types       (PBuild, PNinja)
-
+import           Language.Ninja.AST         (PBuild, PNinja)
+import qualified Language.Ninja.AST         as AST
 import qualified Language.Ninja.AST.Env     as AST
 import qualified Language.Ninja.AST.Rule    as AST
 
-import qualified Language.Ninja.Parse       as Ninja
-import qualified Language.Ninja.Types       as Ninja
+import qualified Language.Ninja.Parse       as Parse
 
 import qualified Control.Exception.Extra
 import qualified Control.Monad
@@ -124,7 +123,7 @@ data NinjaOptions
 
 parseNinjaOptions :: FilePath -> [String] -> Maybe String -> IO NinjaOptions
 parseNinjaOptions file (map T.pack -> args) tool = do
-  ninja <- Ninja.parse file
+  ninja <- Parse.parse file
   pure $ case tool of
     Nothing         -> NinjaOptionsBuild  ninja args
     (Just "compdb") -> NinjaOptionsCompDB ninja args
@@ -139,19 +138,19 @@ ninjaDispatch (NinjaOptionsUnknown tool)  =
 
 computeRuleEnv :: HashSet Text -> PBuild -> AST.Rule -> AST.Env Text Text
 computeRuleEnv outputs b r = do
-  let deps = b ^. Ninja.pbuildDeps . Ninja.pdepsNormal
+  let deps = b ^. AST.pbuildDeps . AST.pdepsNormal
   -- the order of adding new environment variables matters
 
   let composeList :: [a -> a] -> (a -> a)
       composeList = map Endo .> mconcat .> appEndo
 
-  Ninja.scopeEnv (b ^. Ninja.pbuildEnv)
-    |> Ninja.addEnv "out"        (T.unwords (map quote (HS.toList outputs)))
-    |> Ninja.addEnv "in"         (T.unwords (map quote (HS.toList deps)))
-    |> Ninja.addEnv "in_newline" (T.unlines (HS.toList deps))
+  AST.scopeEnv (b ^. AST.pbuildEnv)
+    |> AST.addEnv "out"        (T.unwords (map quote (HS.toList outputs)))
+    |> AST.addEnv "in"         (T.unwords (map quote (HS.toList deps)))
+    |> AST.addEnv "in_newline" (T.unlines (HS.toList deps))
     |> composeList
-        (map (uncurry Ninja.addEnv) (HM.toList (b ^. Ninja.pbuildBind)))
-    |> Ninja.addBinds (HM.toList (r ^. AST.ruleBind))
+        (map (uncurry AST.addEnv) (HM.toList (b ^. AST.pbuildBind)))
+    |> AST.addBinds (HM.toList (r ^. AST.ruleBind))
 
 ninjaCompDB :: PNinja -> [Text] -> IO (Maybe (Rules ()))
 ninjaCompDB ninja args = do
@@ -165,20 +164,19 @@ ninjaCompDB ninja args = do
   -- the build items are generated in reverse order, hence the reverse
   let itemsToBuild :: [(HashSet Text, PBuild, Text, AST.Rule)]
       itemsToBuild = do
-        let multiples = ninja ^. Ninja.pninjaMultiples
-        let singles = ninja ^. Ninja.pninjaSingles
+        let multiples = ninja ^. AST.pninjaMultiples
+        let singles   = ninja ^. AST.pninjaSingles
         (outputs, build) <- [ HM.toList multiples
                             , map (first HS.singleton) (HM.toList singles)
                             ] |> mconcat |> reverse
-        (Just rule) <- [HM.lookup (build ^. Ninja.pbuildRule) rules]
-        (file:_) <- do
-          [build ^. Ninja.pbuildDeps . Ninja.pdepsNormal . to HS.toList]
+        (Just rule) <- [HM.lookup (build ^. AST.pbuildRule) rules]
+        (file:_) <- [build ^. AST.pbuildDeps . AST.pdepsNormal . to HS.toList]
         pure (outputs, build, file, rule)
 
   compDB <- Control.Monad.forM itemsToBuild $ \(outputs, build, _, rule) -> do
     let env = computeRuleEnv outputs build rule
-    let commandLine = T.unpack (Ninja.askVar env "command")
-    let deps = build ^. Ninja.pbuildDeps . Ninja.pdepsNormal
+    let commandLine = T.unpack (AST.askVar env "command")
+    let deps = build ^. AST.pbuildDeps . AST.pdepsNormal
     pure $ MkCompDB dir commandLine (T.unpack (head (HS.toList deps)))
 
   putStr $ printCompDB compDB
@@ -188,24 +186,24 @@ ninjaCompDB ninja args = do
 ninjaBuild :: PNinja -> [Text] -> IO (Maybe (Rules ()))
 ninjaBuild ninja args = pure $ Just $ do
   let normMultiples = ninja
-                      ^. Ninja.pninjaMultiples
+                      ^. AST.pninjaMultiples
                       .  to HM.toList
                       .  to (fmap (first (HS.map filepathNormalise)))
 
   poolList <- HM.traverseWithKey
               (\k v -> Shake.newResource (T.unpack k) v)
-              (HM.insert "console" 1 (ninja ^. Ninja.pninjaPools))
+              (HM.insert "console" 1 (ninja ^. AST.pninjaPools))
 
-  let phonys    = ninja ^. Ninja.pninjaPhonys
-  let singles   = ninja ^. Ninja.pninjaSingles
+  let phonys    = ninja ^. AST.pninjaPhonys
+  let singles   = ninja ^. AST.pninjaSingles
                   |> HM.toList
                   |> fmap (first filepathNormalise)
                   |> HM.fromList
   let multiples = [(x, (xs, b)) | (xs, b) <- normMultiples, x <- HS.toList xs]
                   |> HM.fromList
-  let rules     = ninja ^. Ninja.pninjaRules
+  let rules     = ninja ^. AST.pninjaRules
   let pools     = poolList
-  let defaults  = ninja ^. Ninja.pninjaDefaults
+  let defaults  = ninja ^. AST.pninjaDefaults
 
   let build :: HashSet Text -> PBuild -> Action ()
       build = runBuild (needDeps ninja) phonys rules pools
@@ -267,10 +265,10 @@ runBuild needD phonys rules pools outputs build = do
   let errorA :: Text -> Action a
       errorA = T.unpack .> Control.Exception.Extra.errorIO .> liftIO
 
-  let ruleName      = build ^. Ninja.pbuildRule
-  let depsNormal    = build ^. Ninja.pbuildDeps . Ninja.pdepsNormal
-  let depsImplicit  = build ^. Ninja.pbuildDeps . Ninja.pdepsImplicit
-  let depsOrderOnly = build ^. Ninja.pbuildDeps . Ninja.pdepsOrderOnly
+  let ruleName      = build ^. AST.pbuildRule
+  let depsNormal    = build ^. AST.pbuildDeps . AST.pdepsNormal
+  let depsImplicit  = build ^. AST.pbuildDeps . AST.pdepsImplicit
+  let depsOrderOnly = build ^. AST.pbuildDeps . AST.pdepsOrderOnly
 
   let setConcatMap :: (Eq b, Hashable b) => (a -> HashSet b) -> HashSet a -> [b]
       setConcatMap f = HS.map f .> HS.toList .> HS.unions .> HS.toList
@@ -289,13 +287,13 @@ runBuild needD phonys rules pools outputs build = do
 
   applyRspfile env $ do
     let askVarString :: Text -> String
-        askVarString = Ninja.askVar env .> T.unpack
+        askVarString = AST.askVar env .> T.unpack
 
     let commandline = askVarString     "command"
     let depfile     = askVarString     "depfile"
     let deps        = askVarString     "deps"
     let description = askVarString     "description"
-    let pool        = Ninja.askVar env "pool"
+    let pool        = AST.askVar env "pool"
 
     let withPool act = if T.null pool
                        then act
@@ -353,8 +351,8 @@ needDeps ninja = \build xs -> do
                ] |> mconcat |> errorA
   where
     builds :: HashMap Text PBuild
-    builds = let singles   = ninja ^. Ninja.pninjaSingles
-                 multiples = ninja ^. Ninja.pninjaMultiples
+    builds = let singles   = ninja ^. AST.pninjaSingles
+                 multiples = ninja ^. AST.pninjaMultiples
              in singles <> explodeHM multiples
 
     explodeHM :: (Eq k, Hashable k) => HashMap (HashSet k) v -> HashMap k v
@@ -387,10 +385,10 @@ needDeps ninja = \build xs -> do
         f _    []     []                = []
         f seen []     (x:xs)            =
           let fpNorm = filepathNormalise
-              pdeps  = x ^. Ninja.pbuildDeps
-              deps   = [ pdeps ^. Ninja.pdepsNormal
-                       , pdeps ^. Ninja.pdepsImplicit
-                       , pdeps ^. Ninja.pdepsOrderOnly
+              pdeps  = x ^. AST.pbuildDeps
+              deps   = [ pdeps ^. AST.pdepsNormal
+                       , pdeps ^. AST.pdepsImplicit
+                       , pdeps ^. AST.pdepsOrderOnly
                        ] |> mconcat
               paths  = HS.toList deps
                        |> map fpNorm
@@ -406,8 +404,8 @@ needDeps ninja = \build xs -> do
 
 applyRspfile :: AST.Env Text Text -> Action a -> Action a
 applyRspfile env act = do
-  let rspfile         = Ninja.askVar env "rspfile"
-  let rspfile_content = Ninja.askVar env "rspfile_content"
+  let rspfile         = AST.askVar env "rspfile"
+  let rspfile_content = AST.askVar env "rspfile_content"
   if rspfile == ""
     then act
     else (liftIO (T.writeFile (T.unpack rspfile) rspfile_content) >> act)

@@ -79,9 +79,7 @@ import           Language.Ninja.Lexer
                  (LBinding (..), LBuild (..), LFile (..), LName (..),
                  Lexeme (..), lexer)
 
-import           Language.Ninja.Types    (PNinja)
-import qualified Language.Ninja.Types    as Ninja
-
+import qualified Language.Ninja.AST      as AST
 import qualified Language.Ninja.AST.Env  as AST
 import qualified Language.Ninja.AST.Expr as AST
 import qualified Language.Ninja.AST.Rule as AST
@@ -91,17 +89,17 @@ import           Flow                    ((.>), (|>))
 --------------------------------------------------------------------------------
 
 -- | Parse the file at the given path into a 'PNinja'.
-parse :: FilePath -> IO PNinja
-parse file = parseWithEnv file Ninja.makeEnv
+parse :: FilePath -> IO AST.PNinja
+parse file = parseWithEnv file AST.makeEnv
 
 -- | Parse the file at the given path using the given Ninja variable context,
 --   resulting in a 'PNinja'.
-parseWithEnv :: FilePath -> AST.Env Text Text -> IO PNinja
-parseWithEnv file env = fst <$> parseFile file (Ninja.makePNinja, env)
+parseWithEnv :: FilePath -> AST.Env Text Text -> IO AST.PNinja
+parseWithEnv file env = fst <$> parseFile file (AST.makePNinja, env)
 
 --------------------------------------------------------------------------------
 
-type PNinjaWithEnv = (PNinja, AST.Env Text Text)
+type PNinjaWithEnv = (AST.PNinja, AST.Env Text Text)
 
 parseFile :: FilePath -> PNinjaWithEnv -> IO PNinjaWithEnv
 parseFile file (ninja, env) = do
@@ -121,12 +119,12 @@ addSpecialVars (ninja, env) = (mutator ninja, env)
     specialVars :: [Text]
     specialVars = ["ninja_required_version", "builddir"]
 
-    addVariable :: Text -> (PNinja -> PNinja)
+    addVariable :: Text -> (AST.PNinja -> AST.PNinja)
     addVariable name = case AST.askEnv env name of
-      (Just val) -> Ninja.pninjaSpecials %~ HM.insert name val
+      (Just val) -> AST.pninjaSpecials %~ HM.insert name val
       Nothing    -> id
 
-    mutator :: PNinja -> PNinja
+    mutator :: AST.PNinja -> AST.PNinja
     mutator = map addVariable specialVars |> map Endo |> mconcat |> appEndo
 
 withBinds :: [Lexeme] -> [(Lexeme, [(Text, AST.Expr)])]
@@ -158,55 +156,55 @@ applyStmt lexeme binds (ninja, env)
 
 applyBuild :: LBuild -> ApplyFun
 applyBuild (MkLBuild lexOutputs lexRule lexDeps) lexBinds (ninja, env) = do
-  let outputs = map (Ninja.askExpr env) lexOutputs
-  let deps    = HS.fromList (map (Ninja.askExpr env) lexDeps)
-  let binds   = HM.fromList (map (second (Ninja.askExpr env)) lexBinds)
+  let outputs = map (AST.askExpr env) lexOutputs
+  let deps    = HS.fromList (map (AST.askExpr env) lexDeps)
+  let binds   = HM.fromList (map (second (AST.askExpr env)) lexBinds)
   let (normal, implicit, orderOnly) = splitDeps deps
-  let build = Ninja.makePBuild (T.decodeUtf8 lexRule) env
-              |>  (Ninja.pbuildDeps . Ninja.pdepsNormal    .~ normal   )
-              |>  (Ninja.pbuildDeps . Ninja.pdepsImplicit  .~ implicit )
-              |>  (Ninja.pbuildDeps . Ninja.pdepsOrderOnly .~ orderOnly)
-              |>  (Ninja.pbuildBind                        .~ binds    )
+  let build = AST.makePBuild (T.decodeUtf8 lexRule) env
+              |> (AST.pbuildDeps . AST.pdepsNormal    .~ normal   )
+              |> (AST.pbuildDeps . AST.pdepsImplicit  .~ implicit )
+              |> (AST.pbuildDeps . AST.pdepsOrderOnly .~ orderOnly)
+              |> (AST.pbuildBind                      .~ binds    )
   let allDeps = normal <> implicit <> orderOnly
   let addP = \p -> [(x, allDeps) | x <- outputs] <> (HM.toList p)
                    |> HM.fromList
   let addS = HM.insert (head outputs) build
   let addM = HM.insert (HS.fromList outputs) build
   let ninja' = if lexRule == "phony"
-               then ninja |> Ninja.pninjaPhonys %~ addP
+               then ninja |> AST.pninjaPhonys %~ addP
                else if length outputs == 1
-               then ninja |> Ninja.pninjaSingles   %~ addS
-               else ninja |> Ninja.pninjaMultiples %~ addM
+               then ninja |> AST.pninjaSingles   %~ addS
+               else ninja |> AST.pninjaMultiples %~ addM
   pure (ninja', env)
 
 applyRule :: LName -> ApplyFun
 applyRule (MkLName name) binds (ninja, env) = do
   let rule = AST.makeRule |> AST.ruleBind .~ HM.fromList binds
-  pure (ninja |> Ninja.pninjaRules %~ HM.insert (T.decodeUtf8 name) rule, env)
+  pure (ninja |> AST.pninjaRules %~ HM.insert (T.decodeUtf8 name) rule, env)
 
 applyDefault :: [AST.Expr] -> ApplyFun
 applyDefault lexDefaults _ (ninja, env) = do
-  let defaults = HS.fromList (map (Ninja.askExpr env) lexDefaults)
-  pure (ninja |> Ninja.pninjaDefaults %~ (defaults <>), env)
+  let defaults = HS.fromList (map (AST.askExpr env) lexDefaults)
+  pure (ninja |> AST.pninjaDefaults %~ (defaults <>), env)
 
 applyPool :: LName -> ApplyFun
 applyPool (MkLName name) binds (ninja, env) = do
   depth <- getDepth env binds
-  pure (ninja |> Ninja.pninjaPools %~ HM.insert (T.decodeUtf8 name) depth, env)
+  pure (ninja |> AST.pninjaPools %~ HM.insert (T.decodeUtf8 name) depth, env)
 
 applyInclude :: LFile -> ApplyFun
 applyInclude (MkLFile expr) _ (ninja, env) = do
-  let file = Ninja.askExpr env expr
+  let file = AST.askExpr env expr
   parseFile (T.unpack file) (ninja, env)
 
 applySubninja :: LFile -> ApplyFun
 applySubninja (MkLFile expr) _ (ninja, env) = do
-  let file = Ninja.askExpr env expr
-  parseFile (T.unpack file) (ninja, Ninja.scopeEnv env)
+  let file = AST.askExpr env expr
+  parseFile (T.unpack file) (ninja, AST.scopeEnv env)
 
 applyDefine :: LBinding -> ApplyFun
 applyDefine (MkLBinding (MkLName var) value) _ (ninja, env) = do
-  pure (ninja, Ninja.addBind (T.decodeUtf8 var) value env)
+  pure (ninja, AST.addBind (T.decodeUtf8 var) value env)
 
 -- FIXME: use MonadError instead of IO
 
