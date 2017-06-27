@@ -57,6 +57,7 @@ library
                         , Language.Ninja.AST.Deps
                         , Language.Ninja.AST.Env
                         , Language.Ninja.AST.Expr
+                        , Language.Ninja.AST.Ninja
                         , Language.Ninja.AST.Rule
                         , Language.Ninja.IR
                         , Language.Ninja.IR.Build
@@ -65,10 +66,10 @@ library
                         , Language.Ninja.IR.Pool
                         , Language.Ninja.IR.Rule
                         , Language.Ninja.IR.Target
-                        , Language.Ninja.Compile
                         , Language.Ninja.Errors
                         , Language.Ninja.Errors.Compile
                         , Language.Ninja.Errors.Parse
+                        , Language.Ninja.Compile
                         , Language.Ninja.Lexer
                         , Language.Ninja.Parse
                         , Language.Ninja.Pretty
