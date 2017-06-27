@@ -33,7 +33,7 @@
 --
 --   The module re-exports the modules under @Language.Ninja.Errors.*@, all of
 --   which are related to error types used in @language-ninja@.
---   It also defines the 'NinjaError'
+--   It also defines the 'NinjaError' type.
 module Language.Ninja.Errors
   ( module Language.Ninja.Errors.Compile
   , module Language.Ninja.Errors.Parse
