@@ -54,6 +54,7 @@ import           Flow                      ((.>), (|>))
 import           Data.Text                 (Text)
 import qualified Data.Text                 as Text
 
+import           Control.DeepSeq           (NFData)
 import           Data.Hashable             (Hashable)
 import           GHC.Generics              (Generic)
 
@@ -132,9 +133,6 @@ addBinds bs e = map (second (askExpr e) .> uncurry AST.addEnv .> Endo) bs
                 |> mconcat
                 |> (\endo -> appEndo endo e)
 
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Expr
-
 -- | Converts 'Exprs' to a JSON list, 'Lit' to a JSON string,
 --   and 'Var' to @{var: …}@.
 instance ToJSON Expr where
@@ -172,6 +170,12 @@ instance Arbitrary Expr where
       varLength = 10
       maxWidth  = 5
       lossRate  = 2
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable Expr
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData Expr
 
 -- | Default 'SC.Serial' instance via 'Generic'.
 instance (Monad m, SC.Serial m Text) => SC.Serial m Expr

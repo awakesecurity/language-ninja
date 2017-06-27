@@ -53,6 +53,7 @@ import           Data.HashMap.Strict     (HashMap)
 import           Data.HashSet            (HashSet)
 import           Data.Text               (Text)
 
+import           Control.DeepSeq         (NFData)
 import           Data.Hashable           (Hashable)
 import           GHC.Generics            (Generic)
 
@@ -116,9 +117,6 @@ buildBind :: Lens' Build (HashMap Text Text)
 buildBind = lens _buildBind
             $ \(MkBuild {..}) x -> MkBuild { _buildBind = x, .. }
 
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Build
-
 -- | Converts to @{rule: …, env: …, deps: …, bind: …}@.
 instance ToJSON Build where
   toJSON (MkBuild {..})
@@ -136,6 +134,12 @@ instance FromJSON Build where
                   _buildDeps <- (o .: "deps") >>= pure
                   _buildBind <- (o .: "bind") >>= pure
                   pure (MkBuild {..}))
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable Build
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData Build
 
 -- | Default 'SC.Serial' instance via 'Generic'.
 instance (Monad m, BuildConstraint (SC.Serial m)) => SC.Serial m Build

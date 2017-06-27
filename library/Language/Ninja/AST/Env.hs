@@ -70,6 +70,7 @@ import qualified Data.List.NonEmpty     as NE
 import           Data.HashMap.Strict    (HashMap)
 import qualified Data.HashMap.Strict    as HM
 
+import           Control.DeepSeq        (NFData)
 import           Data.Hashable          (Hashable)
 import           GHC.Generics           (Generic)
 import qualified Test.SmallCheck.Series as SC
@@ -135,9 +136,6 @@ askEnv :: (Eq k, Hashable k) => Env k v -> k -> Maybe v
 askEnv env k = HM.lookup k (headEnv env)
                <|> (tailEnv env >>= (`askEnv` k))
 
--- | Default 'Hashable' instance via 'Generic'.
-instance (Hashable k, Hashable v) => Hashable (Env k v)
-
 -- | Converts to a (nonempty) array of JSON objects.
 instance (ToJSONKey k, ToJSON v) => ToJSON (Env k v) where
   toJSON = _fromEnv .> NE.toList .> toJSON
@@ -149,6 +147,12 @@ instance (Eq k, Hashable k, FromJSONKey k, FromJSON v) =>
               >=> NE.nonEmpty
               .>  maybe (fail "Env list was empty!") pure
               .>  fmap MkEnv
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance (Hashable k, Hashable v) => Hashable (Env k v)
+
+-- | Default 'NFData' instance via 'Generic'.
+instance (NFData k, NFData v) => NFData (Env k v)
 
 -- | Uses the underlying 'Maps' instance.
 instance ( Monad m, Key k

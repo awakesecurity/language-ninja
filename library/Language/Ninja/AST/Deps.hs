@@ -49,6 +49,7 @@ import           Flow                   ((|>))
 import           Data.HashSet           (HashSet)
 import           Data.Text              (Text)
 
+import           Control.DeepSeq        (NFData)
 import           Data.Hashable          (Hashable)
 import           GHC.Generics           (Generic)
 
@@ -95,9 +96,6 @@ depsOrderOnly :: Lens' Deps (HashSet Text)
 depsOrderOnly = lens _depsOrderOnly
                 $ \(MkDeps {..}) x -> MkDeps { _depsOrderOnly = x, .. }
 
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Deps
-
 -- | Converts to @{normal: …, implicit: …, order-only: …}@.
 instance ToJSON Deps where
   toJSON (MkDeps {..})
@@ -113,6 +111,12 @@ instance FromJSON Deps where
                   _depsImplicit  <- (o .: "implicit")   >>= pure
                   _depsOrderOnly <- (o .: "order-only") >>= pure
                   pure (MkDeps {..}))
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable Deps
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData Deps
 
 -- | Default 'SC.Serial' instance via 'Generic'.
 instance ( Monad m, SC.Serial m (HashSet Text)

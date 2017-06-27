@@ -64,6 +64,7 @@ import           Data.HashSet             (HashSet)
 
 import           Data.Text                (Text)
 
+import           Control.DeepSeq          (NFData)
 import           Data.Hashable            (Hashable)
 import           GHC.Generics             (Generic)
 
@@ -192,6 +193,12 @@ instance FromJSON Ninja where
                       outputs <- (o .: "outputs") >>= pure
                       build   <- (o .: "build")   >>= pure
                       pure (outputs, build))
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable Ninja
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData Ninja
 
 -- | Default 'SC.Serial' instance via 'Generic'.
 instance (Monad m, NinjaConstraint (SC.Serial m)) => SC.Serial m Ninja

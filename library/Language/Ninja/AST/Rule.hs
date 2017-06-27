@@ -45,6 +45,7 @@ import           Flow                    ((.>), (|>))
 import           Data.HashMap.Strict     (HashMap)
 import           Data.Text               (Text)
 
+import           Control.DeepSeq         (NFData)
 import           Data.Hashable           (Hashable)
 import           GHC.Generics            (Generic)
 
@@ -76,9 +77,6 @@ makeRule = MkRule
 ruleBind :: Lens' Rule (HashMap Text AST.Expr)
 ruleBind = lens _ruleBind (const MkRule)
 
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Rule
-
 -- | Uses the 'ToJSON' instance of the underlying @'HashMap' 'Text' 'PEXpr'@.
 instance ToJSON Rule where
   toJSON = _ruleBind .> Aeson.toJSON
@@ -86,6 +84,12 @@ instance ToJSON Rule where
 -- | Inverse of the 'ToJSON' instance.
 instance FromJSON Rule where
   parseJSON = Aeson.parseJSON .> fmap MkRule
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable Rule
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData Rule
 
 -- | Default 'SC.Serial' instance via 'Generic'.
 instance ( Monad m, SC.Serial m (HashMap Text AST.Expr)
