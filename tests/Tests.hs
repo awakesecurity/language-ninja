@@ -69,6 +69,7 @@ import qualified Language.Ninja.Misc.Path   as Ninja
 
 import qualified Language.Ninja.AST.Env     as AST
 import qualified Language.Ninja.AST.Expr    as AST
+import qualified Language.Ninja.AST.Rule    as AST
 
 import qualified Test.Tasty                 as T
 import qualified Test.Tasty.Golden          as T
@@ -266,6 +267,11 @@ opticsTests
         , testPrism 4 "_Var"   AST._Var
         ]
       ]
+    , testModule "Language.Ninja.AST.Rule"
+      [ testType "Rule"
+        [ testLens 4 "ruleBind" AST.ruleBind
+        ]
+      ]
     , testModule "Language.Ninja.Types"
       [ testType "PNinja" [] -- FIXME: combinatorial explosion
         -- [ testLens 1 "pninjaRules"     Ninja.pninjaRules
@@ -285,9 +291,6 @@ opticsTests
         [ testLens def "pdepsNormal"    Ninja.pdepsNormal
         , testLens def "pdepsImplicit"  Ninja.pdepsImplicit
         , testLens def "pdepsOrderOnly" Ninja.pdepsOrderOnly
-        ]
-      , testType "PRule"
-        [ testLens 4 "pruleBind" Ninja.pruleBind
         ]
       ]
     , testModule "Language.Ninja.Misc.Command"

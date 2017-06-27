@@ -72,9 +72,10 @@ import qualified Development.Shake          as Shake
 import qualified Development.Shake.FilePath as Shake (normaliseEx, toStandard)
 import qualified Development.Shake.Util     as Shake (parseMakefile)
 
-import           Language.Ninja.Types       (PBuild, PNinja, PRule)
+import           Language.Ninja.Types       (PBuild, PNinja)
 
 import qualified Language.Ninja.AST.Env     as AST
+import qualified Language.Ninja.AST.Rule    as AST
 
 import qualified Language.Ninja.Parse       as Ninja
 import qualified Language.Ninja.Types       as Ninja
@@ -136,7 +137,7 @@ ninjaDispatch (NinjaOptionsUnknown tool)  =
   [ "Unknown tool: ", tool
   ] |> mconcat |> T.unpack |> Control.Exception.Extra.errorIO
 
-computeRuleEnv :: HashSet Text -> PBuild -> PRule -> AST.Env Text Text
+computeRuleEnv :: HashSet Text -> PBuild -> AST.Rule -> AST.Env Text Text
 computeRuleEnv outputs b r = do
   let deps = b ^. Ninja.pbuildDeps . Ninja.pdepsNormal
   -- the order of adding new environment variables matters
@@ -150,7 +151,7 @@ computeRuleEnv outputs b r = do
     |> Ninja.addEnv "in_newline" (T.unlines (HS.toList deps))
     |> composeList
         (map (uncurry Ninja.addEnv) (HM.toList (b ^. Ninja.pbuildBind)))
-    |> Ninja.addBinds (HM.toList (r ^. Ninja.pruleBind))
+    |> Ninja.addBinds (HM.toList (r ^. AST.ruleBind))
 
 ninjaCompDB :: PNinja -> [Text] -> IO (Maybe (Rules ()))
 ninjaCompDB ninja args = do
@@ -162,7 +163,7 @@ ninjaCompDB ninja args = do
   let rules = HM.filterWithKey (curry inArgs) rules
 
   -- the build items are generated in reverse order, hence the reverse
-  let itemsToBuild :: [(HashSet Text, PBuild, Text, PRule)]
+  let itemsToBuild :: [(HashSet Text, PBuild, Text, AST.Rule)]
       itemsToBuild = do
         let multiples = ninja ^. Ninja.pninjaMultiples
         let singles = ninja ^. Ninja.pninjaSingles
@@ -257,7 +258,7 @@ quote x                             =
 
 runBuild :: (PBuild -> [Text] -> Action ())
          -> HashMap Text (HashSet Text)
-         -> HashMap Text PRule
+         -> HashMap Text AST.Rule
          -> HashMap Text Shake.Resource
          -> HashSet Text
          -> PBuild

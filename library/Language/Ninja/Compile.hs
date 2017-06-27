@@ -87,14 +87,16 @@ import           Language.Ninja.IR
                  (Build, Command, Dependency, DependencyType (..), Meta, Ninja,
                  Output, OutputType (..), Pool, ResponseFile, Rule,
                  SpecialDeps, Target)
-import qualified Language.Ninja.IR            as Ninja
 import qualified Language.Ninja.Misc.Positive as Ninja
 import qualified Language.Ninja.Parse         as Ninja
-import           Language.Ninja.Types         (FileText, PBuild, PNinja, PRule)
+import           Language.Ninja.Types         (FileText, PBuild, PNinja)
 import qualified Language.Ninja.Types         as Ninja
+
+import qualified Language.Ninja.IR            as IR
 
 import qualified Language.Ninja.AST.Env       as AST
 import qualified Language.Ninja.AST.Expr      as AST
+import qualified Language.Ninja.AST.Rule      as AST
 
 -------------------------------------------------------------------------------
 
@@ -110,12 +112,12 @@ compile pninja = result
       defaults <- defaultsM
       pools    <- poolsM
 
-      Ninja.makeNinja
-        |> Ninja.ninjaMeta     .~ meta
-        |> Ninja.ninjaBuilds   .~ builds
-        |> Ninja.ninjaPhonys   .~ phonys
-        |> Ninja.ninjaDefaults .~ defaults
-        |> Ninja.ninjaPools    .~ pools
+      IR.makeNinja
+        |> IR.ninjaMeta     .~ meta
+        |> IR.ninjaBuilds   .~ builds
+        |> IR.ninjaPhonys   .~ phonys
+        |> IR.ninjaDefaults .~ defaults
+        |> IR.ninjaPools    .~ pools
         |> pure
 
     metaM :: m Meta
@@ -131,12 +133,12 @@ compile pninja = result
                     |> fmap parseVersion
                     |> sequenceA
       builddir   <- getSpecial "builddir"
-                    |> fmap Ninja.makePath
+                    |> fmap IR.makePath
                     |> pure
 
-      Ninja.makeMeta
-        |> Ninja.metaReqVersion .~ reqversion
-        |> Ninja.metaBuildDir   .~ builddir
+      IR.makeMeta
+        |> IR.metaReqVersion .~ reqversion
+        |> IR.metaBuildDir   .~ builddir
         |> pure
 
     buildsM :: m (HashSet Build)
@@ -167,9 +169,9 @@ compile pninja = result
                  <*> mapM (compileDep ImplicitDependency)  implicitDeps
                  <*> mapM (compileDep OrderOnlyDependency) orderOnlyDeps
 
-      Ninja.makeBuild rule
-        |> Ninja.buildOuts .~ outs
-        |> Ninja.buildDeps .~ deps
+      IR.makeBuild rule
+        |> IR.buildOuts .~ outs
+        |> IR.buildDeps .~ deps
         |> pure
 
     compilePhony :: (Text, HashSet FileText)
@@ -184,12 +186,12 @@ compile pninja = result
 
     compilePool :: (Text, Int) -> m Pool
     compilePool pair = case pair of
-      ("console", 1) -> pure Ninja.makePoolConsole
+      ("console", 1) -> pure IR.makePoolConsole
       ("console", d) -> Ninja.throwInvalidPoolDepth d
       ("",        _) -> Ninja.throwEmptyPoolName
       (name,      d) -> do dp <- Ninja.makePositive d
                                  |> maybe (Ninja.throwInvalidPoolDepth d) pure
-                           pure (Ninja.makePoolCustom name dp)
+                           pure (IR.makePoolCustom name dp)
 
     compileRule :: (HashSet FileText, PBuild) -> m Rule
     compileRule (outputs, pbuild) = do
@@ -210,11 +212,11 @@ compile pninja = result
       description  <- lookupBind "description"
       pool         <- let buildBind = pbuild ^. Ninja.pbuildBind
                       in (HM.lookup "pool" buildBind <|> AST.askEnv env "pool")
-                         |> fmap Ninja.parsePoolName
-                         |> fromMaybe Ninja.makePoolNameDefault
+                         |> fmap IR.parsePoolName
+                         |> fromMaybe IR.makePoolNameDefault
                          |> pure
       depfile      <- lookupBind "depfile"
-                      |> fmap (fmap Ninja.makePath)
+                      |> fmap (fmap IR.makePath)
       specialDeps  <- let prefix = "msvc_deps_prefix"
                       in ((,) <$> lookupBind "deps" <*> lookupBind prefix)
                          >>= compileSpecialDeps
@@ -225,14 +227,14 @@ compile pninja = result
                          >>= (\(ma, mb) -> pure ((,) <$> ma <*> mb))
                          >>= fmap compileResponseFile .> sequenceA
 
-      Ninja.makeRule name command
-        |> Ninja.ruleDescription  .~ description
-        |> Ninja.rulePool         .~ pool
-        |> Ninja.ruleDepfile      .~ depfile
-        |> Ninja.ruleSpecialDeps  .~ specialDeps
-        |> Ninja.ruleGenerator    .~ generator
-        |> Ninja.ruleRestat       .~ restat
-        |> Ninja.ruleResponseFile .~ responseFile
+      IR.makeRule name command
+        |> IR.ruleDescription  .~ description
+        |> IR.rulePool         .~ pool
+        |> IR.ruleDepfile      .~ depfile
+        |> IR.ruleSpecialDeps  .~ specialDeps
+        |> IR.ruleGenerator    .~ generator
+        |> IR.ruleRestat       .~ restat
+        |> IR.ruleResponseFile .~ responseFile
         |> pure
 
     compileSpecialDeps :: (Maybe Text, Maybe Text) -> m (Maybe SpecialDeps)
@@ -241,33 +243,33 @@ compile pninja = result
                                 (Just "msvc", m) -> goMSVC m
                                 (Just d,      _) -> Ninja.throwUnknownDeps d)
       where
-        goGCC  Nothing  = pure (Just Ninja.makeSpecialDepsGCC)
+        goGCC  Nothing  = pure (Just IR.makeSpecialDepsGCC)
         goGCC  (Just _) = Ninja.throwUnexpectedMSVCPrefix "gcc"
 
-        goMSVC m        = pure (Just (Ninja.makeSpecialDepsMSVC m))
+        goMSVC m        = pure (Just (IR.makeSpecialDepsMSVC m))
 
     compileResponseFile :: (Text, Text) -> m ResponseFile
     compileResponseFile (file, content) = do
-      let path = Ninja.makePath file
-      pure (Ninja.makeResponseFile path content)
+      let path = IR.makePath file
+      pure (IR.makeResponseFile path content)
 
     compileTarget :: Text -> m Target
-    compileTarget = Ninja.makeTarget .> pure
+    compileTarget = IR.makeTarget .> pure
 
     compileOutput :: Text -> m Output
     compileOutput name = do
       target <- compileTarget name
-      pure (Ninja.makeOutput target ExplicitOutput)
+      pure (IR.makeOutput target ExplicitOutput)
 
     compileDependency :: (Text, DependencyType) -> m Dependency
     compileDependency (name, ty) = do
       target <- compileTarget name
-      pure (Ninja.makeDependency target ty)
+      pure (IR.makeDependency target ty)
 
     compileCommand :: Text -> m Command
-    compileCommand = Ninja.makeCommand .> pure
+    compileCommand = IR.makeCommand .> pure
 
-    lookupRule :: PBuild -> m (Text, PRule)
+    lookupRule :: PBuild -> m (Text, AST.Rule)
     lookupRule pbuild = do
       let name = pbuild ^. Ninja.pbuildRule
       prule <- HM.lookup name prules
@@ -275,7 +277,7 @@ compile pninja = result
       pure (name, prule)
 
     computeRuleEnv :: (HashSet Text, PBuild)
-                   -> PRule
+                   -> AST.Rule
                    -> AST.Env Text Text
     computeRuleEnv (outs, pbuild) prule = do
       let deps = pbuild ^. Ninja.pbuildDeps . Ninja.pdepsNormal
@@ -295,9 +297,9 @@ compile pninja = result
         |> AST.addEnv "in"         (T.unwords (map quote (HS.toList deps)))
         |> AST.addEnv "in_newline" (T.unlines (HS.toList deps))
         |> composeList (map (uncurry Ninja.addEnv) (HM.toList pbuildBind))
-        |> AST.addBinds (HM.toList (prule ^. Ninja.pruleBind))
+        |> AST.addBinds (HM.toList (prule ^. AST.ruleBind))
 
-    prules     :: HashMap Text PRule
+    prules     :: HashMap Text AST.Rule
     psingles   :: HashMap FileText PBuild
     pmultiples :: HashMap (HashSet FileText) PBuild
     pphonys    :: HashMap Text (HashSet FileText)

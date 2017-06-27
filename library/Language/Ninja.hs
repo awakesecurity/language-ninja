@@ -35,7 +35,6 @@ module Language.Ninja
   ( module Exported
   ) where
 
-import           Language.Ninja.IR     as Exported
 import           Language.Ninja.Lexer  as Exported
 import           Language.Ninja.Parse  as Exported
 import           Language.Ninja.Pretty as Exported

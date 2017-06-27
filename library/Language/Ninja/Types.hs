@@ -78,9 +78,9 @@ module Language.Ninja.Types
   , PDeps, makePDeps
   , pdepsNormal, pdepsImplicit, pdepsOrderOnly
 
-    -- * @PRule@
-  , PRule, makePRule
-  , pruleBind
+    -- * @Rule@
+  , AST.Rule, AST.makeRule
+  , AST.ruleBind
 
     -- * @Expr@
   , AST.Expr (..)
@@ -133,6 +133,7 @@ import qualified Test.SmallCheck.Series  as SC
 
 import qualified Language.Ninja.AST.Env  as AST
 import qualified Language.Ninja.AST.Expr as AST
+import qualified Language.Ninja.AST.Rule as AST
 
 import           Flow                    ((.>), (|>))
 
@@ -152,7 +153,7 @@ type FileText = Text
 -- | A parsed Ninja file.
 data PNinja
   = MkPNinja
-    { _pninjaRules     :: !(HashMap Text PRule)
+    { _pninjaRules     :: !(HashMap Text AST.Rule)
     , _pninjaSingles   :: !(HashMap FileText PBuild)
     , _pninjaMultiples :: !(HashMap (HashSet FileText) PBuild)
     , _pninjaPhonys    :: !(HashMap Text (HashSet FileText))
@@ -177,7 +178,7 @@ makePNinja = MkPNinja
 
 -- | The rules defined in a parsed Ninja file.
 {-# INLINE pninjaRules #-}
-pninjaRules :: Lens' PNinja (HashMap Text PRule)
+pninjaRules :: Lens' PNinja (HashMap Text AST.Rule)
 pninjaRules = Control.Lens.lens _pninjaRules
               $ \(MkPNinja {..}) x -> MkPNinja { _pninjaRules = x, .. }
 
@@ -271,7 +272,7 @@ type PNinjaConstraint (c :: * -> Constraint)
   = ( PBuildConstraint c
     , c (HashMap (HashSet FileText) PBuild)
     , c (HashMap Text (HashSet FileText))
-    , c (HashMap Text PRule)
+    , c (HashMap Text AST.Rule)
     , c (HashMap FileText PBuild)
     , c (HashMap Text Int)
     )
@@ -420,42 +421,5 @@ instance ( Monad m, SC.Serial m (HashSet FileText)
 -- | Default 'SC.CoSerial' instance via 'Generic'.
 instance ( Monad m, SC.CoSerial m (HashSet FileText)
          ) => SC.CoSerial m PDeps
-
---------------------------------------------------------------------------------
-
--- | A parsed Ninja @rule@ declaration.
-newtype PRule
-  = MkPRule
-    { _pruleBind :: HashMap Text AST.Expr
-    }
-  deriving (Eq, Show, Generic)
-
--- | Construct a 'PRule' with all default values
-{-# INLINE makePRule #-}
-makePRule :: PRule
-makePRule = MkPRule
-            { _pruleBind = mempty
-            }
-
--- | The set of bindings in scope during the execution of this rule.
-{-# INLINE pruleBind #-}
-pruleBind :: Lens' PRule (HashMap Text AST.Expr)
-pruleBind = Control.Lens.lens _pruleBind (const MkPRule)
-
--- | Uses the 'ToJSON' instance of the underlying @'HashMap' 'Text' 'PEXpr'@.
-instance ToJSON PRule where
-  toJSON = _pruleBind .> toJSON
-
--- | Inverse of the 'ToJSON' instance.
-instance FromJSON PRule where
-  parseJSON = parseJSON .> fmap MkPRule
-
--- | Default 'SC.Serial' instance via 'Generic'.
-instance ( Monad m, SC.Serial m (HashMap Text AST.Expr)
-         ) => SC.Serial m PRule
-
--- | Default 'SC.CoSerial' instance via 'Generic'.
-instance ( Monad m, SC.CoSerial m (HashMap Text AST.Expr)
-         ) => SC.CoSerial m PRule
 
 --------------------------------------------------------------------------------

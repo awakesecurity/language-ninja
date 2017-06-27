@@ -54,6 +54,7 @@ library
     exposed-modules:      Language.Ninja
                         , Language.Ninja.AST.Env
                         , Language.Ninja.AST.Expr
+                        , Language.Ninja.AST.Rule
                         , Language.Ninja.IR
                         , Language.Ninja.IR.Build
                         , Language.Ninja.IR.Meta

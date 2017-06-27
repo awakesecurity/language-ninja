@@ -84,6 +84,7 @@ import qualified Language.Ninja.Types    as Ninja
 
 import qualified Language.Ninja.AST.Env  as AST
 import qualified Language.Ninja.AST.Expr as AST
+import qualified Language.Ninja.AST.Rule as AST
 
 import           Flow                    ((.>), (|>))
 
@@ -180,7 +181,7 @@ applyBuild (MkLBuild lexOutputs lexRule lexDeps) lexBinds (ninja, env) = do
 
 applyRule :: LName -> ApplyFun
 applyRule (MkLName name) binds (ninja, env) = do
-  let rule = Ninja.makePRule |> Ninja.pruleBind .~ HM.fromList binds
+  let rule = AST.makeRule |> AST.ruleBind .~ HM.fromList binds
   pure (ninja |> Ninja.pninjaRules %~ HM.insert (T.decodeUtf8 name) rule, env)
 
 applyDefault :: [AST.Expr] -> ApplyFun

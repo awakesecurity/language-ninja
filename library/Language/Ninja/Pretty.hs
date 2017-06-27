@@ -48,12 +48,13 @@ import qualified Control.Arrow           as Arr
 
 import           Control.Lens.Getter     ((^.))
 
-import           Language.Ninja.Types    (FileText, PBuild, PNinja, PRule)
+import           Language.Ninja.Types    (FileText, PBuild, PNinja)
 
 import qualified Language.Ninja.Types    as Ninja
 
 import qualified Language.Ninja.AST.Env  as AST
 import qualified Language.Ninja.AST.Expr as AST
+import qualified Language.Ninja.AST.Rule as AST
 
 import           Data.ByteString         (ByteString)
 import qualified Data.ByteString         as BS
@@ -98,9 +99,9 @@ prettyExpr = go .> mconcat
     go (AST.Var name) = ["${", name, "}"]
 
 -- | Pretty-print a Ninja @rule@ declaration.
-prettyRule :: (Text, PRule) -> Text
+prettyRule :: (Text, AST.Rule) -> Text
 prettyRule (name, rule) = do
-  let binds = rule ^. Ninja.pruleBind
+  let binds = rule ^. AST.ruleBind
               |> HM.toList
               |> map (Arr.second prettyExpr .> prettyBind)
               |> mconcat
