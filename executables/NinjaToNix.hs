@@ -101,7 +101,7 @@ import           Misc.Hash
 pretty :: (ToJSON v) => v -> IO ()
 pretty = encodePretty .> LBSC8.putStrLn
 
-debugNinja :: IO AST.PNinja
+debugNinja :: IO AST.Ninja
 debugNinja = Ninja.parse "../data/build.ninja"
 
 debugSNinja :: IO SNinja
@@ -166,7 +166,7 @@ data SBuild
 
 -- | FIXME: doc
 --   Note: this function assumes a very simple subset of Ninja.
-compileNinja :: AST.PNinja -> SNinja
+compileNinja :: AST.Ninja -> SNinja
 compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
   where
     onHM :: (Eq k', Hashable k')
@@ -230,11 +230,11 @@ compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
     createEdge :: Target -> Target -> (Target, SBuild)
     createEdge x y = (x, MkSBuild Nothing (HS.singleton y))
 
-    rules     = ninja ^. AST.pninjaRules
-    singles   = ninja ^. AST.pninjaSingles
-    multiples = ninja ^. AST.pninjaMultiples
-    phonys    = ninja ^. AST.pninjaPhonys
-    defaults  = ninja ^. AST.pninjaDefaults
+    rules     = ninja ^. AST.ninjaRules
+    singles   = ninja ^. AST.ninjaSingles
+    multiples = ninja ^. AST.ninjaMultiples
+    phonys    = ninja ^. AST.ninjaPhonys
+    defaults  = ninja ^. AST.ninjaDefaults
 
 sninjaToJSON :: SNinja -> Value
 sninjaToJSON (sn@(MkSNinja {..})) = [ "graph" .= builds, "defaults" .= defaults

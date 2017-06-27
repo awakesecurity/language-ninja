@@ -48,12 +48,12 @@ text (this is tested on a variety of Ninja files in the test suite).
 ## Compiling
 
 The `Ninja` type from `Language.Ninja.IR.Ninja` contains precisely the data
-that must be acted on dynamically in a Ninja. In converting from a `PNinja`
-from the parser to a `Ninja` (using `Language.Ninja.Compile.compile`), you are
-eliminating all statically-dischargeable language features in Ninja, like
-variables. It also "monomorphizes" Ninja `rule`s, since rule-level `$out`
-references are a kind of parametric polymorphism. This `Ninja` type is thus
-far more suitable for processing than the `PNinja` type.
+that must be acted on dynamically in a Ninja. In converting from the parsed
+AST to the intermediate representation using `Language.Ninja.Compile.compile`,
+you are eliminating all statically-dischargeable language features in Ninja,
+like variables. It also "monomorphizes" Ninja `rule`s, since rule-level `$out`
+references are a kind of parametric polymorphism. This IR is thus far more
+suitable for processing than the original parsed AST.
 
 ## Miscellaneous
 

@@ -136,7 +136,7 @@ testFiles = [ "buildseparate"
             , "test6"
             ]
 
-parseTestNinja :: String -> IO AST.PNinja
+parseTestNinja :: String -> IO AST.Ninja
 parseTestNinja name = do
   old <- Turtle.pwd
   Turtle.cd (FP.decodeString dataPrefix)
@@ -144,12 +144,12 @@ parseTestNinja name = do
   Turtle.cd old
   pure result
 
-roundtripTest :: AST.PNinja -> IO ()
-roundtripTest pninja = do
+roundtripTest :: AST.Ninja -> IO ()
+roundtripTest ninja = do
   let withTempDir = Turtle.with (Turtle.mktempdir "." "test")
 
   (expected, actual) <- withTempDir $ \tmpdir -> do
-    let prettyInput = Ninja.prettyNinja pninja
+    let prettyInput = Ninja.prettyNinja ninja
     let tmpfile = tmpdir </> "generated.ninja"
     Turtle.writeTextFile tmpfile prettyInput
     output <- Ninja.parse (FP.encodeString tmpfile)
@@ -165,17 +165,17 @@ roundtripTest pninja = do
     -- Aeson.encode actualJ `H.shouldBe` Aeson.encode expectedJ
     T.assertEqual "prefix" expected actual
 
-compileTest :: AST.PNinja -> IO ()
-compileTest pninja = void $ do
-  either (displayException .> fail) pure (Ninja.compile pninja)
+compileTest :: AST.Ninja -> IO ()
+compileTest ninja = void $ do
+  either (displayException .> fail) pure (Ninja.compile ninja)
 
-pninjaTests :: String -> AST.PNinja -> T.TestTree
-pninjaTests name pninja
+ninjaTests :: String -> AST.Ninja -> T.TestTree
+ninjaTests name ninja
   = T.testGroup ("Testing " <> name <> ".ninja")
     [ T.testCase "roundtrip through parser and pretty-printer" $ do
-        roundtripTest pninja
+        roundtripTest ninja
     , T.testCase "compile to Ninja" $ do
-        compileTest pninja
+        compileTest ninja
     ]
 
 opticsTests :: T.TestTree
@@ -277,13 +277,13 @@ opticsTests
         ]
       ]
     , testModule "Language.Ninja.AST"
-      [ testType "PNinja" [] -- FIXME: combinatorial explosion
-        -- [ testLens 1 "pninjaRules"     AST.pninjaRules
-        -- , testLens 1 "pninjaSingles"   AST.pninjaSingles
-        -- , testLens 1 "pninjaMultiples" AST.pninjaMultiples
-        -- , testLens 1 "pninjaPhonys"    AST.pninjaPhonys
-        -- , testLens 1 "pninjaDefaults"  AST.pninjaDefaults
-        -- , testLens 1 "pninjaSpecials"  AST.pninjaSpecials
+      [ testType "Ninja" [] -- FIXME: combinatorial explosion
+        -- [ testLens 1 "ninjaRules"     AST.ninjaRules
+        -- , testLens 1 "ninjaSingles"   AST.ninjaSingles
+        -- , testLens 1 "ninjaMultiples" AST.ninjaMultiples
+        -- , testLens 1 "ninjaPhonys"    AST.ninjaPhonys
+        -- , testLens 1 "ninjaDefaults"  AST.ninjaDefaults
+        -- , testLens 1 "ninjaSpecials"  AST.ninjaSpecials
         -- ]
       , testType "PBuild" [] -- FIXME: combinatorial explosion
         -- [ testLens 1 "pbuildRule" AST.pbuildRule
@@ -359,7 +359,7 @@ ingredients = [ [T.htmlRunner]
 testTree :: IO T.TestTree
 testTree = do
   ninjas <- forM testFiles parseTestNinja
-  let tests = [ fmap (uncurry pninjaTests) (zip testFiles ninjas)
+  let tests = [ fmap (uncurry ninjaTests) (zip testFiles ninjas)
               , [opticsTests]
               ] |> mconcat
   pure (T.testGroup "language-ninja" tests)

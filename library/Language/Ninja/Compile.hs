@@ -83,16 +83,16 @@ import           GHC.Generics                 (Generic)
 import qualified Data.Versions                as Ver
 
 import qualified Language.Ninja.Errors        as Ninja
-import           Language.Ninja.IR
-                 (Build, Command, Dependency, DependencyType (..), Meta, Ninja,
-                 Output, OutputType (..), Pool, ResponseFile, Rule,
-                 SpecialDeps, Target)
+-- import           Language.Ninja.IR
+--                  (Build, Command, Dependency, DependencyType (..), Meta, Ninja,
+--                  Output, OutputType (..), Pool, ResponseFile, Rule,
+--                  SpecialDeps, Target)
 import qualified Language.Ninja.Misc.Positive as Ninja
 import qualified Language.Ninja.Parse         as Ninja
 
 import qualified Language.Ninja.IR            as IR
 
-import           Language.Ninja.AST           (FileText, PBuild, PNinja)
+import           Language.Ninja.AST           (FileText, PBuild)
 import qualified Language.Ninja.AST           as AST
 import qualified Language.Ninja.AST.Env       as AST
 import qualified Language.Ninja.AST.Expr      as AST
@@ -100,11 +100,12 @@ import qualified Language.Ninja.AST.Rule      as AST
 
 -------------------------------------------------------------------------------
 
--- | Compile a 'PNinja' into a 'Ninja'.
-compile :: forall m. (MonadError Ninja.CompileError m) => PNinja -> m Ninja
-compile pninja = result
+-- | Compile an parsed Ninja file into a intermediate representation.
+compile :: forall m. (MonadError Ninja.CompileError m)
+        => AST.Ninja -> m IR.Ninja
+compile ast = result
   where
-    result :: m Ninja
+    result :: m IR.Ninja
     result = do
       meta     <- metaM
       builds   <- buildsM
@@ -120,10 +121,10 @@ compile pninja = result
         |> IR.ninjaPools    .~ pools
         |> pure
 
-    metaM :: m Meta
+    metaM :: m IR.Meta
     metaM = do
       let getSpecial :: Text -> Maybe Text
-          getSpecial name = HM.lookup name (pninja ^. AST.pninjaSpecials)
+          getSpecial name = HM.lookup name (ast ^. AST.ninjaSpecials)
 
       let parseVersion :: Text -> m Ver.Version
           parseVersion = Ver.version
@@ -141,20 +142,20 @@ compile pninja = result
         |> IR.metaBuildDir   .~ builddir
         |> pure
 
-    buildsM :: m (HashSet Build)
+    buildsM :: m (HashSet IR.Build)
     buildsM = (pmultiples <> onHM (first HS.singleton) psingles)
               |> HM.toList |> mapM compileBuild |> fmap HS.fromList
 
-    phonysM :: m (HashMap Target (HashSet Target))
+    phonysM :: m (HashMap IR.Target (HashSet IR.Target))
     phonysM = HM.toList pphonys |> mapM compilePhony |> fmap HM.fromList
 
-    defaultsM :: m (HashSet Target)
+    defaultsM :: m (HashSet IR.Target)
     defaultsM = HS.toList pdefaults |> mapM compileDefault |> fmap HS.fromList
 
-    poolsM :: m (HashSet Pool)
+    poolsM :: m (HashSet IR.Pool)
     poolsM = HM.toList ppools |> mapM compilePool |> fmap HS.fromList
 
-    compileBuild :: (HashSet FileText, PBuild) -> m Build
+    compileBuild :: (HashSet FileText, AST.PBuild) -> m IR.Build
     compileBuild (outputs, pbuild) = do
       let pdeps         = pbuild ^. AST.pbuildDeps
       let normalDeps    = HS.toList (pdeps ^. AST.pdepsNormal)
@@ -165,9 +166,9 @@ compile pninja = result
       outs <- HS.toList outputs |> mapM compileOutput |> fmap HS.fromList
       deps <- let compileDep = flip (curry compileDependency)
               in (\n i o -> HS.fromList (n <> i <> o))
-                 <$> mapM (compileDep NormalDependency)    normalDeps
-                 <*> mapM (compileDep ImplicitDependency)  implicitDeps
-                 <*> mapM (compileDep OrderOnlyDependency) orderOnlyDeps
+                 <$> mapM (compileDep IR.NormalDependency)    normalDeps
+                 <*> mapM (compileDep IR.ImplicitDependency)  implicitDeps
+                 <*> mapM (compileDep IR.OrderOnlyDependency) orderOnlyDeps
 
       IR.makeBuild rule
         |> IR.buildOuts .~ outs
@@ -175,16 +176,16 @@ compile pninja = result
         |> pure
 
     compilePhony :: (Text, HashSet FileText)
-                  -> m (Target, HashSet Target)
+                  -> m (IR.Target, HashSet IR.Target)
     compilePhony (name, deps) = do
       ename <- compileTarget name
       edeps <- HS.fromList <$> mapM compileTarget (HS.toList deps)
       pure (ename, edeps)
 
-    compileDefault :: FileText -> m Target
+    compileDefault :: FileText -> m IR.Target
     compileDefault = compileTarget
 
-    compilePool :: (Text, Int) -> m Pool
+    compilePool :: (Text, Int) -> m IR.Pool
     compilePool pair = case pair of
       ("console", 1) -> pure IR.makePoolConsole
       ("console", d) -> Ninja.throwInvalidPoolDepth d
@@ -193,7 +194,7 @@ compile pninja = result
                                  |> maybe (Ninja.throwInvalidPoolDepth d) pure
                            pure (IR.makePoolCustom name dp)
 
-    compileRule :: (HashSet FileText, PBuild) -> m Rule
+    compileRule :: (HashSet FileText, PBuild) -> m IR.Rule
     compileRule (outputs, pbuild) = do
       (name, prule) <- lookupRule pbuild
 
@@ -237,7 +238,7 @@ compile pninja = result
         |> IR.ruleResponseFile .~ responseFile
         |> pure
 
-    compileSpecialDeps :: (Maybe Text, Maybe Text) -> m (Maybe SpecialDeps)
+    compileSpecialDeps :: (Maybe Text, Maybe Text) -> m (Maybe IR.SpecialDeps)
     compileSpecialDeps = (\case (Nothing,     _) -> pure Nothing
                                 (Just "gcc",  m) -> goGCC  m
                                 (Just "msvc", m) -> goMSVC m
@@ -248,25 +249,25 @@ compile pninja = result
 
         goMSVC m        = pure (Just (IR.makeSpecialDepsMSVC m))
 
-    compileResponseFile :: (Text, Text) -> m ResponseFile
+    compileResponseFile :: (Text, Text) -> m IR.ResponseFile
     compileResponseFile (file, content) = do
       let path = IR.makePath file
       pure (IR.makeResponseFile path content)
 
-    compileTarget :: Text -> m Target
+    compileTarget :: Text -> m IR.Target
     compileTarget = IR.makeTarget .> pure
 
-    compileOutput :: Text -> m Output
+    compileOutput :: Text -> m IR.Output
     compileOutput name = do
       target <- compileTarget name
-      pure (IR.makeOutput target ExplicitOutput)
+      pure (IR.makeOutput target IR.ExplicitOutput)
 
-    compileDependency :: (Text, DependencyType) -> m Dependency
+    compileDependency :: (Text, IR.DependencyType) -> m IR.Dependency
     compileDependency (name, ty) = do
       target <- compileTarget name
       pure (IR.makeDependency target ty)
 
-    compileCommand :: Text -> m Command
+    compileCommand :: Text -> m IR.Command
     compileCommand = IR.makeCommand .> pure
 
     lookupRule :: PBuild -> m (Text, AST.Rule)
@@ -276,7 +277,7 @@ compile pninja = result
                |> maybe (Ninja.throwBuildRuleNotFound name) pure
       pure (name, prule)
 
-    computeRuleEnv :: (HashSet Text, PBuild)
+    computeRuleEnv :: (HashSet Text, AST.PBuild)
                    -> AST.Rule
                    -> AST.Env Text Text
     computeRuleEnv (outs, pbuild) prule = do
@@ -300,17 +301,17 @@ compile pninja = result
         |> AST.addBinds (HM.toList (prule ^. AST.ruleBind))
 
     prules     :: HashMap Text AST.Rule
-    psingles   :: HashMap FileText PBuild
-    pmultiples :: HashMap (HashSet FileText) PBuild
+    psingles   :: HashMap FileText AST.PBuild
+    pmultiples :: HashMap (HashSet FileText) AST.PBuild
     pphonys    :: HashMap Text (HashSet FileText)
     pdefaults  :: HashSet FileText
     ppools     :: HashMap Text Int
-    prules     = pninja ^. AST.pninjaRules
-    psingles   = pninja ^. AST.pninjaSingles
-    pmultiples = pninja ^. AST.pninjaMultiples
-    pphonys    = pninja ^. AST.pninjaPhonys
-    pdefaults  = pninja ^. AST.pninjaDefaults
-    ppools     = pninja ^. AST.pninjaPools
+    prules     = ast ^. AST.ninjaRules
+    psingles   = ast ^. AST.ninjaSingles
+    pmultiples = ast ^. AST.ninjaMultiples
+    pphonys    = ast ^. AST.ninjaPhonys
+    pdefaults  = ast ^. AST.ninjaDefaults
+    ppools     = ast ^. AST.ninjaPools
 
     onHM :: (Eq k', Hashable k')
          => ((k, v) -> (k', v')) -> HashMap k v -> HashMap k' v'

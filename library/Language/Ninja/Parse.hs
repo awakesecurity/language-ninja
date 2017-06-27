@@ -88,20 +88,20 @@ import           Flow                    ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
--- | Parse the file at the given path into a 'PNinja'.
-parse :: FilePath -> IO AST.PNinja
+-- | Parse the file at the given path into a 'Ninja'.
+parse :: FilePath -> IO AST.Ninja
 parse file = parseWithEnv file AST.makeEnv
 
 -- | Parse the file at the given path using the given Ninja variable context,
---   resulting in a 'PNinja'.
-parseWithEnv :: FilePath -> AST.Env Text Text -> IO AST.PNinja
-parseWithEnv file env = fst <$> parseFile file (AST.makePNinja, env)
+--   resulting in a 'Ninja'.
+parseWithEnv :: FilePath -> AST.Env Text Text -> IO AST.Ninja
+parseWithEnv file env = fst <$> parseFile file (AST.makeNinja, env)
 
 --------------------------------------------------------------------------------
 
-type PNinjaWithEnv = (AST.PNinja, AST.Env Text Text)
+type NinjaWithEnv = (AST.Ninja, AST.Env Text Text)
 
-parseFile :: FilePath -> PNinjaWithEnv -> IO PNinjaWithEnv
+parseFile :: FilePath -> NinjaWithEnv -> IO NinjaWithEnv
 parseFile file (ninja, env) = do
   bs <- if file == "-"
         then BSC8.getContents
@@ -113,18 +113,18 @@ parseFile file (ninja, env) = do
     |> (\f -> f (ninja, env))
     |> fmap addSpecialVars
 
-addSpecialVars :: PNinjaWithEnv -> PNinjaWithEnv
+addSpecialVars :: NinjaWithEnv -> NinjaWithEnv
 addSpecialVars (ninja, env) = (mutator ninja, env)
   where
     specialVars :: [Text]
     specialVars = ["ninja_required_version", "builddir"]
 
-    addVariable :: Text -> (AST.PNinja -> AST.PNinja)
+    addVariable :: Text -> (AST.Ninja -> AST.Ninja)
     addVariable name = case AST.askEnv env name of
-      (Just val) -> AST.pninjaSpecials %~ HM.insert name val
-      Nothing    -> id
+                         (Just val) -> AST.ninjaSpecials %~ HM.insert name val
+                         Nothing    -> id
 
-    mutator :: AST.PNinja -> AST.PNinja
+    mutator :: AST.Ninja -> AST.Ninja
     mutator = map addVariable specialVars |> map Endo |> mconcat |> appEndo
 
 withBinds :: [Lexeme] -> [(Lexeme, [(Text, AST.Expr)])]
@@ -139,7 +139,7 @@ withBinds = go
                                  in ((T.decodeUtf8 a, b) : as, bs)
     f xs                       = ([], xs)
 
-type ApplyFun = [(Text, AST.Expr)] -> PNinjaWithEnv -> IO PNinjaWithEnv
+type ApplyFun = [(Text, AST.Expr)] -> NinjaWithEnv -> IO NinjaWithEnv
 
 applyStmt :: Lexeme -> ApplyFun
 applyStmt lexeme binds (ninja, env)
@@ -171,26 +171,26 @@ applyBuild (MkLBuild lexOutputs lexRule lexDeps) lexBinds (ninja, env) = do
   let addS = HM.insert (head outputs) build
   let addM = HM.insert (HS.fromList outputs) build
   let ninja' = if lexRule == "phony"
-               then ninja |> AST.pninjaPhonys %~ addP
-               else if length outputs == 1
-               then ninja |> AST.pninjaSingles   %~ addS
-               else ninja |> AST.pninjaMultiples %~ addM
+               then ninja |> AST.ninjaPhonys %~ addP
+               else (if length outputs == 1
+                     then ninja |> AST.ninjaSingles   %~ addS
+                     else ninja |> AST.ninjaMultiples %~ addM)
   pure (ninja', env)
 
 applyRule :: LName -> ApplyFun
 applyRule (MkLName name) binds (ninja, env) = do
   let rule = AST.makeRule |> AST.ruleBind .~ HM.fromList binds
-  pure (ninja |> AST.pninjaRules %~ HM.insert (T.decodeUtf8 name) rule, env)
+  pure (ninja |> AST.ninjaRules %~ HM.insert (T.decodeUtf8 name) rule, env)
 
 applyDefault :: [AST.Expr] -> ApplyFun
 applyDefault lexDefaults _ (ninja, env) = do
   let defaults = HS.fromList (map (AST.askExpr env) lexDefaults)
-  pure (ninja |> AST.pninjaDefaults %~ (defaults <>), env)
+  pure (ninja |> AST.ninjaDefaults %~ (defaults <>), env)
 
 applyPool :: LName -> ApplyFun
 applyPool (MkLName name) binds (ninja, env) = do
   depth <- getDepth env binds
-  pure (ninja |> AST.pninjaPools %~ HM.insert (T.decodeUtf8 name) depth, env)
+  pure (ninja |> AST.ninjaPools %~ HM.insert (T.decodeUtf8 name) depth, env)
 
 applyInclude :: LFile -> ApplyFun
 applyInclude (MkLFile expr) _ (ninja, env) = do

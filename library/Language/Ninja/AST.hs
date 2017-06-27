@@ -58,16 +58,16 @@
 --
 --   FIXME: split this module up
 module Language.Ninja.AST
-  ( -- * @PNinja@
-    PNinja, makePNinja
-  , pninjaRules
-  , pninjaSingles
-  , pninjaMultiples
-  , pninjaPhonys
-  , pninjaDefaults
-  , pninjaPools
-  , pninjaSpecials
-  , PNinjaConstraint
+  ( -- * @Ninja@
+    Ninja, makeNinja
+  , ninjaRules
+  , ninjaSingles
+  , ninjaMultiples
+  , ninjaPhonys
+  , ninjaDefaults
+  , ninjaPools
+  , ninjaSpecials
+  , NinjaConstraint
 
     -- * @PBuild@
   , PBuild, makePBuild
@@ -151,85 +151,85 @@ type FileText = Text
 --------------------------------------------------------------------------------
 
 -- | A parsed Ninja file.
-data PNinja
-  = MkPNinja
-    { _pninjaRules     :: !(HashMap Text AST.Rule)
-    , _pninjaSingles   :: !(HashMap FileText PBuild)
-    , _pninjaMultiples :: !(HashMap (HashSet FileText) PBuild)
-    , _pninjaPhonys    :: !(HashMap Text (HashSet FileText))
-    , _pninjaDefaults  :: !(HashSet FileText)
-    , _pninjaPools     :: !(HashMap Text Int)
-    , _pninjaSpecials  :: !(HashMap Text Text)
+data Ninja
+  = MkNinja
+    { _ninjaRules     :: !(HashMap Text AST.Rule)
+    , _ninjaSingles   :: !(HashMap FileText PBuild)
+    , _ninjaMultiples :: !(HashMap (HashSet FileText) PBuild)
+    , _ninjaPhonys    :: !(HashMap Text (HashSet FileText))
+    , _ninjaDefaults  :: !(HashSet FileText)
+    , _ninjaPools     :: !(HashMap Text Int)
+    , _ninjaSpecials  :: !(HashMap Text Text)
     }
   deriving (Eq, Show, Generic)
 
--- | Construct a 'PNinja' with all default values
-{-# INLINE makePNinja #-}
-makePNinja :: PNinja
-makePNinja = MkPNinja
-             { _pninjaRules     = mempty
-             , _pninjaSingles   = mempty
-             , _pninjaMultiples = mempty
-             , _pninjaPhonys    = mempty
-             , _pninjaDefaults  = mempty
-             , _pninjaPools     = mempty
-             , _pninjaSpecials  = mempty
-             }
+-- | Construct a 'Ninja' with all default values
+{-# INLINE makeNinja #-}
+makeNinja :: Ninja
+makeNinja = MkNinja
+            { _ninjaRules     = mempty
+            , _ninjaSingles   = mempty
+            , _ninjaMultiples = mempty
+            , _ninjaPhonys    = mempty
+            , _ninjaDefaults  = mempty
+            , _ninjaPools     = mempty
+            , _ninjaSpecials  = mempty
+            }
 
 -- | The rules defined in a parsed Ninja file.
-{-# INLINE pninjaRules #-}
-pninjaRules :: Lens' PNinja (HashMap Text AST.Rule)
-pninjaRules = Control.Lens.lens _pninjaRules
-              $ \(MkPNinja {..}) x -> MkPNinja { _pninjaRules = x, .. }
+{-# INLINE ninjaRules #-}
+ninjaRules :: Lens' Ninja (HashMap Text AST.Rule)
+ninjaRules = Control.Lens.lens _ninjaRules
+             $ \(MkNinja {..}) x -> MkNinja { _ninjaRules = x, .. }
 
 -- | The set of build declarations with precisely one output.
-{-# INLINE pninjaSingles #-}
-pninjaSingles :: Lens' PNinja (HashMap FileText PBuild)
-pninjaSingles = Control.Lens.lens _pninjaSingles
-                $ \(MkPNinja {..}) x -> MkPNinja { _pninjaSingles = x, .. }
+{-# INLINE ninjaSingles #-}
+ninjaSingles :: Lens' Ninja (HashMap FileText PBuild)
+ninjaSingles = Control.Lens.lens _ninjaSingles
+               $ \(MkNinja {..}) x -> MkNinja { _ninjaSingles = x, .. }
 
 -- | The set of build declarations with two or more outputs.
-{-# INLINE pninjaMultiples #-}
-pninjaMultiples :: Lens' PNinja (HashMap (HashSet FileText) PBuild)
-pninjaMultiples = Control.Lens.lens _pninjaMultiples
-                  $ \(MkPNinja {..}) x -> MkPNinja { _pninjaMultiples = x, .. }
+{-# INLINE ninjaMultiples #-}
+ninjaMultiples :: Lens' Ninja (HashMap (HashSet FileText) PBuild)
+ninjaMultiples = Control.Lens.lens _ninjaMultiples
+                 $ \(MkNinja {..}) x -> MkNinja { _ninjaMultiples = x, .. }
 
 -- | The set of phony build declarations.
-{-# INLINE pninjaPhonys #-}
-pninjaPhonys :: Lens' PNinja (HashMap Text (HashSet FileText))
-pninjaPhonys = Control.Lens.lens _pninjaPhonys
-               $ \(MkPNinja {..}) x -> MkPNinja { _pninjaPhonys = x, .. }
+{-# INLINE ninjaPhonys #-}
+ninjaPhonys :: Lens' Ninja (HashMap Text (HashSet FileText))
+ninjaPhonys = Control.Lens.lens _ninjaPhonys
+              $ \(MkNinja {..}) x -> MkNinja { _ninjaPhonys = x, .. }
 
 -- | The set of default targets.
-{-# INLINE pninjaDefaults #-}
-pninjaDefaults :: Lens' PNinja (HashSet FileText)
-pninjaDefaults = Control.Lens.lens _pninjaDefaults
-                 $ \(MkPNinja {..}) x -> MkPNinja { _pninjaDefaults = x, .. }
+{-# INLINE ninjaDefaults #-}
+ninjaDefaults :: Lens' Ninja (HashSet FileText)
+ninjaDefaults = Control.Lens.lens _ninjaDefaults
+                $ \(MkNinja {..}) x -> MkNinja { _ninjaDefaults = x, .. }
 
 -- | A mapping from pool names to pool depth integers.
-{-# INLINE pninjaPools #-}
-pninjaPools :: Lens' PNinja (HashMap Text Int)
-pninjaPools = Control.Lens.lens _pninjaPools
-              $ \(MkPNinja {..}) x -> MkPNinja { _pninjaPools = x, .. }
+{-# INLINE ninjaPools #-}
+ninjaPools :: Lens' Ninja (HashMap Text Int)
+ninjaPools = Control.Lens.lens _ninjaPools
+             $ \(MkNinja {..}) x -> MkNinja { _ninjaPools = x, .. }
 
 -- | A map from "special" top-level variables to their values.
-{-# INLINE pninjaSpecials #-}
-pninjaSpecials :: Lens' PNinja (HashMap Text Text)
-pninjaSpecials = Control.Lens.lens _pninjaSpecials
-                 $ \(MkPNinja {..}) x -> MkPNinja { _pninjaSpecials = x, .. }
+{-# INLINE ninjaSpecials #-}
+ninjaSpecials :: Lens' Ninja (HashMap Text Text)
+ninjaSpecials = Control.Lens.lens _ninjaSpecials
+                $ \(MkNinja {..}) x -> MkNinja { _ninjaSpecials = x, .. }
 
 -- | Converts to
 --   @{rules: …, singles: …, multiples: …, phonys: …, defaults: …,
 --     pools: …, specials: …}@.
-instance ToJSON PNinja where
-  toJSON (MkPNinja {..})
-    = [ "rules"     .= _pninjaRules
-      , "singles"   .= _pninjaSingles
-      , "multiples" .= fixMultiples _pninjaMultiples
-      , "phonys"    .= _pninjaPhonys
-      , "defaults"  .= _pninjaDefaults
-      , "pools"     .= _pninjaPools
-      , "specials"  .= _pninjaPools
+instance ToJSON Ninja where
+  toJSON (MkNinja {..})
+    = [ "rules"     .= _ninjaRules
+      , "singles"   .= _ninjaSingles
+      , "multiples" .= fixMultiples _ninjaMultiples
+      , "phonys"    .= _ninjaPhonys
+      , "defaults"  .= _ninjaDefaults
+      , "pools"     .= _ninjaPools
+      , "specials"  .= _ninjaPools
       ] |> Aeson.object
     where
       fixMultiples :: HashMap (HashSet FileText) PBuild -> Value
@@ -240,35 +240,35 @@ instance ToJSON PNinja where
         Aeson.object ["outputs" .= outputs, "build" .= build]
 
 -- | Inverse of the 'ToJSON' instance.
-instance FromJSON PNinja where
-  parseJSON = (Aeson.withObject "PNinja" $ \o -> do
-                  _pninjaRules     <- (o .: "rules")     >>= pure
-                  _pninjaSingles   <- (o .: "singles")   >>= pure
-                  _pninjaMultiples <- (o .: "multiples") >>= fixMultiples
-                  _pninjaPhonys    <- (o .: "phonys")    >>= pure
-                  _pninjaDefaults  <- (o .: "defaults")  >>= pure
-                  _pninjaPools     <- (o .: "pools")     >>= pure
-                  _pninjaSpecials  <- (o .: "specials")  >>= pure
-                  pure (MkPNinja {..}))
+instance FromJSON Ninja where
+  parseJSON = (Aeson.withObject "Ninja" $ \o -> do
+                  _ninjaRules     <- (o .: "rules")     >>= pure
+                  _ninjaSingles   <- (o .: "singles")   >>= pure
+                  _ninjaMultiples <- (o .: "multiples") >>= fixMultiples
+                  _ninjaPhonys    <- (o .: "phonys")    >>= pure
+                  _ninjaDefaults  <- (o .: "defaults")  >>= pure
+                  _ninjaPools     <- (o .: "pools")     >>= pure
+                  _ninjaSpecials  <- (o .: "specials")  >>= pure
+                  pure (MkNinja {..}))
     where
       fixMultiples :: Value -> Aeson.Parser (HashMap (HashSet FileText) PBuild)
       fixMultiples = parseJSON >=> mapM parsePair >=> (HM.fromList .> pure)
 
       parsePair :: Value -> Aeson.Parser (HashSet FileText, PBuild)
-      parsePair = (Aeson.withObject "PNinja.multiples" $ \o -> do
+      parsePair = (Aeson.withObject "Ninja.multiples" $ \o -> do
                       outputs <- (o .: "outputs") >>= pure
                       build   <- (o .: "build")   >>= pure
                       pure (outputs, build))
 
 -- | Default 'SC.Serial' instance via 'Generic'.
-instance (Monad m, PNinjaConstraint (SC.Serial m)) => SC.Serial m PNinja
+instance (Monad m, NinjaConstraint (SC.Serial m)) => SC.Serial m Ninja
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
-instance (Monad m, PNinjaConstraint (SC.CoSerial m)) => SC.CoSerial m PNinja
+instance (Monad m, NinjaConstraint (SC.CoSerial m)) => SC.CoSerial m Ninja
 
 -- | The set of constraints required for a given constraint to be automatically
---   computed for a 'PNinja'.
-type PNinjaConstraint (c :: * -> Constraint)
+--   computed for a 'Ninja'.
+type NinjaConstraint (c :: * -> Constraint)
   = ( PBuildConstraint c
     , c (HashMap (HashSet FileText) PBuild)
     , c (HashMap Text (HashSet FileText))

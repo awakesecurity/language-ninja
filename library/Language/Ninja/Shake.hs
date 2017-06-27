@@ -72,7 +72,6 @@ import qualified Development.Shake          as Shake
 import qualified Development.Shake.FilePath as Shake (normaliseEx, toStandard)
 import qualified Development.Shake.Util     as Shake (parseMakefile)
 
-import           Language.Ninja.AST         (PBuild, PNinja)
 import qualified Language.Ninja.AST         as AST
 import qualified Language.Ninja.AST.Env     as AST
 import qualified Language.Ninja.AST.Rule    as AST
@@ -117,8 +116,8 @@ runNinja file args tool = do
 --------------------------------------------------------------------------------
 
 data NinjaOptions
-  = NinjaOptionsBuild   !PNinja ![Text]
-  | NinjaOptionsCompDB  !PNinja ![Text]
+  = NinjaOptionsBuild   !AST.Ninja ![Text]
+  | NinjaOptionsCompDB  !AST.Ninja ![Text]
   | NinjaOptionsUnknown !Text
 
 parseNinjaOptions :: FilePath -> [String] -> Maybe String -> IO NinjaOptions
@@ -136,7 +135,7 @@ ninjaDispatch (NinjaOptionsUnknown tool)  =
   [ "Unknown tool: ", tool
   ] |> mconcat |> T.unpack |> Control.Exception.Extra.errorIO
 
-computeRuleEnv :: HashSet Text -> PBuild -> AST.Rule -> AST.Env Text Text
+computeRuleEnv :: HashSet Text -> AST.PBuild -> AST.Rule -> AST.Env Text Text
 computeRuleEnv outputs b r = do
   let deps = b ^. AST.pbuildDeps . AST.pdepsNormal
   -- the order of adding new environment variables matters
@@ -152,7 +151,7 @@ computeRuleEnv outputs b r = do
         (map (uncurry AST.addEnv) (HM.toList (b ^. AST.pbuildBind)))
     |> AST.addBinds (HM.toList (r ^. AST.ruleBind))
 
-ninjaCompDB :: PNinja -> [Text] -> IO (Maybe (Rules ()))
+ninjaCompDB :: AST.Ninja -> [Text] -> IO (Maybe (Rules ()))
 ninjaCompDB ninja args = do
   dir <- System.Directory.getCurrentDirectory
 
@@ -162,10 +161,10 @@ ninjaCompDB ninja args = do
   let rules = HM.filterWithKey (curry inArgs) rules
 
   -- the build items are generated in reverse order, hence the reverse
-  let itemsToBuild :: [(HashSet Text, PBuild, Text, AST.Rule)]
+  let itemsToBuild :: [(HashSet Text, AST.PBuild, Text, AST.Rule)]
       itemsToBuild = do
-        let multiples = ninja ^. AST.pninjaMultiples
-        let singles   = ninja ^. AST.pninjaSingles
+        let multiples = ninja ^. AST.ninjaMultiples
+        let singles   = ninja ^. AST.ninjaSingles
         (outputs, build) <- [ HM.toList multiples
                             , map (first HS.singleton) (HM.toList singles)
                             ] |> mconcat |> reverse
@@ -183,29 +182,29 @@ ninjaCompDB ninja args = do
 
   pure Nothing
 
-ninjaBuild :: PNinja -> [Text] -> IO (Maybe (Rules ()))
+ninjaBuild :: AST.Ninja -> [Text] -> IO (Maybe (Rules ()))
 ninjaBuild ninja args = pure $ Just $ do
   let normMultiples = ninja
-                      ^. AST.pninjaMultiples
+                      ^. AST.ninjaMultiples
                       .  to HM.toList
                       .  to (fmap (first (HS.map filepathNormalise)))
 
   poolList <- HM.traverseWithKey
               (\k v -> Shake.newResource (T.unpack k) v)
-              (HM.insert "console" 1 (ninja ^. AST.pninjaPools))
+              (HM.insert "console" 1 (ninja ^. AST.ninjaPools))
 
-  let phonys    = ninja ^. AST.pninjaPhonys
-  let singles   = ninja ^. AST.pninjaSingles
+  let phonys    = ninja ^. AST.ninjaPhonys
+  let singles   = ninja ^. AST.ninjaSingles
                   |> HM.toList
                   |> fmap (first filepathNormalise)
                   |> HM.fromList
   let multiples = [(x, (xs, b)) | (xs, b) <- normMultiples, x <- HS.toList xs]
                   |> HM.fromList
-  let rules     = ninja ^. AST.pninjaRules
+  let rules     = ninja ^. AST.ninjaRules
   let pools     = poolList
-  let defaults  = ninja ^. AST.pninjaDefaults
+  let defaults  = ninja ^. AST.ninjaDefaults
 
-  let build :: HashSet Text -> PBuild -> Action ()
+  let build :: HashSet Text -> AST.PBuild -> Action ()
       build = runBuild (needDeps ninja) phonys rules pools
 
   let targets :: HashSet Text
@@ -254,12 +253,12 @@ quote x                             =
   x
 
 
-runBuild :: (PBuild -> [Text] -> Action ())
+runBuild :: (AST.PBuild -> [Text] -> Action ())
          -> HashMap Text (HashSet Text)
          -> HashMap Text AST.Rule
          -> HashMap Text Shake.Resource
          -> HashSet Text
-         -> PBuild
+         -> AST.PBuild
          -> Action ()
 runBuild needD phonys rules pools outputs build = do
   let errorA :: Text -> Action a
@@ -330,7 +329,7 @@ runBuild needD phonys rules pools outputs build = do
       -- Control.Monad.when (deps == "gcc") $ liftIO $ do
       --   System.Directory.removeFile depfile
 
-needDeps :: PNinja -> PBuild -> [Text] -> Action ()
+needDeps :: AST.Ninja -> AST.PBuild -> [Text] -> Action ()
 needDeps ninja = \build xs -> do
   let errorA :: Text -> Action a
       errorA = T.unpack .> Control.Exception.Extra.errorIO .> liftIO
@@ -350,9 +349,9 @@ needDeps ninja = \build xs -> do
                , "file in deps is generated and not a pre-dependency"
                ] |> mconcat |> errorA
   where
-    builds :: HashMap Text PBuild
-    builds = let singles   = ninja ^. AST.pninjaSingles
-                 multiples = ninja ^. AST.pninjaMultiples
+    builds :: HashMap Text AST.PBuild
+    builds = let singles   = ninja ^. AST.ninjaSingles
+                 multiples = ninja ^. AST.ninjaMultiples
              in singles <> explodeHM multiples
 
     explodeHM :: (Eq k, Hashable k) => HashMap (HashSet k) v -> HashMap k v
@@ -379,7 +378,7 @@ needDeps ninja = \build xs -> do
 
     -- find all dependencies of a rule, no duplicates, with all dependencies of
     -- this rule listed first
-    allDependencies :: PBuild -> [Text]
+    allDependencies :: AST.PBuild -> [Text]
     allDependencies rule = f HS.empty [] [rule]
       where
         f _    []     []                = []

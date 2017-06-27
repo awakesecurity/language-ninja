@@ -30,7 +30,7 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   A rudimentary pretty-printer for 'Ninja.PNinja'.
+--   A rudimentary pretty-printer for 'AST.Ninja'.
 module Language.Ninja.Pretty
   ( -- * Pretty-printers
     prettyNinja
@@ -78,15 +78,15 @@ import           Flow                    ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
--- | Pretty-print a 'AST.PNinja'.
-prettyNinja :: AST.PNinja -> Text
+-- | Pretty-print a 'AST.Ninja'.
+prettyNinja :: AST.Ninja -> Text
 prettyNinja ninja
-  = [ map prettyRule     (HM.toList (ninja ^. AST.pninjaRules))
-    , map prettySingle   (HM.toList (ninja ^. AST.pninjaSingles))
-    , map prettyMultiple (HM.toList (ninja ^. AST.pninjaMultiples))
-    , map prettyPhony    (HM.toList (ninja ^. AST.pninjaPhonys))
-    , map prettyDefault  (HS.toList (ninja ^. AST.pninjaDefaults))
-    , map prettyPool     (HM.toList (ninja ^. AST.pninjaPools))
+  = [ map prettyRule     (HM.toList (ninja ^. AST.ninjaRules))
+    , map prettySingle   (HM.toList (ninja ^. AST.ninjaSingles))
+    , map prettyMultiple (HM.toList (ninja ^. AST.ninjaMultiples))
+    , map prettyPhony    (HM.toList (ninja ^. AST.ninjaPhonys))
+    , map prettyDefault  (HS.toList (ninja ^. AST.ninjaDefaults))
+    , map prettyPool     (HM.toList (ninja ^. AST.ninjaPools))
     ] |> mconcat |> mconcat
 
 -- | Pretty-print an 'AST.Expr'
