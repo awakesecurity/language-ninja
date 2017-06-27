@@ -135,6 +135,9 @@ askEnv :: (Eq k, Hashable k) => Env k v -> k -> Maybe v
 askEnv env k = HM.lookup k (headEnv env)
                <|> (tailEnv env >>= (`askEnv` k))
 
+-- | Default 'Hashable' instance via 'Generic'.
+instance (Hashable k, Hashable v) => Hashable (Env k v)
+
 -- | Converts to a (nonempty) array of JSON objects.
 instance (ToJSONKey k, ToJSON v) => ToJSON (Env k v) where
   toJSON = _fromEnv .> NE.toList .> toJSON

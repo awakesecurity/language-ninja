@@ -70,9 +70,8 @@ module Language.Ninja.AST
   , NinjaConstraint
 
     -- * @Build@
-  , Build, makeBuild
-  , buildRule, buildEnv, buildDeps, buildBind
-  , BuildConstraint
+  , AST.Build, AST.makeBuild
+  , AST.buildRule, AST.buildEnv, AST.buildDeps, AST.buildBind
 
     -- * @Deps@
   , AST.Deps, AST.makeDeps
@@ -95,48 +94,49 @@ module Language.Ninja.AST
   , Str, FileStr, Text, FileText
   ) where
 
-import           Control.Arrow           (second)
-import           Control.Monad           ((>=>))
+import           Control.Arrow            (second)
+import           Control.Monad            ((>=>))
 
 import qualified Control.Lens
-import           Control.Lens.Lens       (Lens')
+import           Control.Lens.Lens        (Lens')
 import           Control.Lens.Lens
 import           Control.Lens.Prism
 
-import           Data.Foldable           (asum)
+import           Data.Foldable            (asum)
 import qualified Data.Maybe
-import           Data.Monoid             (Endo (..))
+import           Data.Monoid              (Endo (..))
 
-import qualified Data.ByteString.Char8   as BSC8
+import qualified Data.ByteString.Char8    as BSC8
 
-import           Data.Text               (Text)
-import qualified Data.Text               as T
-import qualified Data.Text.Encoding      as T
+import           Data.Text                (Text)
+import qualified Data.Text                as T
+import qualified Data.Text.Encoding       as T
 
-import           Data.HashMap.Strict     (HashMap)
-import qualified Data.HashMap.Strict     as HM
+import           Data.HashMap.Strict      (HashMap)
+import qualified Data.HashMap.Strict      as HM
 
-import           Data.HashSet            (HashSet)
-import qualified Data.HashSet            as HS
+import           Data.HashSet             (HashSet)
+import qualified Data.HashSet             as HS
 
-import           Data.Hashable           (Hashable)
-import           GHC.Generics            (Generic)
+import           Data.Hashable            (Hashable)
+import           GHC.Generics             (Generic)
 
-import           GHC.Exts                (Constraint)
+import           GHC.Exts                 (Constraint)
 
 import           Data.Aeson
                  (FromJSON (..), KeyValue (..), ToJSON (..), Value, (.:))
-import qualified Data.Aeson              as Aeson
-import qualified Data.Aeson.Types        as Aeson
+import qualified Data.Aeson               as Aeson
+import qualified Data.Aeson.Types         as Aeson
 
-import qualified Test.SmallCheck.Series  as SC
+import qualified Test.SmallCheck.Series   as SC
 
-import qualified Language.Ninja.AST.Deps as AST
-import qualified Language.Ninja.AST.Env  as AST
-import qualified Language.Ninja.AST.Expr as AST
-import qualified Language.Ninja.AST.Rule as AST
+import qualified Language.Ninja.AST.Build as AST
+import qualified Language.Ninja.AST.Deps  as AST
+import qualified Language.Ninja.AST.Env   as AST
+import qualified Language.Ninja.AST.Expr  as AST
+import qualified Language.Ninja.AST.Rule  as AST
 
-import           Flow                    ((.>), (|>))
+import           Flow                     ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
@@ -155,8 +155,8 @@ type FileText = Text
 data Ninja
   = MkNinja
     { _ninjaRules     :: !(HashMap Text AST.Rule)
-    , _ninjaSingles   :: !(HashMap FileText Build)
-    , _ninjaMultiples :: !(HashMap (HashSet FileText) Build)
+    , _ninjaSingles   :: !(HashMap FileText AST.Build)
+    , _ninjaMultiples :: !(HashMap (HashSet FileText) AST.Build)
     , _ninjaPhonys    :: !(HashMap Text (HashSet FileText))
     , _ninjaDefaults  :: !(HashSet FileText)
     , _ninjaPools     :: !(HashMap Text Int)
@@ -185,13 +185,13 @@ ninjaRules = Control.Lens.lens _ninjaRules
 
 -- | The set of build declarations with precisely one output.
 {-# INLINE ninjaSingles #-}
-ninjaSingles :: Lens' Ninja (HashMap FileText Build)
+ninjaSingles :: Lens' Ninja (HashMap FileText AST.Build)
 ninjaSingles = Control.Lens.lens _ninjaSingles
                $ \(MkNinja {..}) x -> MkNinja { _ninjaSingles = x, .. }
 
 -- | The set of build declarations with two or more outputs.
 {-# INLINE ninjaMultiples #-}
-ninjaMultiples :: Lens' Ninja (HashMap (HashSet FileText) Build)
+ninjaMultiples :: Lens' Ninja (HashMap (HashSet FileText) AST.Build)
 ninjaMultiples = Control.Lens.lens _ninjaMultiples
                  $ \(MkNinja {..}) x -> MkNinja { _ninjaMultiples = x, .. }
 
@@ -233,10 +233,10 @@ instance ToJSON Ninja where
       , "specials"  .= _ninjaPools
       ] |> Aeson.object
     where
-      fixMultiples :: HashMap (HashSet FileText) Build -> Value
+      fixMultiples :: HashMap (HashSet FileText) AST.Build -> Value
       fixMultiples = HM.toList .> map (uncurry printPair) .> toJSON
 
-      printPair :: HashSet FileText -> Build -> Value
+      printPair :: HashSet FileText -> AST.Build -> Value
       printPair outputs build =
         Aeson.object ["outputs" .= outputs, "build" .= build]
 
@@ -252,10 +252,10 @@ instance FromJSON Ninja where
                   _ninjaSpecials  <- (o .: "specials")  >>= pure
                   pure (MkNinja {..}))
     where
-      fixMultiples :: Value -> Aeson.Parser (HashMap (HashSet FileText) Build)
+      fixMultiples :: Value -> Aeson.Parser (HashMap (HashSet Text) AST.Build)
       fixMultiples = parseJSON >=> mapM parsePair >=> (HM.fromList .> pure)
 
-      parsePair :: Value -> Aeson.Parser (HashSet FileText, Build)
+      parsePair :: Value -> Aeson.Parser (HashSet FileText, AST.Build)
       parsePair = (Aeson.withObject "Ninja.multiples" $ \o -> do
                       outputs <- (o .: "outputs") >>= pure
                       build   <- (o .: "build")   >>= pure
@@ -270,95 +270,12 @@ instance (Monad m, NinjaConstraint (SC.CoSerial m)) => SC.CoSerial m Ninja
 -- | The set of constraints required for a given constraint to be automatically
 --   computed for a 'Ninja'.
 type NinjaConstraint (c :: * -> Constraint)
-  = ( BuildConstraint c
-    , c (HashMap (HashSet FileText) Build)
+  = ( AST.BuildConstraint c
+    , c (HashMap (HashSet FileText) AST.Build)
     , c (HashMap Text (HashSet FileText))
     , c (HashMap Text AST.Rule)
-    , c (HashMap FileText Build)
+    , c (HashMap FileText AST.Build)
     , c (HashMap Text Int)
-    )
-
---------------------------------------------------------------------------------
-
--- | A parsed Ninja @build@ declaration.
-data Build
-  = MkBuild
-    { _buildRule :: !Text
-    , _buildEnv  :: !(AST.Env Text Text)
-    , _buildDeps :: !AST.Deps
-    , _buildBind :: !(HashMap Text Text)
-    }
-  deriving (Eq, Show, Generic)
-
--- | Construct a 'Build' with all default values.
-{-# INLINE makeBuild #-}
-makeBuild :: Text
-          -- ^ The rule name
-          -> AST.Env Text Text
-          -- ^ The environment
-          -> Build
-makeBuild rule env = MkBuild
-                     { _buildRule = rule
-                     , _buildEnv  = env
-                     , _buildDeps = AST.makeDeps
-                     , _buildBind = mempty
-                     }
-
--- | A lens into the rule name associated with a 'Build'.
-{-# INLINE buildRule #-}
-buildRule :: Lens' Build Text
-buildRule = lens _buildRule
-            $ \(MkBuild {..}) x -> MkBuild { _buildRule = x, .. }
-
--- | A lens into the environment associated with a 'Build'.
-{-# INLINE buildEnv #-}
-buildEnv :: Lens' Build (AST.Env Text Text)
-buildEnv = lens _buildEnv
-           $ \(MkBuild {..}) x -> MkBuild { _buildEnv = x, .. }
-
--- | A lens into the dependencies associated with a 'Build'.
-{-# INLINE buildDeps #-}
-buildDeps :: Lens' Build AST.Deps
-buildDeps = lens _buildDeps
-            $ \(MkBuild {..}) x -> MkBuild { _buildDeps = x, .. }
-
--- | A lens into the bindings associated with a 'Build'.
-{-# INLINE buildBind #-}
-buildBind :: Lens' Build (HashMap Text Text)
-buildBind = lens _buildBind
-            $ \(MkBuild {..}) x -> MkBuild { _buildBind = x, .. }
-
--- | Converts to @{rule: …, env: …, deps: …, bind: …}@.
-instance ToJSON Build where
-  toJSON (MkBuild {..})
-    = [ "rule" .= _buildRule
-      , "env"  .= _buildEnv
-      , "deps" .= _buildDeps
-      , "bind" .= _buildBind
-      ] |> Aeson.object
-
--- | Inverse of the 'ToJSON' instance.
-instance FromJSON Build where
-  parseJSON = (Aeson.withObject "Build" $ \o -> do
-                  _buildRule <- (o .: "rule") >>= pure
-                  _buildEnv  <- (o .: "env")  >>= pure
-                  _buildDeps <- (o .: "deps") >>= pure
-                  _buildBind <- (o .: "bind") >>= pure
-                  pure (MkBuild {..}))
-
--- | Default 'SC.Serial' instance via 'Generic'.
-instance (Monad m, BuildConstraint (SC.Serial m)) => SC.Serial m Build
-
--- | Default 'SC.CoSerial' instance via 'Generic'.
-instance (Monad m, BuildConstraint (SC.CoSerial m)) => SC.CoSerial m Build
-
--- | The set of constraints required for a given constraint to be automatically
---   computed for a 'Build'.
-type BuildConstraint (c :: * -> Constraint)
-  = ( c Text
-    , c (HashSet FileText)
-    , c (HashMap Text Text)
-    , c (AST.Maps Text Text)
     )
 
 --------------------------------------------------------------------------------
