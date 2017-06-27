@@ -20,6 +20,10 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 -- |
 --   Module      : Language.Ninja.Errors
 --   Copyright   : Copyright 2017 Awake Security
@@ -29,8 +33,51 @@
 --
 --   The module re-exports the modules under @Language.Ninja.Errors.*@, all of
 --   which are related to error types used in @language-ninja@.
+--   It also defines the 'NinjaError'
 module Language.Ninja.Errors
-  ( module Language.Ninja.Errors.Compile
+  ( module Exported
+  , NinjaError (..)
   ) where
 
-import           Language.Ninja.Errors.Compile
+import           Language.Ninja.Errors.Compile as Exported
+import           Language.Ninja.Errors.Parse   as Exported
+
+--------------------------------------------------------------------------------
+
+import           Control.Exception             (Exception)
+import           Control.Monad.Error.Class     (MonadError (..))
+import           Data.Text                     (Text)
+import           GHC.Generics                  (Generic)
+
+--------------------------------------------------------------------------------
+
+-- | This type subsumes any error that can be thrown during execution of a
+--   function defined in @language-ninja@.
+data NinjaError
+  = -- | Generic catch-all error constructor. Avoid using this.
+    GenericNinjaError !Text
+  | -- | Errors encountered during parsing.
+    NinjaParseError   !ParseError
+  | -- | Errors encountered during compilation.
+    NinjaCompileError !CompileError
+  deriving (Eq, Show, Generic)
+
+instance Exception NinjaError
+
+-- | Throw a 'NinjaError'.
+throwNinjaError :: (MonadError NinjaError m) => NinjaError -> m a
+throwNinjaError = throwError
+
+-- | Throw a generic catch-all 'NinjaError'.
+throwGenericNinjaError :: (MonadError NinjaError m) => Text -> m a
+throwGenericNinjaError msg = throwNinjaError (GenericNinjaError msg)
+
+-- | Throw a 'ParseError'.
+throwNinjaParseError :: (MonadError NinjaError m) => ParseError -> m a
+throwNinjaParseError e = throwNinjaError (NinjaParseError e)
+
+-- | Throw a 'CompileError'.
+throwNinjaCompileError :: (MonadError NinjaError m) => CompileError -> m a
+throwNinjaCompileError e = throwNinjaError (NinjaCompileError e)
+
+--------------------------------------------------------------------------------

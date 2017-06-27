@@ -22,6 +22,7 @@
 
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RecordWildCards       #-}
@@ -152,12 +153,10 @@ compile pninja = result
 
     compileBuild :: (HashSet FileText, PBuild) -> m Build
     compileBuild (outputs, pbuild) = do
-      let pdepsNormal    = pbuild ^. Ninja.pbuildDeps . Ninja.pdepsNormal
-      let pdepsImplicit  = pbuild ^. Ninja.pbuildDeps . Ninja.pdepsImplicit
-      let pdepsOrderOnly = pbuild ^. Ninja.pbuildDeps . Ninja.pdepsOrderOnly
-      let normalDeps     = HS.toList pdepsNormal
-      let implicitDeps   = HS.toList pdepsImplicit
-      let orderOnlyDeps  = HS.toList pdepsOrderOnly
+      let pdeps         = pbuild ^. Ninja.pbuildDeps
+      let normalDeps    = HS.toList (pdeps ^. Ninja.pdepsNormal)
+      let implicitDeps  = HS.toList (pdeps ^. Ninja.pdepsImplicit)
+      let orderOnlyDeps = HS.toList (pdeps ^. Ninja.pdepsOrderOnly)
 
       rule <- compileRule (outputs, pbuild)
       outs <- HS.toList outputs |> mapM compileOutput |> fmap HS.fromList
@@ -236,16 +235,20 @@ compile pninja = result
         |> pure
 
     compileSpecialDeps :: (Maybe Text, Maybe Text) -> m (Maybe SpecialDeps)
-    compileSpecialDeps = go
+    compileSpecialDeps = (\case (Nothing,     _) -> pure Nothing
+                                (Just "gcc",  m) -> goGCC  m
+                                (Just "msvc", m) -> goMSVC m
+                                (Just d,      _) -> Ninja.throwUnknownDeps d)
       where
-        go (Nothing,     _) = pure Nothing
-        go (Just "gcc",  _) = pure (Just Ninja.makeSpecialDepsGCC)
-        go (Just "msvc", m) = pure (Just (Ninja.makeSpecialDepsMSVC m))
-        go (Just owise,  _) = Ninja.throwUnknownDeps owise
+        goGCC  Nothing  = pure (Just Ninja.makeSpecialDepsGCC)
+        goGCC  (Just _) = Ninja.throwUnexpectedMSVCPrefix "gcc"
+
+        goMSVC m        = pure (Just (Ninja.makeSpecialDepsMSVC m))
 
     compileResponseFile :: (Text, Text) -> m ResponseFile
-    compileResponseFile (file, content)
-      = pure (Ninja.makeResponseFile (Ninja.makePath file) content)
+    compileResponseFile (file, content) = do
+      let path = Ninja.makePath file
+      pure (Ninja.makeResponseFile path content)
 
     compileTarget :: Text -> m Target
     compileTarget = Ninja.makeTarget .> pure

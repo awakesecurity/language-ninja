@@ -20,10 +20,12 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards, FlexibleContexts     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 
 -- |
 --   Module      : Language.Ninja.Errors.Compile
@@ -61,6 +63,7 @@ module Language.Ninja.Errors.Compile
   , throwCompileRuleError, throwGenericCompileRuleError
   , throwRuleLookupFailure
   , throwUnknownDeps
+  , throwUnexpectedMSVCPrefix
 
     -- * @CompilePoolError@
   , CompilePoolError (..)
@@ -69,60 +72,15 @@ module Language.Ninja.Errors.Compile
   , throwEmptyPoolName
   ) where
 
-import           Control.Applicative          ((<|>))
-import           Control.Arrow                (first)
+import           Control.Exception         (Exception)
+import           Control.Monad.Error.Class (MonadError (..))
+import           GHC.Generics              (Generic)
 
-import           Control.Lens.Getter          ((^.))
-import           Control.Lens.Setter          ((.~))
+import           Data.Text                 (Text)
 
-import           Control.Exception            (Exception)
-import           Control.Monad.Catch          (MonadThrow (..))
-import           Control.Monad.Error.Class
+import qualified Data.Versions             as Ver
 
-import           Data.Char                    (isSpace)
-import           Data.Functor                 (void)
-import           Data.Maybe                   (fromMaybe, isJust)
-import           Data.Monoid                  (Endo (..), (<>))
-
-import qualified Data.Aeson                   as Aeson
-import qualified Data.Aeson.Encode.Pretty     as Aeson
-import qualified Data.Aeson.Types             as Aeson
-
-import           Data.ByteString              (ByteString)
-import qualified Data.ByteString              as BS
-import qualified Data.ByteString.Char8        as BSC8
-
-import qualified Data.ByteString.Lazy         as LBS
-import qualified Data.ByteString.Lazy.Char8   as LBSC8
-
-import           Data.Text                    (Text)
-import qualified Data.Text                    as T
-import qualified Data.Text.Encoding           as T
-
-import           Data.HashMap.Strict          (HashMap)
-import qualified Data.HashMap.Strict          as HM
-
-import           Data.HashSet                 (HashSet)
-import qualified Data.HashSet                 as HS
-
-import           Flow                         ((.>), (|>))
-
-import           Data.Hashable                (Hashable)
-import           GHC.Generics                 (Generic)
-
-import qualified Data.Versions                as Ver
-
-import           Language.Ninja.AST
-                 (Build, Command, Dependency, DependencyType (..), Meta, Ninja,
-                 Output, OutputType (..), Pool, ResponseFile, Rule,
-                 SpecialDeps, Target)
-import qualified Language.Ninja.AST           as Ninja
-import           Language.Ninja.Env           (askEnv)
-import qualified Language.Ninja.Misc.Positive as Ninja
-import qualified Language.Ninja.Parse         as Ninja
-import           Language.Ninja.Types
-                 (Env, FileText, PBuild, PNinja, PRule)
-import qualified Language.Ninja.Types         as Ninja
+import           Flow                      ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
@@ -268,6 +226,11 @@ throwRuleLookupFailure v = throwCompileRuleError (RuleLookupFailure v)
 throwUnknownDeps :: (MonadError CompileError m) => Text -> m a
 throwUnknownDeps deps = throwCompileRuleError (UnknownDepsValue deps)
 
+-- | Throw an 'UnexpectedMSVCPrefix' error.
+throwUnexpectedMSVCPrefix :: (MonadError CompileError m) => Text -> m a
+throwUnexpectedMSVCPrefix deps = throwCompileRuleError
+                                 (UnexpectedMSVCPrefix deps)
+
 --------------------------------------------------------------------------------
 
 -- | The type of errors encountered while compiling a Ninja @pool@ statement.
@@ -275,7 +238,7 @@ data CompilePoolError
   = -- | Generic catch-all error constructor. Avoid using this.
     GenericCompilePoolError !Text
   | -- | @Invalid pool depth for console: <int>@
-    InvalidPoolDepth     !Int
+    InvalidPoolDepth        !Int
   | -- | @Pool name is an empty string@
     EmptyPoolName
   deriving (Eq, Show, Generic)

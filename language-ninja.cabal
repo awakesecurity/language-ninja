@@ -63,6 +63,7 @@ library
                         , Language.Ninja.Env
                         , Language.Ninja.Errors
                         , Language.Ninja.Errors.Compile
+                        , Language.Ninja.Errors.Parse
                         , Language.Ninja.Lexer
                         , Language.Ninja.Parse
                         , Language.Ninja.Pretty
