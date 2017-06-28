@@ -57,13 +57,20 @@ with rec {
     }));
 
   hp = haskell.packages.${compiler}.override {
-    overrides = self: super: {
-      makefile        = self.callPackage ./nix/makefile.nix {};
-      versions        = self.callPackage ./nix/versions.nix {};
-      smallcheck-lens = haskell.lib.doJailbreak super.smallcheck-lens;
-      tasty-lens      = haskell.lib.doJailbreak super.tasty-lens;
-      language-ninja  = self.callPackage ./nix/language-ninja.nix {};
-    };
+    overrides = self: super: (
+      with haskell.lib;
+      with { cp = file: self.callPackage file {}; };
+
+      {
+        makefile                    = cp ./nix/makefile.nix;
+        versions                    = cp ./nix/versions.nix;
+        prettyprinter               = cp ./nix/prettyprinter.nix;
+        prettyprinter-ansi-terminal = cp ./nix/prettyprinter-ansi-terminal.nix;
+        smallcheck-lens             = doJailbreak super.smallcheck-lens;
+        tasty-lens                  = doJailbreak super.tasty-lens;
+        language-ninja              = cp ./nix/language-ninja.nix;
+      }
+    );
   };
 };
 
