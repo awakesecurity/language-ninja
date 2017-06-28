@@ -266,18 +266,16 @@ lexxBind
 lexxBind ctor x0 = do
   let (var,  x1) = Str0.span0 isVarDot x0
       (eq,   x2) = Str0.list0 $ dropSpace x1
-      (expr, x3) = lexxExpr False False $ dropSpace x2
-  x4 <- lexerLoop x3
+  (expr, x3) <- lexxExpr False False $ dropSpace x2
+  x4         <- lexerLoop x3
   if eq == '='
     then return (ctor (MkLBinding (MkLName var) expr) : x4)
-    else [ "lexer failed at binding: "
-         , show (Str0.take0 100 x0)
-         ] |> mconcat |> error
+    else throwError (LexBindingFailure (T.pack (show (Str0.take0 100 x0))))
 
 lexxFile :: MonadError ParseError m => (LFile -> Lexeme) -> Str0 -> m [Lexeme]
 lexxFile ctor str0 = do
-  let (expr, str1) = lexxExpr False False $ dropSpace str0
-  str2 <- lexerLoop str1
+  (expr, str1) <- lexxExpr False False $ dropSpace str0
+  str2         <- lexerLoop str1
   return (ctor (MkLFile expr) : str2)
 
 lexxName :: MonadError ParseError m => (LName -> Lexeme) -> Str0 -> m [Lexeme]
@@ -287,29 +285,36 @@ lexxName ctor x = do
   return (ctor (MkLName name) : lexemes)
 
 lexxExprs :: MonadError ParseError m => Bool -> Str0 -> m ([AST.Expr], Str0)
-lexxExprs sColon x0
-  = let c  = Str0.head0 c_x
-        x1 = Str0.tail0 c_x
-    in case c of -- FIXME: nonexhaustive pattern match
-         ' '           -> do
-           (exprs, x2) <- lexxExprs sColon $ dropSpace x1
-           return (a:exprs, x2)
-         ':'  | sColon -> return ([a], x1)
-         _    | sColon -> throwError LexExpectedColon
-         '\r'          -> return (a $: dropN x1)
-         '\n'          -> return (a $: x1)
-         '\0'          -> return (a $: c_x)
-         _             -> throwError (LexUnexpectedSeparator c)
+lexxExprs sColon x0 = do
+  (a, c_x) <- lexxExpr sColon True x0
+  let c  = Str0.head0 c_x
+      x1 = Str0.tail0 c_x
+  case c of -- FIXME: nonexhaustive pattern match
+    ' '           -> do
+      (exprs, x2) <- lexxExprs sColon $ dropSpace x1
+      return (a:exprs, x2)
+    ':'  | sColon -> return ([a], x1)
+    _    | sColon -> throwError LexExpectedColon
+    '\r'          -> return (a $: dropN x1)
+    '\n'          -> return (a $: x1)
+    '\0'          -> return (a $: c_x)
+    _             -> throwError (LexUnexpectedSeparator c)
   where
-    (a, c_x) = lexxExpr sColon True x0
     ($:) :: AST.Expr -> Str0 -> ([AST.Expr], Str0)
     (AST.Exprs []) $: s = ([],     s)
     expr           $: s = ([expr], s)
 
 {-# NOINLINE lexxExpr #-}
-lexxExpr :: Bool -> Bool -> Str0
-         -> (AST.Expr, Str0) -- snd will start with one of " :\n\r" or be empty
-lexxExpr stopColon stopSpace = first exprs . f
+lexxExpr
+  :: MonadError ParseError m
+  => Bool
+  -> Bool
+  -> Str0
+  -> m (AST.Expr, Str0)
+  -- ^ The second field will start with one of @" :\n\r"@ or be empty
+lexxExpr stopColon stopSpace str0 = do
+  y <- f str0
+  return (first exprs y)
   where
     exprs :: [AST.Expr] -> AST.Expr
     exprs [x] = x
@@ -323,35 +328,46 @@ lexxExpr stopColon stopSpace = first exprs . f
                      (False, True ) -> (x <= '$') && or [          x == ' ', b]
                      (False, False) -> (x <= '$') && or [                    b]
 
-    f :: Str0 -> ([AST.Expr], Str0)
+    f :: MonadError ParseError m => Str0 -> m ([AST.Expr], Str0)
     f (Str0.break00 special -> (a, x))
-      = if BSC8.null a then g x else AST.Lit (T.decodeUtf8 a) $: g x
+      = if BSC8.null a
+        then g x
+        else do
+          y <- g x
+          return (AST.Lit (T.decodeUtf8 a) $: y)
 
     ($:) :: a -> ([a], b) -> ([a], b)
     x $: (xs, y) = (x:xs, y)
 
-    g :: Str0 -> ([AST.Expr], Str0)
+    g :: MonadError ParseError m => Str0 -> m ([AST.Expr], Str0)
     g x0 | (Str0.head0 x0 /= '$') =
-      ([], x0)
+      return ([], x0)
     g (Str0.tail0 -> c_x) =
       let (c, x0) = Str0.list0 c_x
       in case c of
-           '$'   -> AST.Lit (T.singleton '$') $: f x0
-           ' '   -> AST.Lit (T.singleton ' ') $: f x0
-           ':'   -> AST.Lit (T.singleton ':') $: f x0
+           '$'   -> do
+             y <- f x0
+             return (AST.Lit (T.singleton '$') $: y)
+           ' '   -> do
+             y <- f x0
+             return (AST.Lit (T.singleton ' ') $: y)
+           ':'   -> do
+             y <- f x0
+             return (AST.Lit (T.singleton ':') $: y)
            '\n'  -> f $ dropSpace x0
            '\r'  -> f $ dropSpace $ dropN x0
            '{' | (name, x1) <- Str0.span0 isVarDot x0
                , ('}',  x2) <- Str0.list0 x1
                , not (BSC8.null name)
-                 -> AST.Var (T.decodeUtf8 name) $: f x2
+                 -> do
+            y <- f x2
+            return (AST.Var (T.decodeUtf8 name) $: y)
            _   | (name, x1) <- Str0.span0 isVar c_x
                , not $ BSC8.null name
-                 -> AST.Var (T.decodeUtf8 name) $: f x1
-           _     -> unexpectedDollar
-
-    unexpectedDollar :: a
-    unexpectedDollar = error "Unexpect $ followed by unexpected stuff"
+                 -> do
+             y <- f x1
+             return (AST.Var (T.decodeUtf8 name) $: y)
+           _     -> throwError LexUnexpectedDollar
 
 splitLineCont :: Str0 -> (Str, Str0)
 splitLineCont = first BSC8.concat . f
