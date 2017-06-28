@@ -20,12 +20,15 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_HADDOCK #-}
 
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE RecordWildCards       #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE InstanceSigs               #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 
 -- |
 --   Module      : Main
@@ -51,6 +54,7 @@ import           Data.Monoid
 
 import           Control.Exception
 import           Control.Monad.Error.Class
+import           Control.Monad.Except
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Class
 
@@ -110,6 +114,11 @@ handleMonadError m = either (show .> fail) pure m
 
 compileToIR :: AST.Ninja -> IO IR.Ninja
 compileToIR ast = handleMonadError (Ninja.compile ast)
+
+--------------------------------------------------------------------------------
+
+whenJust :: (Monad m) => Maybe a -> (a -> m ()) -> m ()
+whenJust x f = maybe (pure ()) f x
 
 --------------------------------------------------------------------------------
 
@@ -207,40 +216,90 @@ throwUnhandledResponseFile rsp = throwSimplifyError (UnhandledResponseFile rsp)
 
 --------------------------------------------------------------------------------
 
-simplify :: (MonadError SimplifyError m, MonadIO m)
-         => IR.Ninja -> m SNinja
-simplify ninjaIR = runSupplyIO (simplify' ninjaIR) intToTarget
+newtype SimplifyT m a
+  = SimplifyT { fromSimplifyT :: SupplyT Target (ExceptT SimplifyError m) a }
+  deriving (Functor, Applicative, Monad, MonadSupply Target)
+
+instance (Monad m) => MonadError SimplifyError (SimplifyT m) where
+  throwError = throwError .> SimplifyT
+  catchError action handler = SimplifyT (catchError
+                                         (fromSimplifyT action)
+                                         (handler .> fromSimplifyT))
+
+instance MonadTrans SimplifyT where
+  lift = lift .> lift .> SimplifyT
+
+runSimplifyT :: (MonadError SimplifyError m, MonadIO m)
+             => SimplifyT m a -> (Int -> Target) -> m a
+runSimplifyT (SimplifyT action) convert = do
+  out <- runExceptT (execSupplyT action convert)
+  case out of
+    (Left  e) -> throwError e
+    (Right x) -> pure x
+
+--------------------------------------------------------------------------------
+
+simplifyIO :: (MonadIO m) => IR.Ninja -> m SNinja
+simplifyIO ninjaIR = liftIO $ do
+  result <- runExceptT (simplify ninjaIR)
+  case result of
+    (Left  e) -> fail (show e)
+    (Right x) -> pure x
+
+simplify :: (MonadError SimplifyError m, MonadIO m) => IR.Ninja -> m SNinja
+simplify ninjaIR = runSimplifyT (simplify' ninjaIR) intToTarget
   where
     intToTarget :: Int -> Target
     intToTarget = show .> T.pack .> ("gen" <>) .> makeTarget
 
-simplify' :: forall m. (MonadError SimplifyError m)
-          => IR.Ninja -> SupplyT Target m SNinja
+simplify' :: forall m. (Monad m) => IR.Ninja -> SimplifyT m SNinja
 simplify' ninjaIR = MkSNinja <$> simpleBuilds <*> simpleDefaults
   where
-    simpleBuilds :: SupplyT Target m (HashMap Target SBuild)
-    simpleBuilds = undefined
+    -- We first deconstruct all the fields of the input data.
 
-    simpleDefaults :: SupplyT Target m (HashSet Target)
+    meta     :: IR.Meta
+    builds   :: HashSet IR.Build
+    phonys   :: HashMap IR.Target (HashSet IR.Target)
+    defaults :: HashSet IR.Target
+    pools    :: HashSet IR.Pool
+    meta     = ninjaIR ^. IR.ninjaMeta
+    builds   = ninjaIR ^. IR.ninjaBuilds
+    phonys   = ninjaIR ^. IR.ninjaPhonys
+    defaults = ninjaIR ^. IR.ninjaDefaults
+    pools    = ninjaIR ^. IR.ninjaPools
+
+    -- Then, we construct the fields of the result.
+
+    simpleBuilds :: SimplifyT m (HashMap Target SBuild)
+    simpleBuilds = do
+      soPhonys <- HM.unions <$> mapM convertPhony (HM.toList phonys)
+      soBuilds <- HM.unions <$> mapM convertBuild (HS.toList builds)
+      -- FIXME: use unionWith instead of (<>) in case there is a collision
+      optimize (soPhonys <> soBuilds)
+
+    simpleDefaults :: SimplifyT m (HashSet Target)
     simpleDefaults = pure defaults
-
-    linearized :: SupplyT Target m (HashMap Target SBuild)
-    linearized = mapM convertBuild (HS.toList builds)
-                 >>= HM.unions .> optimize
 
     -- This is where we will put optimizations in the future. For instance, it
     -- will likely make sense to collapse chains of phonies down to one level.
 
     optimize :: HashMap Target SBuild
-             -> SupplyT Target m (HashMap Target SBuild)
+             -> SimplifyT m (HashMap Target SBuild)
     optimize = pure
+
+    -- We don't do anything special in 'convertPhony', for now.
+
+    convertPhony :: (Target, HashSet Target)
+                 -> SimplifyT m (HashMap Target SBuild)
+    convertPhony (out, deps) = pure (HM.singleton out (MkSBuild Nothing deps))
 
     -- Currently, 'convertBuild' simply ignores the dependency type, which may
     -- not be the desired semantics in the future, so we should perhaps consider
-    -- implementing special semantics for order-only dependencies.
+    -- implementing special semantics for order-only dependencies, if that makes
+    -- any sense.
 
     convertBuild :: IR.Build
-                 -> SupplyT Target m (HashMap Target SBuild)
+                 -> SimplifyT m (HashMap Target SBuild)
     convertBuild b = do
       cmd  <- (b ^. IR.buildRule)
               |> convertRule
@@ -250,14 +309,15 @@ simplify' ninjaIR = MkSNinja <$> simpleBuilds <*> simpleDefaults
       deps <- (b ^. IR.buildDeps)
               |> HS.map (view IR.dependencyTarget)
               |> pure
+      let sb = MkSBuild (Just cmd) deps
       case HS.toList outs of
-        [o] -> convertSingle (o, (MkSBuild (Just cmd) deps))
-        os  -> convertMultiple (outs, (MkSBuild (Just cmd) deps))
+        [out] -> convertSingle   (out,  sb)
+        _     -> convertMultiple (outs, sb)
 
     -- We don't do anything special in 'convertSingle', for now.
 
     convertSingle :: (Target, SBuild)
-                  -> SupplyT Target m (HashMap Target SBuild)
+                  -> SimplifyT m (HashMap Target SBuild)
     convertSingle (out, build) = pure (HM.singleton out build)
 
     -- If we have a rule [B] that is part of a build with three outputs and
@@ -286,7 +346,7 @@ simplify' ninjaIR = MkSNinja <$> simpleBuilds <*> simpleDefaults
     -- supply and @[ ]@ represents a phony build.
 
     convertMultiple :: (HashSet Target, SBuild)
-                    -> SupplyT Target m (HashMap Target SBuild)
+                    -> SimplifyT m (HashMap Target SBuild)
     convertMultiple (outs, build) = do
       new <- fresh
       let f out = (out, MkSBuild Nothing (HS.singleton new))
@@ -297,27 +357,14 @@ simplify' ninjaIR = MkSNinja <$> simpleBuilds <*> simpleDefaults
     -- that we don't know how to handle yet, and then returns the underlying
     -- command once that is verified.
 
-    convertRule :: IR.Rule -> SupplyT Target m Command
-    convertRule r = lift $ do
-      let whenJust :: Maybe a -> (a -> m ()) -> m ()
-          whenJust x f = maybe (pure ()) f x
+    convertRule :: IR.Rule -> SimplifyT m Command
+    convertRule r = do
       whenJust (r ^. IR.ruleDepfile)      throwUnhandledDepfile
       whenJust (r ^. IR.ruleSpecialDeps)  throwUnhandledSpecialDeps
       when     (r ^. IR.ruleGenerator)    throwUnhandledGenerator
       when     (r ^. IR.ruleRestat)       throwUnhandledRestat
       whenJust (r ^. IR.ruleResponseFile) throwUnhandledResponseFile
       pure (r ^. IR.ruleCommand)
-
-    meta     :: IR.Meta
-    builds   :: HashSet IR.Build
-    phonys   :: HashMap IR.Target (HashSet IR.Target)
-    defaults :: HashSet IR.Target
-    pools    :: HashSet IR.Pool
-    meta     = ninjaIR ^. IR.ninjaMeta
-    builds   = ninjaIR ^. IR.ninjaBuilds
-    phonys   = ninjaIR ^. IR.ninjaPhonys
-    defaults = ninjaIR ^. IR.ninjaDefaults
-    pools    = ninjaIR ^. IR.ninjaPools
 
 -- | FIXME: doc
 --   Note: this function assumes a very simple subset of Ninja.
