@@ -68,6 +68,8 @@ data ParseError
     LexExpectedColon
   | -- | @Unexpected $ followed by unexpected stuff@
     LexUnexpectedDollar
+  | -- | Lexer expected a separator character but found something else
+    LexUnexpectedSeparator Char
   | -- | @Could not parse depth field in pool, got: <text>@
     ParseBadDepthField     !Text
   | -- | @Unexpected binding defining <text>@

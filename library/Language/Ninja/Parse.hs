@@ -57,6 +57,7 @@ module Language.Ninja.Parse
   ) where
 
 import           Control.Arrow         (second)
+import qualified Control.Exception
 import           Control.Monad         ((>=>))
 
 import           Control.Lens.Setter   ((%~), (.~))
@@ -102,7 +103,9 @@ parseFile file (ninja, env) = do
   bs <- if file == "-"
         then BSC8.getContents
         else BSC8.readFile file
-  let lexemes = lexer bs
+  lexemes <- case lexer bs of
+    Left  exception -> Control.Exception.throwIO exception
+    Right lexemes   -> return lexemes
   withBinds lexemes
     |> map (uncurry applyStmt)
     |> foldr (>=>) pure
