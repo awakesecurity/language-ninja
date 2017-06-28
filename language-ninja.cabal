@@ -134,7 +134,10 @@ test-suite tests
 executable ninja2nix
     hs-source-dirs:       executables
     main-is:              NinjaToNix.hs
-    other-modules:        Misc.Hash
+    other-modules:        NinjaToNix.Pretty
+                          NinjaToNix.Types
+                          NinjaToNix.Misc.Hash
+                          NinjaToNix.Misc.Supply
     build-depends:        language-ninja
                         , base                        >= 4.8   && < 5.0
                         , aeson                       >= 1.0   && < 1.3

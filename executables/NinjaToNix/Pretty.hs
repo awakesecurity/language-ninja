@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: executables/Misc/Hash.hs
+-- File: executables/NinjaToNix/Pretty.hs
 --
 -- License:
 --     Copyright 2017 Awake Security
@@ -17,35 +17,30 @@
 --     See the License for the specific language governing permissions and
 --     limitations under the License.
 
-{-# OPTIONS_GHC #-}
+{-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_HADDOCK #-}
 
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PackageImports    #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE InstanceSigs               #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 
 -- |
---   Module      : Misc.Hash
+--   Module      : NinjaToNix.Pretty
 --   Copyright   : Copyright 2017 Awake Security
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
 --   FIXME: doc
-module Misc.Hash
-  ( sha256
-  , module Exported
+module NinjaToNix.Pretty
+  ( module NinjaToNix.Pretty -- FIXME: specific export list
   ) where
 
-import           "cryptonite" Crypto.Hash     as Exported
-
-import qualified Data.ByteString as BS
-
-import qualified Data.Text       as T
-
-digestSHA256 :: BS.ByteString -> Digest SHA256
-digestSHA256 = hash
-
--- | FIXME: doc
-sha256 :: BS.ByteString -> T.Text
-sha256 = T.pack . show . digestSHA256
+import qualified Data.Text.Prettyprint.Doc                 as PP
+import qualified Data.Text.Prettyprint.Doc.Render.Terminal as PP

@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: executables/Misc/Supply.hs
+-- File: executables/NinjaToNix/Misc/Supply.hs
 --
 -- License:
 --     Copyright 2017 Awake Security
@@ -29,14 +29,14 @@
 {-# LANGUAGE UndecidableInstances       #-}
 
 -- |
---   Module      : Misc.Supply
+--   Module      : NinjaToNix.Misc.Supply
 --   Copyright   : Copyright 2017 Awake Security
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
 --   FIXME: doc
-module Misc.Supply
+module NinjaToNix.Misc.Supply
   ( -- * @MonadSupply@
     MonadSupply (..)
 
