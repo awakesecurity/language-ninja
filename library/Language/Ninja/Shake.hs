@@ -250,6 +250,18 @@ quote x | T.any Data.Char.isSpace x =
 quote x                             =
   x
 
+-- My attempt at tracing this out:
+--
+-- 1.  need dependencies
+-- 2.  write response file
+-- 3.  print log message with description if any
+-- 4.  using pool, run command
+-- 5.  if deps = msvc, then use stdout of command to compute extra dependencies
+-- 6.  if deps ≠ gcc, then need depfile
+-- 7.  read/parse depfile
+-- 8.  need all the RHSes of the depfile rules
+-- 9.  delete depfile (can cause issues)
+-- 10. delete response file
 
 runBuild :: (AST.Build -> [Text] -> Action ())
          -> HashMap Text (HashSet Text)
@@ -262,6 +274,16 @@ runBuild needD phonys rules pools outputs build = do
   let errorA :: Text -> Action a
       errorA = T.unpack .> Control.Exception.Extra.errorIO .> liftIO
 
+  let throwRuleNotFound rule = [ "Ninja rule named ", rule
+                               , " is missing, required to build "
+                               , T.unwords (HS.toList outputs)
+                               ] |> mconcat |> errorA
+
+  let throwPoolNotFound pool = [ "Ninja pool named ", pool
+                               , " not found, required to build "
+                               , T.unwords (HS.toList outputs)
+                               ] |> mconcat |> errorA
+
   let ruleName      = build ^. AST.buildRule
   let depsNormal    = build ^. AST.buildDeps . AST.depsNormal
   let depsImplicit  = build ^. AST.buildDeps . AST.depsImplicit
@@ -273,12 +295,7 @@ runBuild needD phonys rules pools outputs build = do
   needT      $ setConcatMap (resolvePhony phonys) $ depsNormal <> depsImplicit
   orderOnlyT $ setConcatMap (resolvePhony phonys) depsOrderOnly
 
-  let ruleNotFound = [ "Ninja rule named ", ruleName
-                     , " is missing, required to build "
-                     , T.unwords (HS.toList outputs)
-                     ] |> mconcat |> errorA
-
-  rule <- HM.lookup ruleName rules |> maybe ruleNotFound pure
+  rule <- HM.lookup ruleName rules |> maybe (throwRuleNotFound ruleName) pure
 
   let env = computeRuleEnv outputs build rule
 
@@ -286,19 +303,16 @@ runBuild needD phonys rules pools outputs build = do
     let askVarString :: Text -> String
         askVarString = AST.askVar env .> T.unpack
 
-    let commandline = askVarString     "command"
-    let depfile     = askVarString     "depfile"
-    let deps        = askVarString     "deps"
-    let description = askVarString     "description"
+    let commandline = askVarString   "command"
+    let depfile     = askVarString   "depfile"
+    let deps        = askVarString   "deps"
+    let description = askVarString   "description"
     let pool        = AST.askVar env "pool"
 
     let withPool act = if T.null pool
                        then act
                        else case HM.lookup pool pools of
-                              Nothing -> [ "Ninja pool named ", pool
-                                         , " not found, required to build "
-                                         , T.unwords (HS.toList outputs)
-                                         ] |> mconcat |> errorA
+                              Nothing  -> throwPoolNotFound pool
                               (Just r) -> Shake.withResource r 1 act
 
     Control.Monad.when (description /= "") $ Shake.putNormal description

@@ -43,8 +43,8 @@ module Language.Ninja.Compile
 import           Control.Applicative          ((<|>))
 import           Control.Arrow                (first)
 
-import           Control.Lens.Getter          ((^.))
-import           Control.Lens.Setter          ((.~))
+import           Control.Lens.Getter          (view, (^.))
+import           Control.Lens.Setter          (set, (.~))
 
 import           Control.Exception            (Exception)
 import           Control.Monad.Error.Class    (MonadError (..))
@@ -152,8 +152,8 @@ compile ast = result
       let implicitDeps  = HS.toList (depsAST ^. AST.depsImplicit)
       let orderOnlyDeps = HS.toList (depsAST ^. AST.depsOrderOnly)
 
-      rule <- compileRule (outputs, buildAST)
       outs <- HS.toList outputs |> mapM compileOutput |> fmap HS.fromList
+      rule <- compileRule (outs, buildAST)
       deps <- let compileDep = flip (curry compileDependency)
               in (\n i o -> HS.fromList (n <> i <> o))
                  <$> mapM (compileDep IR.NormalDependency)    normalDeps
@@ -184,7 +184,7 @@ compile ast = result
                                  |> maybe (Errors.throwInvalidPoolDepth d) pure
                            pure (IR.makePoolCustom name dp)
 
-    compileRule :: (HashSet Text, AST.Build) -> m IR.Rule
+    compileRule :: (HashSet IR.Output, AST.Build) -> m IR.Rule
     compileRule (outputs, buildAST) = do
       (name, prule) <- lookupRule buildAST
 
@@ -203,13 +203,13 @@ compile ast = result
       description  <- lookupBind "description"
       pool         <- let buildBind = buildAST ^. AST.buildBind
                       in (HM.lookup "pool" buildBind <|> AST.askEnv env "pool")
-                         |> fmap IR.parsePoolName
-                         |> fromMaybe IR.makePoolNameDefault
+                         |> fromMaybe ""
+                         |> IR.parsePoolName
                          |> pure
       depfile      <- lookupBind "depfile"
                       |> fmap (fmap IR.makePath)
-      specialDeps  <- let prefix = "msvc_deps_prefix"
-                      in ((,) <$> lookupBind "deps" <*> lookupBind prefix)
+      specialDeps  <- let lookupPrefix = lookupBind "msvc_deps_prefix"
+                      in ((,) <$> lookupBind "deps" <*> lookupPrefix)
                          >>= compileSpecialDeps
       generator    <- isJust <$> lookupBind "generator"
       restat       <- isJust <$> lookupBind "restat"
@@ -237,7 +237,10 @@ compile ast = result
         goGCC  Nothing  = pure (Just IR.makeSpecialDepsGCC)
         goGCC  (Just _) = Errors.throwUnexpectedMSVCPrefix "gcc"
 
-        goMSVC m        = pure (Just (IR.makeSpecialDepsMSVC m))
+        goMSVC (Just m) = pure (Just (IR.makeSpecialDepsMSVC m))
+        goMSVC Nothing  = pure (Just (IR.makeSpecialDepsMSVC defaultPrefix))
+
+        defaultPrefix = "Note: including file: "
 
     compileResponseFile :: (Text, Text) -> m IR.ResponseFile
     compileResponseFile (file, content) = do
@@ -267,26 +270,34 @@ compile ast = result
                |> maybe (Errors.throwBuildRuleNotFound name) pure
       pure (name, prule)
 
-    computeRuleEnv :: (HashSet Text, AST.Build)
+    computeRuleEnv :: (HashSet IR.Output, AST.Build)
                    -> AST.Rule
                    -> AST.Env Text Text
     computeRuleEnv (outs, buildAST) prule = do
-      let deps = buildAST ^. AST.buildDeps . AST.depsNormal
+      let isExplicitOut out = (out ^. IR.outputType) == IR.ExplicitOutput
+
+      let explicitOuts = HS.toList outs
+                         |> filter isExplicitOut
+                         |> map (view (IR.outputTarget . IR.targetText))
+
+      let explicitDeps = [ buildAST ^. AST.buildDeps . AST.depsNormal
+                         , buildAST ^. AST.buildDeps . AST.depsOrderOnly
+                         ] |> mconcat |> HS.toList
 
       let composeList :: [a -> a] -> (a -> a)
           composeList = map Endo .> mconcat .> appEndo
 
-          quote :: Text -> Text
+      let quote :: Text -> Text
           quote x | T.any isSpace x = mconcat ["\"", x, "\""]
           quote x                   = x
 
-          bindings = buildAST ^. AST.buildBind
+      let bindings = buildAST ^. AST.buildBind
 
       -- the order of adding new environment variables matters
       AST.scopeEnv (buildAST ^. AST.buildEnv)
-        |> AST.addEnv "out"        (T.unwords (map quote (HS.toList outs)))
-        |> AST.addEnv "in"         (T.unwords (map quote (HS.toList deps)))
-        |> AST.addEnv "in_newline" (T.unlines (HS.toList deps))
+        |> AST.addEnv "out"        (T.unwords (map quote explicitOuts))
+        |> AST.addEnv "in"         (T.unwords (map quote explicitDeps))
+        |> AST.addEnv "in_newline" (T.unlines explicitDeps)
         |> composeList (map (uncurry AST.addEnv) (HM.toList bindings))
         |> AST.addBinds (HM.toList (prule ^. AST.ruleBind))
 

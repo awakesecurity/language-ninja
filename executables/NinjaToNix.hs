@@ -20,8 +20,12 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_HADDOCK #-}
 
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 
 -- |
 --   Module      : Main
@@ -39,10 +43,16 @@ import           Control.Lens                as Lens hiding
                  ((.=), (.>), (<.), (<|), (|>))
 
 import           Control.Arrow
+import           Control.Monad
 import           Data.Either
 import           Data.List                   (sort)
 import           Data.Maybe
 import           Data.Monoid
+
+import           Control.Exception
+import           Control.Monad.Error.Class
+import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Class
 
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
@@ -64,12 +74,15 @@ import qualified Data.HashSet                as HS
 
 import           Data.Hashable               (Hashable)
 
+import qualified Language.Ninja.Compile      as Ninja
 import qualified Language.Ninja.Parse        as Ninja
 
 import           Language.Ninja.IR.Target    (Target, makeTarget)
 import           Language.Ninja.Misc.Command (Command, makeCommand)
 
 import qualified Language.Ninja.AST          as AST
+
+import qualified Language.Ninja.IR           as IR
 
 import           Data.Aeson                  as Aeson
 import           Data.Aeson.Encode.Pretty    as Aeson
@@ -79,6 +92,7 @@ import           System.Environment          (getArgs)
 import           Flow
 
 import           Misc.Hash
+import           Misc.Supply
 
 --------------------------------------------------------------------------------
 
@@ -90,6 +104,12 @@ debugNinja = Ninja.parse "../data/build.ninja"
 
 debugSNinja :: IO SNinja
 debugSNinja = compileNinja <$> debugNinja
+
+handleMonadError :: (Exception e) => (forall m. (MonadError e m) => m a) -> IO a
+handleMonadError m = either (show .> fail) pure m
+
+compileToIR :: AST.Ninja -> IO IR.Ninja
+compileToIR ast = handleMonadError (Ninja.compile ast)
 
 --------------------------------------------------------------------------------
 
@@ -111,7 +131,9 @@ allOutputs (MkSNinja builds _) = HS.fromList (HM.keys builds)
 
 -- | Compute the set of all targets that are a dependency to a rule.
 allInputs :: SNinja -> HashSet Target
-allInputs (MkSNinja builds _) = mconcat $ map (_sbDeps . snd) $ HM.toList builds
+allInputs (MkSNinja builds _) = HM.toList builds
+                                |> map (snd .> _sbuildDeps)
+                                |> mconcat
 
 -- | Compute the set of all targets referenced in the build graph.
 allTargets :: SNinja -> HashSet Target
@@ -119,9 +141,9 @@ allTargets (sn@(MkSNinja _ defs)) = defs <> allOutputs sn <> allInputs sn
 
 -- | Compute the set of all commands that can be run during a build.
 allCommands :: SNinja -> HashSet Command
-allCommands (MkSNinja builds _) = HS.fromList
-                                  $ mapMaybe (_sbCmd . snd)
-                                  $ HM.toList builds
+allCommands (MkSNinja builds _) = HM.toList builds
+                                  |> mapMaybe (snd .> _sbuildCommand)
+                                  |> HS.fromList
 
 -- | Compute the set of targets that have no dependencies.
 leafTargets :: SNinja -> HashSet Target
@@ -142,10 +164,160 @@ targetReferrers = undefined -- FIXME
 
 data SBuild
   = MkSBuild
-    { _sbCmd  :: Maybe Command
-    , _sbDeps :: HashSet Target
+    { _sbuildCommand :: Maybe Command
+    , _sbuildDeps    :: HashSet Target
     }
   deriving (Eq, Show)
+
+--------------------------------------------------------------------------------
+
+data SimplifyError
+  = UnhandledOutputType   !IR.OutputType
+  | UnhandledDepfile      !IR.Path
+  | UnhandledSpecialDeps  !IR.SpecialDeps
+  | UnhandledGenerator
+  | UnhandledRestat
+  | UnhandledResponseFile !IR.ResponseFile
+  deriving (Eq, Show)
+
+instance Exception SimplifyError
+
+throwSimplifyError :: (MonadError SimplifyError m) => SimplifyError -> m a
+throwSimplifyError = throwError
+
+throwUnhandledOutputType :: (MonadError SimplifyError m) => IR.OutputType -> m a
+throwUnhandledOutputType ty = throwSimplifyError (UnhandledOutputType ty)
+
+throwUnhandledDepfile :: (MonadError SimplifyError m) => IR.Path -> m a
+throwUnhandledDepfile path = throwSimplifyError (UnhandledDepfile path)
+
+throwUnhandledSpecialDeps :: (MonadError SimplifyError m)
+                          => IR.SpecialDeps -> m a
+throwUnhandledSpecialDeps sd = throwSimplifyError (UnhandledSpecialDeps sd)
+
+throwUnhandledGenerator :: (MonadError SimplifyError m) => m a
+throwUnhandledGenerator = throwSimplifyError UnhandledGenerator
+
+throwUnhandledRestat :: (MonadError SimplifyError m) => m a
+throwUnhandledRestat = throwSimplifyError UnhandledRestat
+
+throwUnhandledResponseFile :: (MonadError SimplifyError m)
+                           => IR.ResponseFile -> m a
+throwUnhandledResponseFile rsp = throwSimplifyError (UnhandledResponseFile rsp)
+
+--------------------------------------------------------------------------------
+
+simplify :: (MonadError SimplifyError m, MonadIO m)
+         => IR.Ninja -> m SNinja
+simplify ninjaIR = runSupplyIO (simplify' ninjaIR) intToTarget
+  where
+    intToTarget :: Int -> Target
+    intToTarget = show .> T.pack .> ("gen" <>) .> makeTarget
+
+simplify' :: forall m. (MonadError SimplifyError m)
+          => IR.Ninja -> SupplyT Target m SNinja
+simplify' ninjaIR = MkSNinja <$> simpleBuilds <*> simpleDefaults
+  where
+    simpleBuilds :: SupplyT Target m (HashMap Target SBuild)
+    simpleBuilds = undefined
+
+    simpleDefaults :: SupplyT Target m (HashSet Target)
+    simpleDefaults = pure defaults
+
+    linearized :: SupplyT Target m (HashMap Target SBuild)
+    linearized = mapM convertBuild (HS.toList builds)
+                 >>= HM.unions .> optimize
+
+    -- This is where we will put optimizations in the future. For instance, it
+    -- will likely make sense to collapse chains of phonies down to one level.
+
+    optimize :: HashMap Target SBuild
+             -> SupplyT Target m (HashMap Target SBuild)
+    optimize = pure
+
+    -- Currently, 'convertBuild' simply ignores the dependency type, which may
+    -- not be the desired semantics in the future, so we should perhaps consider
+    -- implementing special semantics for order-only dependencies.
+
+    convertBuild :: IR.Build
+                 -> SupplyT Target m (HashMap Target SBuild)
+    convertBuild b = do
+      cmd  <- (b ^. IR.buildRule)
+              |> convertRule
+      outs <- (b ^. IR.buildOuts)
+              |> HS.map (view IR.outputTarget)
+              |> pure
+      deps <- (b ^. IR.buildDeps)
+              |> HS.map (view IR.dependencyTarget)
+              |> pure
+      case HS.toList outs of
+        [o] -> convertSingle (o, (MkSBuild (Just cmd) deps))
+        os  -> convertMultiple (outs, (MkSBuild (Just cmd) deps))
+
+    -- We don't do anything special in 'convertSingle', for now.
+
+    convertSingle :: (Target, SBuild)
+                  -> SupplyT Target m (HashMap Target SBuild)
+    convertSingle (out, build) = pure (HM.singleton out build)
+
+    -- If we have a rule [B] that is part of a build with three outputs and
+    -- two dependencies:
+    --
+    -- @
+    --   [FOO] <──┐         ┌──< [INPUT_A]
+    --   [BAR] <──┼─< [B] <─┤
+    --   [BAZ] <──┘         └──< [INPUT_B]
+    -- @
+    --
+    -- and we run it through 'convertMultiple', then we will get the result of
+    -- sending the following set of build edges through 'convertSingle':
+    --
+    -- @
+    --                        ┌──< [INPUT_A]
+    --   [gen0001] <──< [B] <─┤
+    --                        └──< [INPUT_B]
+    --
+    --   [FOO] <──< [ ] <──< [gen0001]
+    --   [BAR] <──< [ ] <──< [gen0001]
+    --   [BAZ] <──< [ ] <──< [gen0001]
+    -- @
+    --
+    -- where @gen1234@ represents a fresh name produced by the concurrent name
+    -- supply and @[ ]@ represents a phony build.
+
+    convertMultiple :: (HashSet Target, SBuild)
+                    -> SupplyT Target m (HashMap Target SBuild)
+    convertMultiple (outs, build) = do
+      new <- fresh
+      let f out = (out, MkSBuild Nothing (HS.singleton new))
+      let combined = (new, build) : map f (HS.toList outs)
+      mconcat <$> mapM convertSingle combined
+
+    -- Currently this just checks that the rule is not doing anything fancy
+    -- that we don't know how to handle yet, and then returns the underlying
+    -- command once that is verified.
+
+    convertRule :: IR.Rule -> SupplyT Target m Command
+    convertRule r = lift $ do
+      let whenJust :: Maybe a -> (a -> m ()) -> m ()
+          whenJust x f = maybe (pure ()) f x
+      whenJust (r ^. IR.ruleDepfile)      throwUnhandledDepfile
+      whenJust (r ^. IR.ruleSpecialDeps)  throwUnhandledSpecialDeps
+      when     (r ^. IR.ruleGenerator)    throwUnhandledGenerator
+      when     (r ^. IR.ruleRestat)       throwUnhandledRestat
+      whenJust (r ^. IR.ruleResponseFile) throwUnhandledResponseFile
+      pure (r ^. IR.ruleCommand)
+
+    meta     :: IR.Meta
+    builds   :: HashSet IR.Build
+    phonys   :: HashMap IR.Target (HashSet IR.Target)
+    defaults :: HashSet IR.Target
+    pools    :: HashSet IR.Pool
+    meta     = ninjaIR ^. IR.ninjaMeta
+    builds   = ninjaIR ^. IR.ninjaBuilds
+    phonys   = ninjaIR ^. IR.ninjaPhonys
+    defaults = ninjaIR ^. IR.ninjaDefaults
+    pools    = ninjaIR ^. IR.ninjaPools
 
 -- | FIXME: doc
 --   Note: this function assumes a very simple subset of Ninja.

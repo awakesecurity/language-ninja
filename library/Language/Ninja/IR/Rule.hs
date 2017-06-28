@@ -51,9 +51,9 @@ module Language.Ninja.IR.Rule
   , ResponseFile, makeResponseFile, responseFilePath, responseFileContent
   ) where
 
-import           Language.Ninja.IR.Pool      (PoolName, makePoolNameDefault)
-import           Language.Ninja.Misc.Command (Command)
-import           Language.Ninja.Misc.Path    (Path)
+import           Data.Maybe
+
+import           Flow                        ((.>), (|>))
 
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
@@ -71,7 +71,9 @@ import qualified Test.SmallCheck.Series      as SC
 import           Control.Lens.Lens           (Lens', lens)
 import           Control.Lens.Prism          (Prism', prism)
 
-import           Flow                        ((|>))
+import           Language.Ninja.IR.Pool      (PoolName, makePoolNameDefault)
+import           Language.Ninja.Misc.Command (Command)
+import           Language.Ninja.Misc.Path    (Path)
 
 --------------------------------------------------------------------------------
 
@@ -239,7 +241,7 @@ instance ( Monad m
 --   <https://ninja-build.org/manual.html#ref_headers here>.
 data SpecialDeps
   = SpecialDepsGCC
-  | SpecialDepsMSVC !(Maybe Text)
+  | SpecialDepsMSVC !Text
   deriving (Eq, Ord, Show, Read, Generic)
 
 -- | Construct a 'SpecialDeps' corresponding to the case in which @deps = gcc@
@@ -253,11 +255,10 @@ makeSpecialDepsGCC = SpecialDepsGCC
 --
 --   The @msvc_deps_prefix@ field defines the string which should be stripped
 --   from @msvc@'s @/showIncludes@ output. It is only needed if the version of
---   Visual Studio being used is not English.
+--   Visual Studio being used is not English. The value of @msvc_deps_prefix@
+--   is @"Note: including file: "@ by default.
 {-# INLINE makeSpecialDepsMSVC #-}
-makeSpecialDepsMSVC :: Maybe Text
-                    -- ^ If this is @Just …@, set @msvc_deps_prefix@ to the
-                    --   given text; otherwise it will not be set.
+makeSpecialDepsMSVC :: Text
                     -> SpecialDeps
 makeSpecialDepsMSVC = SpecialDepsMSVC
 
@@ -270,7 +271,7 @@ _SpecialDepsGCC = prism (const makeSpecialDepsGCC)
 
 -- | A prism for the @deps = msvc@ / @msvc_deps_prefix = …@ case.
 {-# INLINE _SpecialDepsMSVC #-}
-_SpecialDepsMSVC :: Prism' SpecialDeps (Maybe Text)
+_SpecialDepsMSVC :: Prism' SpecialDeps Text
 _SpecialDepsMSVC = prism makeSpecialDepsMSVC
                    $ \case (SpecialDepsMSVC prefix) -> Right prefix
                            owise                    -> Left owise
@@ -279,10 +280,8 @@ _SpecialDepsMSVC = prism makeSpecialDepsMSVC
 instance ToJSON SpecialDeps where
   toJSON = go
     where
-      go SpecialDepsGCC             = Aeson.object ["deps" .= gcc]
-      go (SpecialDepsMSVC Nothing)  = Aeson.object ["deps" .= msvc]
-      go (SpecialDepsMSVC (Just p)) =
-        Aeson.object ["deps" .= msvc, "prefix" .= p]
+      go SpecialDepsGCC      = Aeson.object ["deps" .= gcc]
+      go (SpecialDepsMSVC p) = Aeson.object ["deps" .= msvc, "prefix" .= p]
 
       gcc, msvc :: Value
       (gcc, msvc) = ("gcc", "msvc")
@@ -291,7 +290,7 @@ instance ToJSON SpecialDeps where
 instance FromJSON SpecialDeps where
   parseJSON = Aeson.withObject "SpecialDeps" $ \o -> do
     deps <- o .: "deps"
-    prefix <- o .:? "prefix"
+    prefix <- o .: "prefix"
     case T.pack deps of
       "gcc"  -> pure SpecialDepsGCC
       "msvc" -> pure (SpecialDepsMSVC prefix)

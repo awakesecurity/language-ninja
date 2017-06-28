@@ -20,9 +20,11 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
+{-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RecordWildCards       #-}
@@ -39,6 +41,7 @@
 module Language.Ninja.IR.Build
   ( -- * @Build@
     Build, makeBuild, buildRule, buildOuts, buildDeps
+  , BuildConstraint
   ) where
 
 import           Data.Aeson
@@ -55,11 +58,12 @@ import           Data.Hashable            (Hashable)
 import           GHC.Generics             (Generic)
 import qualified Test.SmallCheck.Series   as SC
 
+import           GHC.Exts                 (Constraint)
+
 import           Language.Ninja.IR.Rule   (Rule)
 import           Language.Ninja.IR.Target (Dependency, Output)
 
-import qualified Control.Lens
-import           Control.Lens.Lens        (Lens')
+import           Control.Lens.Lens        (Lens', lens)
 
 import           Flow                     ((|>))
 
@@ -87,19 +91,19 @@ makeBuild rule = MkBuild
 -- | The rule to execute when building any of the outputs.
 {-# INLINE buildRule #-}
 buildRule :: Lens' Build Rule
-buildRule = Control.Lens.lens _buildRule
+buildRule = lens _buildRule
             $ \(MkBuild {..}) x -> MkBuild { _buildRule = x, .. }
 
 -- | The outputs that are built as a result of rule execution.
 {-# INLINE buildOuts #-}
 buildOuts :: Lens' Build (HashSet Output)
-buildOuts = Control.Lens.lens _buildOuts
+buildOuts = lens _buildOuts
             $ \(MkBuild {..}) x -> MkBuild { _buildOuts = x, .. }
 
 -- | The dependencies that must be satisfied before this can be built.
 {-# INLINE buildDeps #-}
 buildDeps :: Lens' Build (HashSet Dependency)
-buildDeps = Control.Lens.lens _buildDeps
+buildDeps = lens _buildDeps
             $ \(MkBuild {..}) x -> MkBuild { _buildDeps = x, .. }
 
 -- | Converts to @{rule: …, outputs: …, dependencies: …}@.
@@ -125,17 +129,17 @@ instance Hashable Build
 instance NFData Build
 
 -- | Default 'SC.Serial' instance via 'Generic'.
-instance ( Monad m
-         , SC.Serial m Text
-         , SC.Serial m (HashSet Output)
-         , SC.Serial m (HashSet Dependency)
-         ) => SC.Serial m Build
+instance (Monad m, BuildConstraint (SC.Serial m)) => SC.Serial m Build
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
-instance ( Monad m
-         , SC.CoSerial m Text
-         , SC.CoSerial m (HashSet Output)
-         , SC.CoSerial m (HashSet Dependency)
-         ) => SC.CoSerial m Build
+instance (Monad m, BuildConstraint (SC.CoSerial m)) => SC.CoSerial m Build
+
+-- | The set of constraints required for a given constraint to be automatically
+--   computed for a 'Build'.
+type BuildConstraint (c :: * -> Constraint)
+  = ( c Text
+    , c (HashSet Output)
+    , c (HashSet Dependency)
+    )
 
 --------------------------------------------------------------------------------
