@@ -37,8 +37,10 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
+{-# LANGUAGE DeriveAnyClass             #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PatternGuards              #-}
 {-# LANGUAGE RankNTypes                 #-}
@@ -62,6 +64,11 @@ module Language.Ninja.Lexer
   , LBuild (..)
   , lexerFile, lexer
   ) where
+
+import           Control.Exception            (Exception)
+import qualified Control.Exception
+import           Control.Monad.Error.Class    (MonadError(..))
+import           Data.Typeable                (Typeable)
 
 import qualified Data.ByteString.Char8        as BSC8
 import qualified Data.ByteString.Internal     as BS.Internal
@@ -187,17 +194,31 @@ instance NFData LBuild
 
 --------------------------------------------------------------------------------
 
+-- | The data contained within a Ninja @build@ declaration.
+data LexError
+  = MissingColon
+  | UnexpectedSeparator Char
+  deriving (Eq, Hashable, NFData, Show, Generic, Typeable)
+
+instance Exception LexError
+
+--------------------------------------------------------------------------------
+
 -- | Lex the given file.
 lexerFile :: FilePath -> IO [Lexeme]
-lexerFile file = lexer <$> BSC8.readFile file
+lexerFile file = do
+  bytes <- BSC8.readFile file
+  case lexer bytes of
+    Left  exception -> Control.Exception.throwIO exception
+    Right lexemes   -> return lexemes
 
 -- | Lex the given 'BSC8.ByteString'.
-lexer :: Str -> [Lexeme]
+lexer :: MonadError LexError m => Str -> m [Lexeme]
 lexer x = lexerLoop (MkStr0 (BSC8.append x "\n\n\0"))
 
 --------------------------------------------------------------------------------
 
-lexerLoop :: Str0 -> [Lexeme]
+lexerLoop :: MonadError LexError m => Str0 -> m [Lexeme]
 lexerLoop c_x
   = case c of
       '\r'                                  -> lexerLoop x0
@@ -210,7 +231,7 @@ lexerLoop c_x
       'p'  | Just x1 <- strip "ool "     x0 -> lexPool     $ dropSpace x1
       'i'  | Just x1 <- strip "nclude "  x0 -> lexInclude  $ dropSpace x1
       's'  | Just x1 <- strip "ubninja " x0 -> lexSubninja $ dropSpace x1
-      '\0'                                  -> []
+      '\0'                                  -> return []
       _                                     -> lexDefine c_x
   where
     removeComment = Str0.dropWhile0 (/= '\n')
@@ -222,63 +243,76 @@ lexerLoop c_x
                               then Just $ MkStr0 $ BSC8.drop (BSC8.length b) x
                               else Nothing
 
-lexBind :: Str0 -> [Lexeme]
+lexBind :: MonadError LexError m => Str0 -> m [Lexeme]
 lexBind c_x | (c, x) <- Str0.list0 c_x
   = case c of
       '\r' -> lexerLoop x
       '\n' -> lexerLoop x
       '#'  -> lexerLoop $ Str0.dropWhile0 (/= '\n') x
-      '\0' -> []
+      '\0' -> return []
       _    -> lexxBind LexBind c_x
 
-lexBuild :: Str0 -> [Lexeme]
-lexBuild x0
-  = let (outputs, x1) = lexxExprs True x0
-        (rule,    x2) = Str0.span0 isVarDot $ dropSpace x1
-        (deps,    x3) = lexxExprs False $ dropSpace x2
-    in LexBuild (MkLBuild outputs rule deps) : lexerLoop x3
+lexBuild :: MonadError LexError m => Str0 -> m [Lexeme]
+lexBuild x0 = do
+  (outputs, x1) <- lexxExprs True x0
+  let (rule, x2) = Str0.span0 isVarDot $ dropSpace x1
+  (deps, x3) <- lexxExprs False $ dropSpace x2
+  x4 <- lexerLoop x3
+  return (LexBuild (MkLBuild outputs rule deps) : x4)
 
-lexDefault :: Str0 -> [Lexeme]
-lexDefault x = let (files, x') = lexxExprs False x
-               in LexDefault files : lexerLoop x'
+lexDefault :: MonadError LexError m => Str0 -> m [Lexeme]
+lexDefault str0 = do
+  (files, str1) <- lexxExprs False str0
+  str2 <- lexerLoop str1
+  return (LexDefault files : str2)
 
-lexRule, lexPool, lexInclude, lexSubninja, lexDefine :: Str0 -> [Lexeme]
+lexRule, lexPool, lexInclude, lexSubninja, lexDefine
+  :: MonadError LexError m => Str0 -> m [Lexeme]
 lexRule     = lexxName LexRule
 lexPool     = lexxName LexPool
 lexInclude  = lexxFile LexInclude
 lexSubninja = lexxFile LexSubninja
 lexDefine   = lexxBind LexDefine
 
-lexxBind :: (LBinding -> Lexeme) -> Str0 -> [Lexeme]
-lexxBind ctor x0 =
+lexxBind
+  :: MonadError LexError m => (LBinding -> Lexeme) -> Str0 -> m [Lexeme]
+lexxBind ctor x0 = do
   let (var,  x1) = Str0.span0 isVarDot x0
       (eq,   x2) = Str0.list0 $ dropSpace x1
       (expr, x3) = lexxExpr False False $ dropSpace x2
-   in if eq == '='
-      then ctor (MkLBinding (MkLName var) expr) : lexerLoop x3
-      else [ "lexer failed at binding: "
-           , show (Str0.take0 100 x0)
-           ] |> mconcat |> error
+  x4 <- lexerLoop x3
+  if eq == '='
+    then return (ctor (MkLBinding (MkLName var) expr) : x4)
+    else [ "lexer failed at binding: "
+         , show (Str0.take0 100 x0)
+         ] |> mconcat |> error
 
-lexxFile :: (LFile -> Lexeme) -> Str0 -> [Lexeme]
-lexxFile ctor x = let (expr, rest) = lexxExpr False False $ dropSpace x
-                  in ctor (MkLFile expr) : lexerLoop rest
+lexxFile :: MonadError LexError m => (LFile -> Lexeme) -> Str0 -> m [Lexeme]
+lexxFile ctor str0 = do
+  let (expr, str1) = lexxExpr False False $ dropSpace str0
+  str2 <- lexerLoop str1
+  return (ctor (MkLFile expr) : str2)
 
-lexxName :: (LName -> Lexeme) -> Str0 -> [Lexeme]
-lexxName ctor x = let (name, rest) = splitLineCont x
-                  in ctor (MkLName name) : lexerLoop rest
+lexxName :: MonadError LexError m => (LName -> Lexeme) -> Str0 -> m [Lexeme]
+lexxName ctor x = do
+  let (name, rest) = splitLineCont x
+  lexemes <- lexerLoop rest
+  return (ctor (MkLName name) : lexemes)
 
-lexxExprs :: Bool -> Str0 -> ([AST.Expr], Str0)
+lexxExprs :: MonadError LexError m => Bool -> Str0 -> m ([AST.Expr], Str0)
 lexxExprs sColon x0
   = let c  = Str0.head0 c_x
         x1 = Str0.tail0 c_x
     in case c of -- FIXME: nonexhaustive pattern match
-         ' '           -> first (a:) $ lexxExprs sColon $ dropSpace x1
-         ':'  | sColon -> ([a], x1)
-         _    | sColon -> error "expected a colon"
-         '\r'          -> a $: dropN x1
-         '\n'          -> a $: x1
-         '\0'          -> a $: c_x
+         ' '           -> do
+           (exprs, x2) <- lexxExprs sColon $ dropSpace x1
+           return (a:exprs, x2)
+         ':'  | sColon -> return ([a], x1)
+         _    | sColon -> throwError MissingColon
+         '\r'          -> return (a $: dropN x1)
+         '\n'          -> return (a $: x1)
+         '\0'          -> return (a $: c_x)
+         _             -> throwError (UnexpectedSeparator c)
   where
     (a, c_x) = lexxExpr sColon True x0
     ($:) :: AST.Expr -> Str0 -> ([AST.Expr], Str0)
