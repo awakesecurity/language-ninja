@@ -70,7 +70,7 @@ import           Flow                   ((.>), (|>))
 --   This is a newtype over 'Interned.InternedText' from the @intern@ package.
 newtype IText
   = MkIText Interned.InternedText
-  deriving (Eq, Ord, IsString, Generic)
+  deriving (Eq, IsString, Generic)
 
 -- | Get the 'Text' corresponding to the given 'IText' value.
 --
@@ -105,6 +105,10 @@ internText = Interned.intern .> MkIText
 itext :: Iso' Text IText
 itext = Control.Lens.iso internText uninternText
 
+-- | The 'Ord' instance in @intern@ compares hashes rather than values.
+instance Ord IText where
+  compare itA itB = compare (uninternText itA) (uninternText itB)
+
 -- | Displays an 'IText' such that 'fromString' is inverse to 'show'.
 instance Show IText where
   show (MkIText i) = show i
@@ -114,6 +118,9 @@ instance Read IText where
   readsPrec i = readsPrec i .> map (first (fromString .> MkIText))
 
 -- | Uses the 'Hashable' instance for 'Text'. Not very efficient.
+--
+--   FIXME: perhaps switch to hashing the identifier, since this is likely
+--   pretty hot code given all the @HashMap Target …@ types all over the place.
 instance Hashable IText where
   hashWithSalt n = uninternText .> hashWithSalt n
 
