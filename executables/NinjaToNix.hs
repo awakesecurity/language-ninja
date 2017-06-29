@@ -360,3 +360,5 @@ main = do
   let sninja = compileNinja parsed
   let value = sninjaToJSON sninja
   LBSC8.putStrLn (encodePretty value)
+
+--------------------------------------------------------------------------------

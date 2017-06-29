@@ -22,6 +22,7 @@
 
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
 
 -- |
 --   Module      : NinjaToNix.Pretty
@@ -43,7 +44,9 @@ import           Control.Lens.Getter
 
 import           Data.Text                                 (Text)
 
-import qualified Data.Graph                                as G
+import           Data.Graph                                (Graph)
+import qualified Data.Graph                                as Graph
+import qualified Data.Tree                                 as Tree
 
 import           Data.HashMap.Strict                       (HashMap)
 import qualified Data.HashMap.Strict                       as HM
@@ -67,6 +70,8 @@ import           NinjaToNix.Types
 
 import           Flow
 
+import qualified Debug.Trace                               as Trace
+
 --------------------------------------------------------------------------------
 
 type PDoc = PP.Doc PP.AnsiStyle
@@ -74,7 +79,7 @@ type PDoc = PP.Doc PP.AnsiStyle
 --------------------------------------------------------------------------------
 
 prettySNinja :: SNinja -> PDoc
-prettySNinja = topoSort .> go
+prettySNinja = snTopoSort .> go
   where
     go :: ([IR.Target], [(IR.Target, SBuild)]) -> PDoc
     go (defaults, builds) = [ prettyDefaults defaults
@@ -132,26 +137,30 @@ hsToList = HS.toList .> sort
 hmToList :: (Eq k, Ord k, Hashable k) => HashMap k v -> [(k, v)]
 hmToList = HM.toList .> sortOn fst
 
-topoSort :: SNinja -> ([IR.Target], [(IR.Target, SBuild)])
-topoSort (MkSNinja builds defaults) = (sort (HS.toList defaults), ordered)
+snTopoSort :: SNinja -> ([IR.Target], [(IR.Target, SBuild)])
+snTopoSort (MkSNinja builds defaults) = (hsToList defaults, ordered)
   where
     ordered :: [(IR.Target, SBuild)]
-    ordered = G.topSort graph
+    ordered = HM.toList targets
+              |> sortOn fst
+              |> map snd
+              |> map (view IR.targetText)
+              |> topologicalSort graph
+              |> map IR.makeTarget
               |> mapM resultNode
               |> fromMaybe (error "ordered: something bad happened")
 
-    resultNode :: Int -> Maybe (IR.Target, SBuild)
-    resultNode i = do
-      tgt <- HM.lookup i targets
+    resultNode :: IR.Target -> Maybe (IR.Target, SBuild)
+    resultNode tgt = do
       let cmd  = (_sbuildCommand <$> HM.lookup tgt builds) >>= id
       let deps = (_sbuildDeps    <$> HM.lookup tgt builds) |> fromMaybe HS.empty
       pure (tgt, MkSBuild cmd deps)
 
-    graph :: G.Graph
+    graph :: Graph
     graph = HM.toList simple
             |> map lookupNode
             |> concatMap explode
-            |> G.buildG bounds
+            |> Graph.buildG bounds
 
     explode :: (Int, [Int]) -> [(Int, Int)]
     explode = sequenceA
@@ -185,5 +194,37 @@ topoSort (MkSNinja builds defaults) = (sort (HS.toList defaults), ordered)
 
     simple :: HashMap IR.Target (HashSet IR.Target)
     simple = HM.map _sbuildDeps builds
+
+topologicalSort :: forall v. (Eq v, Ord v, Hashable v, Show v)
+                => Graph -> [v] -> [v]
+topologicalSort graph values = map toTuple values |> sortOn fst |> map snd
+  where
+    toTuple :: v -> ((Int, Int), v)
+    toTuple value = (do tindex <- HM.lookup value sortedTopo
+                        oindex <- HM.lookup value sortedByOrd
+                        pure ((tindex, oindex), value))
+                    |> fromMaybe (error ("toTuple failed on " <> show value))
+
+    sortedByOrd :: HashMap v Int
+    sortedByOrd = sort values |> (`zip` [0..]) |> HM.fromList
+
+    sortedTopo :: HashMap v Int
+    sortedTopo = Graph.dff graph
+                 |> map Tree.levels
+                 |> indexForests
+                 |> concatMap indexForest
+                 |> sortOn fst
+                 |> map (\(i, v) -> (values !! v, i))
+                 |> HM.fromList
+
+    indexForest :: (Int, [[a]]) -> [(Int, a)]
+    indexForest (_, xs) = zip [0..] xs
+                          |> concatMap (\(i, level) -> map (i,) level)
+
+    indexForests :: [[[a]]] -> [(Int, [[a]])]
+    indexForests = let go :: Int -> [[[a]]] -> [(Int, [[a]])]
+                       go _ []     = []
+                       go n (x:xs) = (n, x) : go (n + length (concat x)) xs
+                   in go 0
 
 --------------------------------------------------------------------------------
