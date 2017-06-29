@@ -337,9 +337,20 @@ import           Data.Versions                (Version)
 
 --------------------------------------------------------------------------------
 
+-- FIXME: parse has the wrong type for this, we need parseText
+
 -- $printing
 --
--- FIXME: doc
+-- Currently there is a rudimentary pretty-printer for the AST in the
+-- "Language.Ninja.Pretty" module. It simply returns 'Text' such that if
+--
+-- @
+-- let pretty = Pretty.'Pretty.prettyNinja'
+-- let parse  = Parse.'Parse.parse'
+-- @
+--
+-- then @pretty >=> parse >=> pretty >=> parse@ should be the same as @pure@,
+-- modulo read-only side effects.
 
 --------------------------------------------------------------------------------
 
