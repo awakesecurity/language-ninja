@@ -42,6 +42,7 @@ module Language.Ninja.Errors.Parse
   , throwLexBindingFailure
   , throwLexExpectedColon
   , throwLexUnexpectedDollar
+  , throwLexUnexpectedSeparator
   , throwParseBadDepthField
   , throwParseUnexpectedBinding
   ) where
@@ -98,6 +99,10 @@ throwLexExpectedColon = throwParseError LexExpectedColon
 -- | Throw a 'LexUnexpectedColon' error.
 throwLexUnexpectedDollar :: (MonadError ParseError m) => m a
 throwLexUnexpectedDollar = throwParseError LexUnexpectedDollar
+
+-- | Throw a 'LexUnexpectedSeparator' error.
+throwLexUnexpectedSeparator :: (MonadError ParseError m) => Char -> m a
+throwLexUnexpectedSeparator c = throwParseError (LexUnexpectedSeparator c)
 
 -- | Throw a 'ParseBadDepthField' error.
 throwParseBadDepthField :: (MonadError ParseError m) => Text -> m a
