@@ -73,6 +73,8 @@ import qualified Language.Ninja.AST.Env      as AST (Maps)
 
 import qualified Language.Ninja.IR           as IR
 
+import qualified Language.Ninja.Misc         as Misc
+
 import qualified Test.Tasty                  as T
 import qualified Test.Tasty.Golden           as T
 import qualified Test.Tasty.HUnit            as T
@@ -134,11 +136,16 @@ testFiles = [ "buildseparate"
             , "test6"
             ]
 
+parseIO :: FilePath -> IO AST.Ninja
+parseIO fp = do
+  let path = Misc.makePath (Text.pack fp)
+  runExceptT (Ninja.parseFile path) >>= either throwIO pure
+
 parseTestNinja :: String -> IO AST.Ninja
 parseTestNinja name = do
   old <- Turtle.pwd
   Turtle.cd (FP.decodeString dataPrefix)
-  result <- Ninja.parse (name <> ".ninja")
+  result <- parseIO (name <> ".ninja")
   Turtle.cd old
   pure result
 
@@ -150,7 +157,7 @@ roundtripTest ninja = do
     let prettyInput = Ninja.prettyNinja ninja
     let tmpfile = tmpdir </> "generated.ninja"
     Turtle.writeTextFile tmpfile prettyInput
-    output <- Ninja.parse (FP.encodeString tmpfile)
+    output <- parseIO (FP.encodeString tmpfile)
     let prettyOutput = Ninja.prettyNinja output
     pure (prettyInput, prettyOutput)
 

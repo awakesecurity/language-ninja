@@ -61,9 +61,9 @@ import           Data.Bifunctor             (bimap, first)
 import           Data.Monoid                (Endo (..), (<>))
 
 import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import qualified Data.Text.Encoding         as T
-import qualified Data.Text.IO               as T
+import qualified Data.Text                  as Text
+import qualified Data.Text.Encoding         as Text
+import qualified Data.Text.IO               as Text
 
 import qualified Data.ByteString            as BS
 
@@ -73,17 +73,19 @@ import qualified Development.Shake.FilePath as Shake (normaliseEx, toStandard)
 import qualified Development.Shake.Util     as Shake (parseMakefile)
 
 import qualified Language.Ninja.AST         as AST
-
+import qualified Language.Ninja.Misc        as Misc
 import qualified Language.Ninja.Parse       as Parse
 
-import qualified Control.Exception.Extra
-import qualified Control.Monad
+import           Control.Exception          (throwIO)
+import           Control.Exception.Extra    (errorIO, ignore)
+import           Control.Monad              (forM, forM_, guard, when)
 import           Control.Monad.IO.Class     (liftIO)
+import           Control.Monad.Trans.Except (ExceptT, runExceptT)
 
 import           Control.Lens               (to, (^.))
 
-import qualified Data.Char
-import qualified Data.List.Extra
+import           Data.Char                  (isSpace, toUpper)
+import           Data.List.Extra            (word1)
 import qualified Data.Maybe
 import qualified System.Directory
 import qualified System.Info.Extra
@@ -119,19 +121,20 @@ data NinjaOptions
   | NinjaOptionsUnknown !Text
 
 parseNinjaOptions :: FilePath -> [String] -> Maybe String -> IO NinjaOptions
-parseNinjaOptions file (map T.pack -> args) tool = do
-  ninja <- Parse.parse file
+parseNinjaOptions file (map Text.pack -> args) tool = do
+  ninja <- runExceptT (Parse.parseFile (Misc.makePath (Text.pack file)))
+           >>= either throwIO pure
   pure $ case tool of
     Nothing         -> NinjaOptionsBuild  ninja args
     (Just "compdb") -> NinjaOptionsCompDB ninja args
-    (Just    owise) -> NinjaOptionsUnknown (T.pack owise)
+    (Just    owise) -> NinjaOptionsUnknown (Text.pack owise)
 
 ninjaDispatch :: NinjaOptions -> IO (Maybe (Rules ()))
 ninjaDispatch (NinjaOptionsBuild  n args) = ninjaBuild  n args
 ninjaDispatch (NinjaOptionsCompDB n args) = ninjaCompDB n args
 ninjaDispatch (NinjaOptionsUnknown tool)  =
   [ "Unknown tool: ", tool
-  ] |> mconcat |> T.unpack |> Control.Exception.Extra.errorIO
+  ] |> mconcat |> Text.unpack |> errorIO
 
 computeRuleEnv :: HashSet Text -> AST.Build -> AST.Rule -> AST.Env Text Text
 computeRuleEnv outputs b r = do
@@ -142,9 +145,9 @@ computeRuleEnv outputs b r = do
       composeList = map Endo .> mconcat .> appEndo
 
   AST.scopeEnv (b ^. AST.buildEnv)
-    |> AST.addEnv "out"        (T.unwords (map quote (HS.toList outputs)))
-    |> AST.addEnv "in"         (T.unwords (map quote (HS.toList deps)))
-    |> AST.addEnv "in_newline" (T.unlines (HS.toList deps))
+    |> AST.addEnv "out"        (Text.unwords (map quote (HS.toList outputs)))
+    |> AST.addEnv "in"         (Text.unwords (map quote (HS.toList deps)))
+    |> AST.addEnv "in_newline" (Text.unlines (HS.toList deps))
     |> composeList
         (map (uncurry AST.addEnv) (HM.toList (b ^. AST.buildBind)))
     |> AST.addBinds (HM.toList (r ^. AST.ruleBind))
@@ -170,11 +173,11 @@ ninjaCompDB ninja args = do
         (file:_) <- [build ^. AST.buildDeps . AST.depsNormal . to HS.toList]
         pure (outputs, build, file, rule)
 
-  compDB <- Control.Monad.forM itemsToBuild $ \(outputs, build, _, rule) -> do
+  compDB <- forM itemsToBuild $ \(outputs, build, _, rule) -> do
     let env = computeRuleEnv outputs build rule
-    let commandLine = T.unpack (AST.askVar env "command")
+    let commandLine = Text.unpack (AST.askVar env "command")
     let deps = build ^. AST.buildDeps . AST.depsNormal
-    pure $ MkCompDB dir commandLine (T.unpack (head (HS.toList deps)))
+    pure $ MkCompDB dir commandLine (Text.unpack (head (HS.toList deps)))
 
   putStr $ printCompDB compDB
 
@@ -188,7 +191,7 @@ ninjaBuild ninja args = pure $ Just $ do
                       .  to (fmap (first (HS.map filepathNormalise)))
 
   poolList <- HM.traverseWithKey
-              (\k v -> Shake.newResource (T.unpack k) v)
+              (\k v -> Shake.newResource (Text.unpack k) v)
               (HM.insert "console" 1 (ninja ^. AST.ninjaPools))
 
   let phonys    = ninja ^. AST.ninjaPhonys
@@ -215,17 +218,17 @@ ninjaBuild ninja args = pure $ Just $ do
     $ HS.toList $ HS.unions $ fmap (resolvePhony phonys) $ HS.toList targets
 
   let relatedOutputs :: FilePath -> Maybe [FilePath]
-      relatedOutputs (T.pack -> out)
+      relatedOutputs (Text.pack -> out)
         = HM.lookup out multiples
           |> fmap (fst .> HS.toList)
           |> Data.Maybe.fromMaybe (if HM.member out singles then [out] else [])
-          |> map T.unpack
+          |> map Text.unpack
           |> Just
 
-  relatedOutputs &?> \(map T.pack -> outputs) -> do
+  relatedOutputs &?> \(map Text.pack -> outputs) -> do
     build (HS.fromList outputs) (snd (multiples HM.! head outputs))
 
-  (flip HM.member singles . T.pack) ?> \(T.pack -> output) -> do
+  (flip HM.member singles . Text.pack) ?> \(Text.pack -> output) -> do
     build (HS.singleton output) (singles HM.! output)
 
 resolvePhony :: HashMap Text (HashSet Text) -> Text -> HashSet Text
@@ -234,7 +237,7 @@ resolvePhony mp = f (Left 100)
     f :: Either Int (HashSet Text) -> Text -> HashSet Text
     f (Left 0)   x          = f (Right HS.empty) x
     f (Right xs) x | x ∈ xs = [ "Recursive phony involving "
-                              , T.unpack x
+                              , Text.unpack x
                               ] |> mconcat |> error
     f a          x          = case HS.toList <$> HM.lookup x mp of
                                 Nothing -> HS.singleton x
@@ -245,10 +248,8 @@ resolvePhony mp = f (Left 100)
     (∈) = HS.member
 
 quote :: Text -> Text
-quote x | T.any Data.Char.isSpace x =
-  let q = T.singleton '\"' in mconcat [q, x, q]
-quote x                             =
-  x
+quote x | Text.any isSpace x = mconcat ["\"", x, "\""]
+quote x                      = x
 
 -- My attempt at tracing this out:
 --
@@ -272,16 +273,16 @@ runBuild :: (AST.Build -> [Text] -> Action ())
          -> Action ()
 runBuild needD phonys rules pools outputs build = do
   let errorA :: Text -> Action a
-      errorA = T.unpack .> Control.Exception.Extra.errorIO .> liftIO
+      errorA = Text.unpack .> errorIO .> liftIO
 
   let throwRuleNotFound rule = [ "Ninja rule named ", rule
                                , " is missing, required to build "
-                               , T.unwords (HS.toList outputs)
+                               , Text.unwords (HS.toList outputs)
                                ] |> mconcat |> errorA
 
   let throwPoolNotFound pool = [ "Ninja pool named ", pool
                                , " not found, required to build "
-                               , T.unwords (HS.toList outputs)
+                               , Text.unwords (HS.toList outputs)
                                ] |> mconcat |> errorA
 
   let ruleName      = build ^. AST.buildRule
@@ -301,7 +302,7 @@ runBuild needD phonys rules pools outputs build = do
 
   applyRspfile env $ do
     let askVarString :: Text -> String
-        askVarString = AST.askVar env .> T.unpack
+        askVarString = AST.askVar env .> Text.unpack
 
     let commandline = askVarString   "command"
     let depfile     = askVarString   "depfile"
@@ -309,42 +310,42 @@ runBuild needD phonys rules pools outputs build = do
     let description = askVarString   "description"
     let pool        = AST.askVar env "pool"
 
-    let withPool act = if T.null pool
+    let withPool act = if Text.null pool
                        then act
                        else case HM.lookup pool pools of
                               Nothing  -> throwPoolNotFound pool
                               (Just r) -> Shake.withResource r 1 act
 
-    Control.Monad.when (description /= "") $ Shake.putNormal description
+    when (description /= "") $ Shake.putNormal description
 
     let (opts, prog, args) = toCommand commandline
       in if deps == "msvc"
          then do stdout <- withPool (Shake.command opts prog args)
                  let prefix = AST.askEnv env "msvc_deps_prefix"
                               |> Data.Maybe.fromMaybe "Note: including file: "
-                 let outStr = T.pack (Shake.fromStdout stdout)
+                 let outStr = Text.pack (Shake.fromStdout stdout)
                  needD build (parseShowIncludes prefix outStr)
          else withPool (Shake.command_ opts prog args)
 
-    Control.Monad.when (depfile /= "") $ do
-      Control.Monad.when (deps /= "gcc") $ Shake.need [depfile]
+    when (depfile /= "") $ do
+      when (deps /= "gcc") $ Shake.need [depfile]
 
-      depsrc <- T.readFile depfile
-                |> fmap T.unpack
+      depsrc <- Text.readFile depfile
+                |> fmap Text.unpack
                 |> liftIO
 
-      let parsed = map T.pack (concatMap snd (Shake.parseMakefile depsrc))
+      let parsed = map Text.pack (concatMap snd (Shake.parseMakefile depsrc))
 
       needD build parsed
 
       -- correct as per the Ninja spec, but breaks --skip-commands
-      -- Control.Monad.when (deps == "gcc") $ liftIO $ do
+      -- when (deps == "gcc") $ liftIO $ do
       --   System.Directory.removeFile depfile
 
 needDeps :: AST.Ninja -> AST.Build -> [Text] -> Action ()
 needDeps ninja = \build xs -> do
   let errorA :: Text -> Action a
-      errorA = T.unpack .> Control.Exception.Extra.errorIO .> liftIO
+      errorA = Text.unpack .> errorIO .> liftIO
   -- eta reduced so 'builds' is shared
   opts <- Shake.getShakeOptions
   let dontLint = Data.Maybe.isNothing $ Shake.shakeLint opts
@@ -418,22 +419,21 @@ applyRspfile env act = do
   let rspfile_content = AST.askVar env "rspfile_content"
   if rspfile == ""
     then act
-    else (liftIO (T.writeFile (T.unpack rspfile) rspfile_content) >> act)
+    else (liftIO (Text.writeFile (Text.unpack rspfile) rspfile_content) >> act)
          `Shake.actionFinally`
-         Control.Exception.Extra.ignore
-           (System.Directory.removeFile (T.unpack rspfile))
+         ignore (System.Directory.removeFile (Text.unpack rspfile))
 
 parseShowIncludes :: Text -> Text -> [Text]
 parseShowIncludes prefix out = do
-  x <- T.lines out
-  Control.Monad.guard (prefix `T.isPrefixOf` x)
-  let y = T.dropWhile Data.Char.isSpace $ T.drop (T.length prefix) x
-  Control.Monad.guard (not (isSystemInclude y))
+  x <- Text.lines out
+  guard (prefix `Text.isPrefixOf` x)
+  let y = Text.dropWhile isSpace $ Text.drop (Text.length prefix) x
+  guard (not (isSystemInclude y))
   pure y
 
 -- Dodgy, but ported over from the original Ninja
 isSystemInclude :: Text -> Bool
-isSystemInclude (T.encodeUtf8 -> x)
+isSystemInclude (Text.encodeUtf8 -> x)
   = (    BS.isInfixOf "PROGRAM FILES"           tx
       || BS.isInfixOf "MICROSOFT VISUAL STUDIO" tx
     )
@@ -472,9 +472,9 @@ toCommand s
   -- Using the "cmd" program adds overhead (I measure 7ms), and a limit of
   -- 8191 characters, but is the most robust, requiring no additional escaping.
   = ([Shake.Shell], s, [])
-  | (cmd, s') <- Data.List.Extra.word1 s
-  , map Data.Char.toUpper cmd `elem` ["CMD","CMD.EXE"]
-  , ("/c", s'') <- Data.List.Extra.word1 s'
+  | (cmd, s') <- word1 s
+  , map toUpper cmd `elem` ["CMD","CMD.EXE"]
+  , ("/c", s'') <- word1 s'
   -- Given "cmd.exe /c <something>" we translate to Shell, which adds cmd.exe
   -- (looked up on the current path) and /c to the front.
   -- CMake uses this rule a lot.
@@ -521,18 +521,18 @@ splitArgs = f Gap
 --------------------------------------------------------------------------------
 
 filepathNormalise :: Text -> Text
-filepathNormalise = T.unpack
+filepathNormalise = Text.unpack
                     .> Shake.normaliseEx
                     .> Shake.toStandard
-                    .> T.pack
+                    .> Text.pack
 
 needT :: [Text] -> Action ()
-needT = Shake.need . map T.unpack
+needT = Shake.need . map Text.unpack
 
 neededT :: [Text] -> Action ()
-neededT = Shake.needed . map T.unpack
+neededT = Shake.needed . map Text.unpack
 
 orderOnlyT :: [Text] -> Action ()
-orderOnlyT = Shake.orderOnly . map T.unpack
+orderOnlyT = Shake.orderOnly . map Text.unpack
 
 --------------------------------------------------------------------------------

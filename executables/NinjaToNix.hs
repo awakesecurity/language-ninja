@@ -59,9 +59,9 @@ import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Class
 
 import           Data.Text                   (Text)
-import qualified Data.Text                   as T
-import qualified Data.Text.Encoding          as T
-import qualified Data.Text.IO                as T
+import qualified Data.Text                   as Text
+import qualified Data.Text.Encoding          as Text
+import qualified Data.Text.IO                as Text
 
 import           Data.ByteString             (ByteString)
 import qualified Data.ByteString             as BS
@@ -85,8 +85,8 @@ import           Language.Ninja.IR.Target    (Target, makeTarget)
 import           Language.Ninja.Misc.Command (Command, makeCommand)
 
 import qualified Language.Ninja.AST          as AST
-
 import qualified Language.Ninja.IR           as IR
+import qualified Language.Ninja.Misc         as Misc
 
 import           Data.Aeson                  as Aeson
 import           Data.Aeson.Encode.Pretty    as Aeson
@@ -106,7 +106,7 @@ prettyJSON :: (ToJSON v) => v -> IO ()
 prettyJSON = encodePretty .> LBSC8.putStrLn
 
 debugNinja :: IO AST.Ninja
-debugNinja = Ninja.parse "../data/build.ninja"
+debugNinja = parseIO "../data/build.ninja"
 
 debugSNinja :: IO SNinja
 debugSNinja = compileNinja <$> debugNinja
@@ -118,6 +118,11 @@ compileToIR :: AST.Ninja -> IO IR.Ninja
 compileToIR ast = handleMonadError (Ninja.compile ast)
 
 --------------------------------------------------------------------------------
+
+parseIO :: (MonadIO m) => FilePath -> m AST.Ninja
+parseIO fp = liftIO $ do
+  let path = Misc.makePath (Text.pack fp)
+  runExceptT (Ninja.parseFile path) >>= either throwIO pure
 
 whenJust :: (Monad m) => Maybe a -> (a -> m ()) -> m ()
 whenJust x f = maybe (pure ()) f x
@@ -133,7 +138,7 @@ simplify :: (MonadError SimplifyError m, MonadIO m) => IR.Ninja -> m SNinja
 simplify ninjaIR = runSimplifyT (simplify' ninjaIR) intToTarget
   where
     intToTarget :: Int -> Target
-    intToTarget = show .> T.pack .> ("gen" <>) .> makeTarget
+    intToTarget = show .> Text.pack .> ("gen" <>) .> makeTarget
 
 simplify' :: forall m. (Monad m) => IR.Ninja -> SimplifyT m SNinja
 simplify' ninjaIR = MkSNinja <$> simpleBuilds <*> simpleDefaults
@@ -356,7 +361,7 @@ sninjaToJSON (sn@(MkSNinja {..})) = [ "graph" .= builds, "defaults" .= defaults
 main :: IO ()
 main = do
   [file] <- getArgs
-  parsed <- Ninja.parse file
+  parsed <- parseIO file
   let sninja = compileNinja parsed
   let value = sninjaToJSON sninja
   LBSC8.putStrLn (encodePretty value)

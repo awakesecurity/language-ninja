@@ -77,6 +77,8 @@ library
                         , Language.Ninja.Errors
                         , Language.Ninja.Errors.Compile
                         , Language.Ninja.Errors.Parse
+                        , Language.Ninja.Mock
+                        , Language.Ninja.Mock.ReadFile
                         , Language.Ninja.Misc
                         , Language.Ninja.Misc.Command
                         , Language.Ninja.Misc.IText

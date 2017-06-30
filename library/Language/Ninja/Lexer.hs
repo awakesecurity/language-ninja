@@ -56,12 +56,15 @@
 --
 --   Lexing is a slow point, the code below is optimised.
 module Language.Ninja.Lexer
-  ( Lexeme (..)
+  ( -- * Lexing
+    lexerFile, lexerText, lexerBS
+
+    -- * Types
+  , Lexeme (..)
   , LName  (..)
   , LFile  (..)
   , LBind  (..)
   , LBuild (..)
-  , lexerFile, lexer
   ) where
 
 import qualified Control.Exception
@@ -75,8 +78,8 @@ import qualified Data.ByteString.Lazy         as LBS
 import qualified Data.ByteString.Lazy.Char8   as LBSC8
 
 import           Data.Text                    (Text)
-import qualified Data.Text                    as T
-import qualified Data.Text.Encoding           as T
+import qualified Data.Text                    as Text
+import qualified Data.Text.Encoding           as Text
 
 import           Data.Char
                  (isAsciiLower, isAsciiUpper, isDigit)
@@ -96,6 +99,9 @@ import qualified Language.Ninja.AST           as AST
 import qualified Language.Ninja.Errors        as Errors
 
 import qualified Language.Ninja.Misc.Located  as Loc
+import           Language.Ninja.Misc.Path     (Path)
+
+import qualified Language.Ninja.Mock.ReadFile as MRF
 
 import           Language.Ninja.Internal.Str0 (Str0 (..))
 import qualified Language.Ninja.Internal.Str0 as Str0
@@ -194,16 +200,17 @@ instance NFData LBuild
 --------------------------------------------------------------------------------
 
 -- | Lex the given file.
-lexerFile :: FilePath -> IO [Lexeme]
-lexerFile file = do
-  bytes <- BSC8.readFile file
-  case lexer bytes of
-    Left  exception -> Control.Exception.throwIO exception
-    Right lexemes   -> pure lexemes
+lexerFile :: (MonadError Errors.ParseError m, MRF.MonadReadFile m)
+          => Path -> m [Lexeme]
+lexerFile file = MRF.readFile file >>= lexerText
+
+-- | Lex the given 'Text'.
+lexerText :: (MonadError Errors.ParseError m) => Text -> m [Lexeme]
+lexerText = Text.encodeUtf8 .> lexerBS
 
 -- | Lex the given 'BSC8.ByteString'.
-lexer :: (MonadError Errors.ParseError m) => Str -> m [Lexeme]
-lexer x = lexerLoop (MkStr0 (BSC8.append x "\n\n\0"))
+lexerBS :: (MonadError Errors.ParseError m) => BSC8.ByteString -> m [Lexeme]
+lexerBS x = lexerLoop (MkStr0 (BSC8.append x "\n\n\0"))
 
 --------------------------------------------------------------------------------
 
@@ -272,7 +279,7 @@ lexxBind ctor x0 = do
   x4         <- lexerLoop x3
   if (eq == '=')
     then pure (ctor (MkLBind (MkLName var) expr) : x4)
-    else Errors.throwLexBindingFailure (T.pack (show (Str0.take0 100 x0)))
+    else Errors.throwLexBindingFailure (Text.pack (show (Str0.take0 100 x0)))
 
 lexxFile :: (MonadError Errors.ParseError m)
          => (LFile -> Lexeme) -> Str0 -> m [Lexeme]
@@ -336,7 +343,7 @@ lexxExpr stopColon stopSpace str0 = first exprs <$> f str0
     f (Str0.break00 special -> (a, x))
       = if BSC8.null a
         then g x
-        else g x >>= \y -> pure (AST.Lit (T.decodeUtf8 a) $: y)
+        else g x >>= \y -> pure (AST.Lit (Text.decodeUtf8 a) $: y)
 
     g :: MonadError Errors.ParseError m => Str0 -> m ([AST.Expr], Str0)
     g x0 | (Str0.head0 x0 /= '$') = pure ([], x0)
@@ -351,10 +358,10 @@ lexxExpr stopColon stopSpace str0 = first exprs <$> f str0
            '{' | (name, x1) <- Str0.span0 isVarDot x0
                , ('}',  x2) <- Str0.list0 x1
                , not (BSC8.null name)
-                 -> f x2 >>= (AST.Var (T.decodeUtf8 name) $:) .> pure
+                 -> f x2 >>= (AST.Var (Text.decodeUtf8 name) $:) .> pure
            _   | (name, x1) <- Str0.span0 isVar c_x
                , not $ BSC8.null name
-                 -> f x1 >>= (AST.Var (T.decodeUtf8 name) $:) .> pure
+                 -> f x1 >>= (AST.Var (Text.decodeUtf8 name) $:) .> pure
            _     -> Errors.throwLexUnexpectedDollar
 
     ($:) :: a -> ([a], b) -> ([a], b)
