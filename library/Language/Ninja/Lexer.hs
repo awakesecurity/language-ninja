@@ -57,9 +57,9 @@
 --   Lexing is a slow point, the code below is optimised.
 module Language.Ninja.Lexer
   ( Lexeme (..)
-  , LName (..)
-  , LFile (..)
-  , LBinding (..)
+  , LName  (..)
+  , LFile  (..)
+  , LBind  (..)
   , LBuild (..)
   , lexerFile, lexer
   ) where
@@ -105,9 +105,9 @@ import qualified Language.Ninja.Internal.Str0 as Str0
 -- | Lex each line separately, rather than each lexeme.
 data Lexeme
   = -- | @foo = bar@
-    LexDefine   !LBinding
+    LexDefine   !LBind
   | -- | @[indent]foo = bar@
-    LexBind     !LBinding
+    LexBind     !LBind
   | -- | @include file@
     LexInclude  !LFile
   | -- | @subninja file@
@@ -161,18 +161,18 @@ instance NFData LFile
 --------------------------------------------------------------------------------
 
 -- | A Ninja variable binding, top-level or otherwise.
-data LBinding
-  = MkLBinding
-    { _lbindingName  :: !LName
-    , _lbindingValue :: !AST.Expr
+data LBind
+  = MkLBind
+    { _lbindName  :: !LName
+    , _lbindValue :: !AST.Expr
     }
   deriving (Eq, Show, Generic)
 
 -- | Default 'Hashable' instance via 'Generic'.
-instance Hashable LBinding
+instance Hashable LBind
 
 -- | Default 'NFData' instance via 'Generic'.
-instance NFData LBinding
+instance NFData LBind
 
 --------------------------------------------------------------------------------
 
@@ -264,14 +264,14 @@ lexSubninja = lexxFile LexSubninja
 lexDefine   = lexxBind LexDefine
 
 lexxBind :: (MonadError Errors.ParseError m)
-         => (LBinding -> Lexeme) -> Str0 -> m [Lexeme]
+         => (LBind -> Lexeme) -> Str0 -> m [Lexeme]
 lexxBind ctor x0 = do
   let (var,  x1) = Str0.span0 isVarDot x0
   let (eq,   x2) = Str0.list0 $ dropSpace x1
   (expr, x3) <- lexxExpr False False $ dropSpace x2
   x4         <- lexerLoop x3
   if (eq == '=')
-    then pure (ctor (MkLBinding (MkLName var) expr) : x4)
+    then pure (ctor (MkLBind (MkLName var) expr) : x4)
     else Errors.throwLexBindingFailure (T.pack (show (Str0.take0 100 x0)))
 
 lexxFile :: (MonadError Errors.ParseError m)

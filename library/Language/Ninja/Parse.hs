@@ -78,8 +78,8 @@ import qualified Data.HashSet          as HS
 
 import qualified Language.Ninja.AST    as AST
 import           Language.Ninja.Lexer
-                 (LBinding (..), LBuild (..), LFile (..), LName (..),
-                 Lexeme (..), lexer)
+                 (LBind (..), LBuild (..), LFile (..), LName (..), Lexeme (..),
+                 lexer)
 
 import           Flow                  ((.>), (|>))
 
@@ -133,7 +133,7 @@ withBinds = go
     go (x:xs) = let (a, b) = f xs
                 in (x, a) : withBinds b
 
-    f (LexBind binding : rest) = let MkLBinding (MkLName a) b = binding
+    f (LexBind binding : rest) = let MkLBind (MkLName a) b = binding
                                      (as, bs) = f rest
                                  in ((T.decodeUtf8 a, b) : as, bs)
     f xs                       = ([], xs)
@@ -149,8 +149,8 @@ applyStmt lexeme binds (ninja, env)
        (LexPool         lname) -> applyPool     lname
        (LexInclude      lfile) -> applyInclude  lfile
        (LexSubninja     lfile) -> applySubninja lfile
-       (LexDefine    lbinding) -> applyDefine   lbinding
-       (LexBind      lbinding) -> (\_ _ -> throwUnexpectedBinding lbinding))
+       (LexDefine       lbind) -> applyDefine   lbind
+       (LexBind         lbind) -> (\_ _ -> throwUnexpectedBinding lbind))
     |> (\f -> f binds (ninja, env))
 
 applyBuild :: LBuild -> ApplyFun
@@ -201,14 +201,14 @@ applySubninja (MkLFile expr) _ (ninja, env) = do
   let file = AST.askExpr env expr
   parseFile (T.unpack file) (ninja, AST.scopeEnv env)
 
-applyDefine :: LBinding -> ApplyFun
-applyDefine (MkLBinding (MkLName var) value) _ (ninja, env) = do
+applyDefine :: LBind -> ApplyFun
+applyDefine (MkLBind (MkLName var) value) _ (ninja, env) = do
   pure (ninja, AST.addBind (T.decodeUtf8 var) value env)
 
 -- FIXME: use MonadError instead of IO
 
-throwUnexpectedBinding :: LBinding -> IO a
-throwUnexpectedBinding (MkLBinding (MkLName var) _)
+throwUnexpectedBinding :: LBind -> IO a
+throwUnexpectedBinding (MkLBind (MkLName var) _)
   = [ "Unexpected binding defining ", var
     ] |> mconcat |> BSC8.unpack |> fail
 
