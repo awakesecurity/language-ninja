@@ -49,15 +49,14 @@ import           Control.Exception
 import           Control.Monad.Error.Class
 import           Control.Monad.Except
 
-import           Data.HashMap.Strict         (HashMap)
-import qualified Data.HashMap.Strict         as HM
+import           Data.HashMap.Strict       (HashMap)
+import qualified Data.HashMap.Strict       as HM
 
-import           Data.HashSet                (HashSet)
-import qualified Data.HashSet                as HS
+import           Data.HashSet              (HashSet)
+import qualified Data.HashSet              as HS
 
-import qualified Language.Ninja.IR           as IR
-import           Language.Ninja.IR.Target    (Target)
-import           Language.Ninja.Misc.Command (Command)
+import qualified Language.Ninja.IR         as IR
+import qualified Language.Ninja.Misc       as Misc
 
 import           Flow
 
@@ -68,58 +67,58 @@ import           NinjaToNix.Misc.Supply
 -- | A simplified build graph.
 data SNinja
   = MkSNinja
-    { _snBuilds   :: !(HashMap Target SBuild)
-    , _snDefaults :: !(HashSet Target)
+    { _snBuilds   :: !(HashMap IR.Target SBuild)
+    , _snDefaults :: !(HashSet IR.Target)
     }
   deriving (Eq, Show)
 
 -- | Look up the unique build rule that outputs the given target.
-lookupBuild :: SNinja -> Target -> Maybe SBuild
+lookupBuild :: SNinja -> IR.Target -> Maybe SBuild
 lookupBuild (MkSNinja builds _) target = HM.lookup target builds
 
 -- | Compute the set of all targets that are an output of a rule.
-allOutputs :: SNinja -> HashSet Target
+allOutputs :: SNinja -> HashSet IR.Target
 allOutputs (MkSNinja builds _) = HS.fromList (HM.keys builds)
 
 -- | Compute the set of all targets that are a dependency to a rule.
-allInputs :: SNinja -> HashSet Target
+allInputs :: SNinja -> HashSet IR.Target
 allInputs (MkSNinja builds _) = HM.toList builds
                                 |> map (snd .> _sbuildDeps)
                                 |> mconcat
 
 -- | Compute the set of all targets referenced in the build graph.
-allTargets :: SNinja -> HashSet Target
+allTargets :: SNinja -> HashSet IR.Target
 allTargets (sn@(MkSNinja _ defs)) = defs <> allOutputs sn <> allInputs sn
 
 -- | Compute the set of all commands that can be run during a build.
-allCommands :: SNinja -> HashSet Command
+allCommands :: SNinja -> HashSet Misc.Command
 allCommands (MkSNinja builds _) = HM.toList builds
                                   |> mapMaybe (snd .> _sbuildCommand)
                                   |> HS.fromList
 
 -- | Compute the set of targets that have no dependencies.
-leafTargets :: SNinja -> HashSet Target
+leafTargets :: SNinja -> HashSet IR.Target
 leafTargets (sn@(MkSNinja builds _)) = HS.difference (allTargets sn) outputs
   where
-    outputs :: HashSet Target
+    outputs :: HashSet IR.Target
     outputs = HS.fromList $ HM.keys builds
 
 -- | Compute the set of targets that the given target depends on.
-targetReferences :: SNinja -> Target -> HashSet Target
+targetReferences :: SNinja -> IR.Target -> HashSet IR.Target
 targetReferences sninja target = case lookupBuild sninja target of
                                    Just (MkSBuild _ deps) -> deps
                                    Nothing                -> HS.empty
 
 -- | Compute the set of targets that depend on the given target.
-targetReferrers :: SNinja -> Target -> HashSet Target
+targetReferrers :: SNinja -> IR.Target -> HashSet IR.Target
 targetReferrers = undefined -- FIXME
 
 --------------------------------------------------------------------------------
 
 data SBuild
   = MkSBuild
-    { _sbuildCommand :: Maybe Command
-    , _sbuildDeps    :: HashSet Target
+    { _sbuildCommand :: Maybe Misc.Command
+    , _sbuildDeps    :: HashSet IR.Target
     }
   deriving (Eq, Show)
 
@@ -127,7 +126,7 @@ data SBuild
 
 data SimplifyError
   = UnhandledOutputType   !IR.OutputType
-  | UnhandledDepfile      !IR.Path
+  | UnhandledDepfile      !Misc.Path
   | UnhandledSpecialDeps  !IR.SpecialDeps
   | UnhandledGenerator
   | UnhandledRestat
@@ -142,7 +141,7 @@ throwSimplifyError = throwError
 throwUnhandledOutputType :: (MonadError SimplifyError m) => IR.OutputType -> m a
 throwUnhandledOutputType ty = throwSimplifyError (UnhandledOutputType ty)
 
-throwUnhandledDepfile :: (MonadError SimplifyError m) => IR.Path -> m a
+throwUnhandledDepfile :: (MonadError SimplifyError m) => Misc.Path -> m a
 throwUnhandledDepfile path = throwSimplifyError (UnhandledDepfile path)
 
 throwUnhandledSpecialDeps :: (MonadError SimplifyError m)
@@ -162,8 +161,8 @@ throwUnhandledResponseFile rsp = throwSimplifyError (UnhandledResponseFile rsp)
 --------------------------------------------------------------------------------
 
 newtype SimplifyT m a
-  = SimplifyT { fromSimplifyT :: SupplyT Target (ExceptT SimplifyError m) a }
-  deriving (Functor, Applicative, Monad, MonadSupply Target)
+  = SimplifyT { fromSimplifyT :: SupplyT IR.Target (ExceptT SimplifyError m) a }
+  deriving (Functor, Applicative, Monad, MonadSupply IR.Target)
 
 instance (Monad m) => MonadError SimplifyError (SimplifyT m) where
   throwError = throwError .> SimplifyT
@@ -175,7 +174,7 @@ instance MonadTrans SimplifyT where
   lift = lift .> lift .> SimplifyT
 
 runSimplifyT :: (MonadError SimplifyError m, MonadIO m)
-             => SimplifyT m a -> (Int -> Target) -> m a
+             => SimplifyT m a -> (Int -> IR.Target) -> m a
 runSimplifyT (SimplifyT action) convert = do
   out <- runExceptT (execSupplyT action convert)
   case out of

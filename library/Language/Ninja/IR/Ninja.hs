@@ -43,6 +43,7 @@ module Language.Ninja.IR.Ninja
   ( -- * @Ninja@
     Ninja, makeNinja
   , ninjaMeta, ninjaBuilds, ninjaPhonys, ninjaDefaults, ninjaPools
+  , NinjaConstraint
   ) where
 
 import           Language.Ninja.IR.Build  (Build)

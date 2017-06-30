@@ -40,53 +40,53 @@ module Language.Ninja.Compile
   ( compile
   ) where
 
-import           Control.Applicative          ((<|>))
-import           Control.Arrow                (first)
+import           Control.Applicative        ((<|>))
+import           Control.Arrow              (first)
 
-import           Control.Lens.Getter          (view, (^.))
-import           Control.Lens.Setter          (set, (.~))
+import           Control.Lens.Getter        (view, (^.))
+import           Control.Lens.Setter        (set, (.~))
 
-import           Control.Exception            (Exception)
-import           Control.Monad.Error.Class    (MonadError (..))
+import           Control.Exception          (Exception)
+import           Control.Monad.Error.Class  (MonadError (..))
 
-import           Data.Char                    (isSpace)
-import           Data.Functor                 (void)
-import           Data.Maybe                   (fromMaybe, isJust)
-import           Data.Monoid                  (Endo (..), (<>))
+import           Data.Char                  (isSpace)
+import           Data.Functor               (void)
+import           Data.Maybe                 (fromMaybe, isJust)
+import           Data.Monoid                (Endo (..), (<>))
 
-import qualified Data.Aeson                   as Aeson
-import qualified Data.Aeson.Encode.Pretty     as Aeson
-import qualified Data.Aeson.Types             as Aeson
+import qualified Data.Aeson                 as Aeson
+import qualified Data.Aeson.Encode.Pretty   as Aeson
+import qualified Data.Aeson.Types           as Aeson
 
-import           Data.ByteString              (ByteString)
-import qualified Data.ByteString              as BS
-import qualified Data.ByteString.Char8        as BSC8
+import           Data.ByteString            (ByteString)
+import qualified Data.ByteString            as BS
+import qualified Data.ByteString.Char8      as BSC8
 
-import qualified Data.ByteString.Lazy         as LBS
-import qualified Data.ByteString.Lazy.Char8   as LBSC8
+import qualified Data.ByteString.Lazy       as LBS
+import qualified Data.ByteString.Lazy.Char8 as LBSC8
 
-import           Data.Text                    (Text)
-import qualified Data.Text                    as T
-import qualified Data.Text.Encoding           as T
+import           Data.Text                  (Text)
+import qualified Data.Text                  as T
+import qualified Data.Text.Encoding         as T
 
-import           Data.HashMap.Strict          (HashMap)
-import qualified Data.HashMap.Strict          as HM
+import           Data.HashMap.Strict        (HashMap)
+import qualified Data.HashMap.Strict        as HM
 
-import           Data.HashSet                 (HashSet)
-import qualified Data.HashSet                 as HS
+import           Data.HashSet               (HashSet)
+import qualified Data.HashSet               as HS
 
-import           Flow                         ((.>), (|>))
+import           Flow                       ((.>), (|>))
 
-import           Data.Hashable                (Hashable)
-import           GHC.Generics                 (Generic)
+import           Data.Hashable              (Hashable)
+import           GHC.Generics               (Generic)
 
-import qualified Data.Versions                as Ver
+import qualified Data.Versions              as Ver
 
-import qualified Language.Ninja.AST           as AST
-import qualified Language.Ninja.Errors        as Errors
-import qualified Language.Ninja.IR            as IR
-import qualified Language.Ninja.Misc.Positive as Ninja
-import qualified Language.Ninja.Parse         as Ninja
+import qualified Language.Ninja.AST         as AST
+import qualified Language.Ninja.Errors      as Errors
+import qualified Language.Ninja.IR          as IR
+import qualified Language.Ninja.Misc        as Misc
+import qualified Language.Ninja.Parse       as Parse
 
 -------------------------------------------------------------------------------
 
@@ -124,7 +124,7 @@ compile ast = result
                     |> fmap parseVersion
                     |> sequenceA
       builddir   <- getSpecial "builddir"
-                    |> fmap IR.makePath
+                    |> fmap Misc.makePath
                     |> pure
 
       IR.makeMeta
@@ -180,7 +180,7 @@ compile ast = result
       ("console", 1) -> pure IR.makePoolConsole
       ("console", d) -> Errors.throwInvalidPoolDepth d
       ("",        _) -> Errors.throwEmptyPoolName
-      (name,      d) -> do dp <- Ninja.makePositive d
+      (name,      d) -> do dp <- Misc.makePositive d
                                  |> maybe (Errors.throwInvalidPoolDepth d) pure
                            pure (IR.makePoolCustom name dp)
 
@@ -207,7 +207,7 @@ compile ast = result
                          |> IR.parsePoolName
                          |> pure
       depfile      <- lookupBind "depfile"
-                      |> fmap (fmap IR.makePath)
+                      |> fmap (fmap Misc.makePath)
       specialDeps  <- let lookupPrefix = lookupBind "msvc_deps_prefix"
                       in ((,) <$> lookupBind "deps" <*> lookupPrefix)
                          >>= compileSpecialDeps
@@ -244,7 +244,7 @@ compile ast = result
 
     compileResponseFile :: (Text, Text) -> m IR.ResponseFile
     compileResponseFile (file, content) = do
-      let path = IR.makePath file
+      let path = Misc.makePath file
       pure (IR.makeResponseFile path content)
 
     compileTarget :: Text -> m IR.Target
@@ -260,8 +260,8 @@ compile ast = result
       target <- compileTarget name
       pure (IR.makeDependency target ty)
 
-    compileCommand :: Text -> m IR.Command
-    compileCommand = IR.makeCommand .> pure
+    compileCommand :: Text -> m Misc.Command
+    compileCommand = Misc.makeCommand .> pure
 
     lookupRule :: AST.Build -> m (Text, AST.Rule)
     lookupRule buildAST = do

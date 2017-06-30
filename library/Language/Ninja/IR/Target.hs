@@ -41,10 +41,12 @@
 module Language.Ninja.IR.Target
   ( -- * @Target@
     Target, makeTarget, targetIText, targetText
+
     -- * @Output@
   , Output, makeOutput, outputTarget, outputType
   , OutputType (..)
   , _ExplicitOutput, _ImplicitOutput
+
     -- * @Dependency@
   , Dependency, makeDependency, dependencyTarget, dependencyType
   , DependencyType (..)
