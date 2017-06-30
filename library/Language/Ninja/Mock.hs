@@ -32,4 +32,4 @@ module Language.Ninja.Mock
   ( module Language.Ninja.Mock.ReadFile -- FIXME: specific export list
   ) where
 
-import qualified Language.Ninja.Mock.ReadFile
+import           Language.Ninja.Mock.ReadFile
