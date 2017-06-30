@@ -36,7 +36,7 @@
 --   It also defines the 'NinjaError' type.
 module Language.Ninja.Errors
   ( module Language.Ninja.Errors.Compile
-  , module Language.Ninja.Errors.Parse
+  , module Language.Ninja.Errors.Parser
   , NinjaError (..)
   , throwNinjaError
   , throwGenericNinjaError
@@ -45,7 +45,7 @@ module Language.Ninja.Errors
   ) where
 
 import           Language.Ninja.Errors.Compile
-import           Language.Ninja.Errors.Parse
+import           Language.Ninja.Errors.Parser
 
 import           Control.Exception             (Exception)
 import           Control.Monad.Error.Class     (MonadError (..))

@@ -29,16 +29,16 @@
 --
 --   Tools for parsing, pretty-printing, and compiling the Ninja build language.
 --
---   The module re-exports most of the modules under the @Language.Ninja@
+--   The module re-exports some of the modules under the @Language.Ninja@
 --   namespace.
 module Language.Ninja
   ( module Language.Ninja.Lexer
-  , module Language.Ninja.Parse
+  , module Language.Ninja.Parser
   , module Language.Ninja.Pretty
   , module Language.Ninja.Shake
   ) where
 
 import           Language.Ninja.Lexer
-import           Language.Ninja.Parse
+import           Language.Ninja.Parser
 import           Language.Ninja.Pretty
 import           Language.Ninja.Shake

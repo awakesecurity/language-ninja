@@ -86,7 +86,7 @@ import qualified Language.Ninja.AST         as AST
 import qualified Language.Ninja.Errors      as Errors
 import qualified Language.Ninja.IR          as IR
 import qualified Language.Ninja.Misc        as Misc
-import qualified Language.Ninja.Parse       as Parse
+import qualified Language.Ninja.Parser      as Parser
 
 -------------------------------------------------------------------------------
 

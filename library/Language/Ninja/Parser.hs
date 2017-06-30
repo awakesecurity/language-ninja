@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/Parse.hs
+-- File: library/Language/Ninja/Parser.hs
 --
 -- License:
 --     Copyright Neil Mitchell 2011-2017.
@@ -47,17 +47,15 @@
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE TupleSections         #-}
 
--- FIXME: either rename Parse => Parser or rename Lexer => Lex for consistency
-
 -- |
---   Module      : Language.Ninja.Parse
+--   Module      : Language.Ninja.Parser
 --   Copyright   : Copyright 2011-2017 Neil Mitchell
 --   License     : BSD3
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
 --   Parse a Ninja file.
-module Language.Ninja.Parse
+module Language.Ninja.Parser
   ( -- * @parse*IO@
     parseFileIO
   , parseTextIO

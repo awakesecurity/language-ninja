@@ -61,7 +61,7 @@ import qualified Language.Ninja.IR         as IR
 import qualified Language.Ninja.Lexer      as Lexer
 import qualified Language.Ninja.Misc       as Misc
 import qualified Language.Ninja.Mock       as Mock
-import qualified Language.Ninja.Parse      as Parse
+import qualified Language.Ninja.Parser     as Parser
 import qualified Language.Ninja.Pretty     as Pretty
 
 import           Data.Either               (either)
@@ -98,7 +98,7 @@ import           Data.Versions             (Version)
 -- import qualified "Language.Ninja.Misc"       as Misc
 -- import qualified "Language.Ninja.Mock"       as Mock
 -- import qualified "Language.Ninja.Lexer"      as Lexer
--- import qualified "Language.Ninja.Parse"      as Parse
+-- import qualified "Language.Ninja.Parser"     as Parser
 -- import qualified "Language.Ninja.Pretty"     as Pretty
 -- import qualified "Language.Ninja.Compile"    as Compile
 -- @
@@ -136,7 +136,7 @@ import           Data.Versions             (Version)
 -- To parse a Ninja file, we use the "Language.Ninja.Parse" module.
 -- In the simplest case, this amounts to parsing a file:
 --
--- @ast <- (Parse.'Parse.parseFileIO' "./build.ninja") :: IO AST.'AST.Ninja'@
+-- @ast <- (Parser.'Parser.parseFileIO' "./build.ninja") :: IO AST.'AST.Ninja'@
 --
 -- For more specialized use cases, consult the module documentation.
 --
@@ -343,7 +343,7 @@ import           Data.Versions             (Version)
 --
 -- @
 -- let pretty = Pretty.'Pretty.prettyNinja'
--- let parse  = Parse.'Parse.parse'
+-- let parse  = Parser.'Parser.parse'
 -- @
 --
 -- then @pretty >=> parse >=> pretty >=> parse@ should be the same as @pure@,

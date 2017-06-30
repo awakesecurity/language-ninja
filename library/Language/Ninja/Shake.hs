@@ -74,7 +74,7 @@ import qualified Development.Shake.Util     as Shake (parseMakefile)
 
 import qualified Language.Ninja.AST         as AST
 import qualified Language.Ninja.Misc        as Misc
-import qualified Language.Ninja.Parse       as Parse
+import qualified Language.Ninja.Parser      as Parser
 
 import           Control.Exception          (throwIO)
 import           Control.Exception.Extra    (errorIO, ignore)
@@ -122,7 +122,7 @@ data NinjaOptions
 
 parseNinjaOptions :: FilePath -> [String] -> Maybe String -> IO NinjaOptions
 parseNinjaOptions file (map Text.pack -> args) tool = do
-  ninja <- runExceptT (Parse.parseFile (Misc.makePath (Text.pack file)))
+  ninja <- runExceptT (Parser.parseFile (Misc.makePath (Text.pack file)))
            >>= either throwIO pure
   pure $ case tool of
     Nothing         -> NinjaOptionsBuild  ninja args

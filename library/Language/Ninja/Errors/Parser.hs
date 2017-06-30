@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/Errors/Parse.hs
+-- File: library/Language/Ninja/Errors/Parser.hs
 --
 -- License:
 --     Copyright 2017 Awake Security
@@ -28,14 +28,14 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 
 -- |
---   Module      : Language.Ninja.Errors.Parse
+--   Module      : Language.Ninja.Errors.Parser
 --   Copyright   : Copyright 2017 Awake Security
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
 --   Errors thrown during Ninja parsing.
-module Language.Ninja.Errors.Parse
+module Language.Ninja.Errors.Parser
   ( -- * @ParseError@
     ParseError (..)
   , throwParseError, throwGenericParseError

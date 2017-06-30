@@ -68,7 +68,7 @@ import qualified Language.Ninja.AST         as AST
 import qualified Language.Ninja.Compile     as Compile
 import qualified Language.Ninja.IR          as IR
 import qualified Language.Ninja.Misc        as Misc
-import qualified Language.Ninja.Parse       as Parse
+import qualified Language.Ninja.Parser      as Parser
 import qualified Language.Ninja.Pretty      as Pretty
 
 import qualified Test.Tasty                 as T
@@ -137,7 +137,7 @@ parseTestNinja name = do
   old <- Turtle.pwd
   Turtle.cd (FP.decodeString dataPrefix)
   let file = (FP.decodeString (name <> ".ninja")) ^. Lens.from Misc.pathFP
-  result <- Parse.parseFileIO file
+  result <- Parser.parseFileIO file
   Turtle.cd old
   pure result
 
@@ -149,7 +149,7 @@ roundtripTest ninja = do
     let prettyInput = Pretty.prettyNinja ninja
     let tmpfile = tmpdir </> "generated.ninja"
     Turtle.writeTextFile tmpfile prettyInput
-    output <- Parse.parseFileIO (tmpfile ^. Lens.from Misc.pathFP)
+    output <- Parser.parseFileIO (tmpfile ^. Lens.from Misc.pathFP)
     let prettyOutput = Pretty.prettyNinja output
     pure (prettyInput, prettyOutput)
 

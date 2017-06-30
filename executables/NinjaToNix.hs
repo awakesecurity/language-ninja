@@ -78,15 +78,14 @@ import qualified Data.HashSet                as HS
 
 import           Data.Hashable               (Hashable)
 
-import qualified Language.Ninja.Compile      as Ninja
-import qualified Language.Ninja.Parse        as Ninja
-
 import           Language.Ninja.IR.Target    (Target, makeTarget)
 import           Language.Ninja.Misc.Command (Command, makeCommand)
 
 import qualified Language.Ninja.AST          as AST
+import qualified Language.Ninja.Compile      as Compile
 import qualified Language.Ninja.IR           as IR
 import qualified Language.Ninja.Misc         as Misc
+import qualified Language.Ninja.Parser       as Parser
 
 import           Data.Aeson                  as Aeson
 import           Data.Aeson.Encode.Pretty    as Aeson
@@ -115,14 +114,14 @@ handleMonadError :: (Exception e) => (forall m. (MonadError e m) => m a) -> IO a
 handleMonadError m = either (show .> fail) pure m
 
 compileToIR :: AST.Ninja -> IO IR.Ninja
-compileToIR ast = handleMonadError (Ninja.compile ast)
+compileToIR ast = handleMonadError (Compile.compile ast)
 
 --------------------------------------------------------------------------------
 
 parseIO :: (MonadIO m) => FilePath -> m AST.Ninja
 parseIO fp = liftIO $ do
   let path = Misc.makePath (Text.pack fp)
-  runExceptT (Ninja.parseFile path) >>= either throwIO pure
+  runExceptT (Parser.parseFile path) >>= either throwIO pure
 
 whenJust :: (Monad m) => Maybe a -> (a -> m ()) -> m ()
 whenJust x f = maybe (pure ()) f x

@@ -56,7 +56,7 @@ library
     exposed-modules:      Language.Ninja
                         , Language.Ninja.Compile
                         , Language.Ninja.Lexer
-                        , Language.Ninja.Parse
+                        , Language.Ninja.Parser
                         , Language.Ninja.Pretty
                         , Language.Ninja.Shake
                         , Language.Ninja.Tutorial
@@ -76,7 +76,7 @@ library
                         , Language.Ninja.IR.Target
                         , Language.Ninja.Errors
                         , Language.Ninja.Errors.Compile
-                        , Language.Ninja.Errors.Parse
+                        , Language.Ninja.Errors.Parser
                         , Language.Ninja.Mock
                         , Language.Ninja.Mock.ReadFile
                         , Language.Ninja.Misc
