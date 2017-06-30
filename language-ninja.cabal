@@ -77,6 +77,7 @@ library
                         , Language.Ninja.Errors
                         , Language.Ninja.Errors.Compile
                         , Language.Ninja.Errors.Parse
+                        , Language.Ninja.Misc
                         , Language.Ninja.Misc.Command
                         , Language.Ninja.Misc.IText
                         , Language.Ninja.Misc.Located
