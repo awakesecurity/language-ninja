@@ -39,18 +39,19 @@ module Tests.Orphans
   ( -- No exports other than instances.
   ) where
 
-import           Data.Hashable          (Hashable)
+import           Data.Hashable             (Hashable)
 
-import qualified Data.HashMap.Strict    as HM
-import qualified Data.HashSet           as HS
-import qualified Data.List.NonEmpty     as NE
-import qualified Data.Text              as T
-import qualified Data.Versions          as V
+import qualified Data.HashMap.Strict       as HM
+import qualified Data.HashSet              as HS
+import qualified Data.List.NonEmpty        as NE
+import qualified Data.Text                 as T
+import qualified Data.Versions             as V
+import qualified Filesystem.Path.CurrentOS as FP
 
-import           Test.SmallCheck.Series ((<~>), (>>-), (\/))
-import qualified Test.SmallCheck.Series as SC
+import           Test.SmallCheck.Series    ((<~>), (>>-), (\/))
+import qualified Test.SmallCheck.Series    as SC
 
-import           Flow                   ((.>), (|>))
+import           Flow                      ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
@@ -97,6 +98,14 @@ instance (Monad m) => SC.CoSerial m T.Text where
 
 --------------------------------------------------------------------------------
 
+instance (Monad m) => SC.Serial m FP.FilePath where
+  series = foldr1 (\/) (map pure testFP)
+
+instance (Monad m) => SC.CoSerial m FP.FilePath where
+  coseries = SC.coseries .> (fmap (\f -> FP.encodeString .> T.pack .> f))
+
+--------------------------------------------------------------------------------
+
 instance (Monad m) => SC.Serial m V.Version where
   series = foldr1 (\/) (map pure testVersions)
 
@@ -113,6 +122,9 @@ instance (Monad m) => SC.CoSerial m V.VUnit where
 
 testText :: [T.Text]
 testText = ["", "foo", "42", " "]
+
+testFP :: [FP.FilePath]
+testFP = ["/foo/bar", ".", "..", "foo", "foo/", "/foo/", "/foo//bar"]
 
 testVersions :: [V.Version]
 testVersions = [ "0.1.0"

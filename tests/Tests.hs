@@ -41,78 +41,76 @@ import           Data.Either
 import           Data.Maybe
 import           Data.Monoid
 
-import           Data.ByteString             (ByteString)
-import qualified Data.ByteString             as BS
+import           Data.ByteString            (ByteString)
+import qualified Data.ByteString            as BS
 
-import qualified Data.ByteString.Lazy        as LBS
-import qualified Data.ByteString.Lazy.Char8  as LBSC8
+import qualified Data.ByteString.Lazy       as LBS
+import qualified Data.ByteString.Lazy.Char8 as LBSC8
 
-import           Data.Text                   (Text)
-import qualified Data.Text                   as Text
-import qualified Data.Text.Encoding          as Text
-import qualified Data.Text.IO                as Text
+import           Data.Text                  (Text)
+import qualified Data.Text                  as Text
+import qualified Data.Text.Encoding         as Text
+import qualified Data.Text.IO               as Text
 
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.Error.Class
-import           Control.Monad.Identity      (Identity)
+import           Control.Monad.Identity     (Identity)
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Except
 
-import qualified Control.Lens                as Lens
+import           Control.Lens               ((^.))
+import qualified Control.Lens               as Lens
 
-import qualified Language.Ninja.Compile      as Ninja
-import qualified Language.Ninja.Misc.Command as Ninja
-import qualified Language.Ninja.Misc.IText   as Ninja
-import qualified Language.Ninja.Misc.Path    as Ninja
-import qualified Language.Ninja.Parse        as Ninja
-import qualified Language.Ninja.Pretty       as Ninja
+import qualified Language.Ninja.Compile     as Ninja
+import qualified Language.Ninja.Parse       as Ninja
+import qualified Language.Ninja.Pretty      as Ninja
 
-import qualified Language.Ninja.AST          as AST
-import qualified Language.Ninja.AST.Env      as AST (Maps)
+import qualified Language.Ninja.AST         as AST
+import qualified Language.Ninja.AST.Env     as AST (Maps)
 
-import qualified Language.Ninja.IR           as IR
+import qualified Language.Ninja.IR          as IR
 
-import qualified Language.Ninja.Misc         as Misc
+import qualified Language.Ninja.Misc        as Misc
 
-import qualified Test.Tasty                  as T
-import qualified Test.Tasty.Golden           as T
-import qualified Test.Tasty.HUnit            as T
-import qualified Test.Tasty.Ingredients      as T
-import qualified Test.Tasty.Options          as T
-import qualified Test.Tasty.Runners.Html     as T
-import qualified Test.Tasty.SmallCheck       as T
+import qualified Test.Tasty                 as T
+import qualified Test.Tasty.Golden          as T
+import qualified Test.Tasty.HUnit           as T
+import qualified Test.Tasty.Ingredients     as T
+import qualified Test.Tasty.Options         as T
+import qualified Test.Tasty.Runners.Html    as T
+import qualified Test.Tasty.SmallCheck      as T
 
-import qualified Test.Tasty.Lens.Iso         as T.Iso
-import qualified Test.Tasty.Lens.Lens        as T.Lens
-import qualified Test.Tasty.Lens.Prism       as T.Prism
+import qualified Test.Tasty.Lens.Iso        as T.Iso
+import qualified Test.Tasty.Lens.Lens       as T.Lens
+import qualified Test.Tasty.Lens.Prism      as T.Prism
 
-import qualified Test.SmallCheck.Series      as SC
+import qualified Test.SmallCheck.Series     as SC
 
-import qualified Data.Versions               as Ver
+import qualified Data.Versions              as Ver
 
-import           Filesystem.Path.CurrentOS   ((</>))
-import qualified Filesystem.Path.CurrentOS   as FP
+import           Filesystem.Path.CurrentOS  ((</>))
+import qualified Filesystem.Path.CurrentOS  as FP
 
-import qualified Data.Aeson                  as Aeson
-import qualified Data.Aeson.Diff             as Aeson
-import qualified Data.Aeson.Encode.Pretty    as Aeson
+import qualified Data.Aeson                 as Aeson
+import qualified Data.Aeson.Diff            as Aeson
+import qualified Data.Aeson.Encode.Pretty   as Aeson
 
-import           Data.Hashable               (Hashable)
+import           Data.Hashable              (Hashable)
 
-import           Data.HashMap.Strict         (HashMap)
-import qualified Data.HashMap.Strict         as HM
+import           Data.HashMap.Strict        (HashMap)
+import qualified Data.HashMap.Strict        as HM
 
-import           Data.HashSet                (HashSet)
-import qualified Data.HashSet                as HS
+import           Data.HashSet               (HashSet)
+import qualified Data.HashSet               as HS
 
-import qualified Data.List.NonEmpty          as NE
+import qualified Data.List.NonEmpty         as NE
 
 import qualified Turtle
 
 import           Flow
 
-import           Tests.Orphans               ()
+import           Tests.Orphans              ()
 
 --------------------------------------------------------------------------------
 
@@ -136,16 +134,15 @@ testFiles = [ "buildseparate"
             , "test6"
             ]
 
-parseIO :: FilePath -> IO AST.Ninja
-parseIO fp = do
-  let path = Misc.makePath (Text.pack fp)
-  runExceptT (Ninja.parseFile path) >>= either throwIO pure
+parseIO :: FP.FilePath -> IO AST.Ninja
+parseIO fp = runExceptT (Ninja.parseFile (fp ^. Lens.from Misc.pathFP))
+             >>= either throwIO pure
 
 parseTestNinja :: String -> IO AST.Ninja
 parseTestNinja name = do
   old <- Turtle.pwd
   Turtle.cd (FP.decodeString dataPrefix)
-  result <- parseIO (name <> ".ninja")
+  result <- parseIO (FP.decodeString (name <> ".ninja"))
   Turtle.cd old
   pure result
 
@@ -157,7 +154,7 @@ roundtripTest ninja = do
     let prettyInput = Ninja.prettyNinja ninja
     let tmpfile = tmpdir </> "generated.ninja"
     Turtle.writeTextFile tmpfile prettyInput
-    output <- parseIO (FP.encodeString tmpfile)
+    output <- parseIO tmpfile
     let prettyOutput = Ninja.prettyNinja output
     pure (prettyInput, prettyOutput)
 
@@ -304,13 +301,15 @@ opticsTests
       ]
     , testModule "Language.Ninja.Misc.Command"
       [ testType "Command"
-        [ testIso def "commandText" Ninja.commandText
+        [ testIso def "commandText" Misc.commandText
         ]
       ]
     , testModule "Language.Ninja.Misc.Path"
       [ testType "Path"
-        [ testIso def "pathIText" Ninja.pathIText
-        , testIso def "pathText"  Ninja.pathText
+        [ testIso def "pathIText"  Misc.pathIText
+        , testIso def "pathText"   Misc.pathText
+        , testIso def "pathString" Misc.pathString
+        , testIso def "pathFP"     Misc.pathFP
         ]
       ]
     , testModule "Language.Ninja.Misc.Located"
@@ -318,7 +317,7 @@ opticsTests
       ]
     , testModule "Language.Ninja.Misc.IText"
       [ testType "IText"
-        [ testIso def "itext" Ninja.itext
+        [ testIso def "itext" Misc.itext
         ]
       ]
     ]
