@@ -101,30 +101,13 @@ import           NinjaToNix.Types
 
 --------------------------------------------------------------------------------
 
-prettyJSON :: (ToJSON v) => v -> IO ()
-prettyJSON = encodePretty .> LBSC8.putStrLn
-
-debugNinja :: IO AST.Ninja
-debugNinja = parseIO "../data/build.ninja"
-
-debugSNinja :: IO SNinja
-debugSNinja = compileNinja <$> debugNinja
-
-handleMonadError :: (Exception e) => (forall m. (MonadError e m) => m a) -> IO a
-handleMonadError m = either (show .> fail) pure m
-
-compileToIR :: AST.Ninja -> IO IR.Ninja
-compileToIR ast = handleMonadError (Compile.compile ast)
-
---------------------------------------------------------------------------------
-
 parseIO :: (MonadIO m) => FilePath -> m AST.Ninja
 parseIO fp = liftIO $ do
   let path = Misc.makePath (Text.pack fp)
   runExceptT (Parser.parseFile path) >>= either throwIO pure
 
-whenJust :: (Monad m) => Maybe a -> (a -> m ()) -> m ()
-whenJust x f = maybe (pure ()) f x
+compileToIR :: AST.Ninja -> IO IR.Ninja
+compileToIR ast = either throwIO pure (Compile.compile ast)
 
 simplifyIO :: (MonadIO m) => IR.Ninja -> m SNinja
 simplifyIO ninjaIR = liftIO $ do
@@ -132,6 +115,11 @@ simplifyIO ninjaIR = liftIO $ do
   case result of
     (Left  e) -> fail (show e)
     (Right x) -> pure x
+
+--------------------------------------------------------------------------------
+
+whenJust :: (Monad m) => Maybe a -> (a -> m ()) -> m ()
+whenJust x f = maybe (pure ()) f x
 
 simplify :: (MonadError SimplifyError m, MonadIO m) => IR.Ninja -> m SNinja
 simplify ninjaIR = runSimplifyT (simplify' ninjaIR) intToTarget
@@ -253,79 +241,7 @@ simplify' ninjaIR = MkSNinja <$> simpleBuilds <*> simpleDefaults
       whenJust (r ^. IR.ruleResponseFile) throwUnhandledResponseFile
       pure (r ^. IR.ruleCommand)
 
--- FIXME: replace compileNinja with simplify once it is verified to work
-
--- | FIXME: doc
---   Note: this function assumes a very simple subset of Ninja.
-compileNinja :: AST.Ninja -> SNinja
-compileNinja ninja = MkSNinja simpleBuilds simpleDefaults
-  where
-    onHM :: (Eq k', Hashable k')
-         => ((k, v) -> (k', v')) -> HashMap k v -> HashMap k' v'
-    onHM f = HM.toList .> map f .> HM.fromList
-
-    simpleBuilds :: HashMap Target SBuild
-    simpleBuilds = [ HM.map simplifyBuild combined
-                   , onHM simplifyPhony phonys
-                   ] |> mconcat |> linearizeGraph
-
-    simpleDefaults :: HashSet Target
-    simpleDefaults = HS.map makeTarget defaults
-
-    simplifyBuild :: AST.Build -> SBuild
-    simplifyBuild build = MkSBuild (Just rule) deps
-      where
-        deps = [ build ^. AST.buildDeps . AST.depsNormal
-               , build ^. AST.buildDeps . AST.depsImplicit
-               , build ^. AST.buildDeps . AST.depsOrderOnly
-               ] |> mconcat |> HS.map makeTarget
-
-        rule = fromMaybe (error ("rule not found: " <> show ruleName))
-               $ HM.lookup (makeTarget ruleName) ruleMap
-
-        ruleName = build ^. AST.buildRule
-
-    simplifyPhony :: (Text, HashSet Text)
-                  -> (HashSet Target, SBuild)
-    simplifyPhony (name, files) = ( HS.singleton (makeTarget name)
-                                  , MkSBuild Nothing filesT )
-      where
-        filesT = HS.map makeTarget files
-
-    ruleMap :: HashMap Target Command
-    ruleMap = onHM (makeTarget *** computeCommand) rules
-
-    computeCommand :: AST.Rule -> Command
-    computeCommand rule
-      = case HM.lookup "command" (rule ^. AST.ruleBind)
-        of Just (AST.Lit x) -> makeCommand x
-           Just _           -> error "rule uses variables"
-           Nothing          -> error "\"command\" not found"
-
-    combined :: HashMap (HashSet Target) AST.Build
-    combined = multiples <> onHM (first HS.singleton) singles
-               |> onHM (first (HS.map makeTarget))
-
-    linearizeGraph :: HashMap (HashSet Target) SBuild -> HashMap Target SBuild
-    linearizeGraph = HM.toList
-                     .> map (first HS.toList)
-                     .> concatMap linearizeNode
-                     .> HM.fromList
-
-    linearizeNode :: ([Target], SBuild) -> [(Target, SBuild)]
-    linearizeNode (outs, build)
-      = case uncons (sort outs) of
-          Nothing           -> []
-          Just (root, rest) -> (root, build) : map (`createEdge` root) rest
-
-    createEdge :: Target -> Target -> (Target, SBuild)
-    createEdge x y = (x, MkSBuild Nothing (HS.singleton y))
-
-    rules     = ninja ^. AST.ninjaRules
-    singles   = ninja ^. AST.ninjaSingles
-    multiples = ninja ^. AST.ninjaMultiples
-    phonys    = ninja ^. AST.ninjaPhonys
-    defaults  = ninja ^. AST.ninjaDefaults
+--------------------------------------------------------------------------------
 
 sninjaToJSON :: SNinja -> Value
 sninjaToJSON (sn@(MkSNinja {..})) = [ "graph" .= builds, "defaults" .= defaults
@@ -357,12 +273,15 @@ sninjaToJSON (sn@(MkSNinja {..})) = [ "graph" .= builds, "defaults" .= defaults
 
     tyObject t rest = object (("type" .= (t :: Text)) : rest)
 
+--------------------------------------------------------------------------------
+
 main :: IO ()
 main = do
   [file] <- getArgs
   parsed <- parseIO file
-  let sninja = compileNinja parsed
-  let value = sninjaToJSON sninja
+  ir     <- compileToIR parsed
+  sninja <- simplifyIO ir
+  value  <- pure (sninjaToJSON sninja)
   LBSC8.putStrLn (encodePretty value)
 
 --------------------------------------------------------------------------------
