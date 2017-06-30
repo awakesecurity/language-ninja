@@ -37,14 +37,16 @@
 --
 --   A datatype for Unix path strings.
 module Language.Ninja.Misc.Path
-  ( Path, makePath, pathIText, pathText
+  ( Path, makePath, pathIText, pathText, pathString, pathFP
   ) where
 
 import           Language.Ninja.Misc.IText (IText)
 import qualified Language.Ninja.Misc.IText as Ninja
 
 import           Data.Text                 (Text)
-import qualified Data.Text                 as T
+import qualified Data.Text                 as Text
+
+import qualified Filesystem.Path.CurrentOS as FP
 
 import           Data.Aeson
                  (FromJSON, FromJSONKey, ToJSON, ToJSONKey)
@@ -57,9 +59,8 @@ import           GHC.Generics              (Generic)
 import           Test.SmallCheck.Series    ((>>-))
 import qualified Test.SmallCheck.Series    as SC
 
-import qualified Control.Lens
 import           Control.Lens.Getter       (view)
-import           Control.Lens.Iso          (Iso')
+import           Control.Lens.Iso          (Iso', from, iso)
 
 import           Flow                      ((.>))
 
@@ -81,7 +82,7 @@ makePath = view Ninja.itext .> MkPath
 -- | An isomorphism between a 'Path' and its underlying 'IText'.
 {-# INLINE pathIText #-}
 pathIText :: Iso' Path IText
-pathIText = Control.Lens.iso _pathIText MkPath
+pathIText = iso _pathIText MkPath
 
 -- | An isomorphism that gives access to a 'Text'-typed view of a 'Path',
 --   even though the underlying data has type 'IText'.
@@ -89,7 +90,19 @@ pathIText = Control.Lens.iso _pathIText MkPath
 --   This is equivalent to @pathIText . from Ninja.itext@.
 {-# INLINE pathText #-}
 pathText :: Iso' Path Text
-pathText = pathIText . Control.Lens.from Ninja.itext
+pathText = pathIText . from Ninja.itext
+
+-- | An isomorphism that gives access to a 'String'-typed view of a 'Path'.
+{-# INLINE pathString #-}
+pathString :: Iso' Path String
+pathString = pathText . iso Text.unpack Text.pack
+
+-- | An isomorphism between a 'Path' and a 'FP.FilePath' from @system-filepath@.
+--   This uses 'FP.decodeString' and 'FP.encodeString', so all the caveats on
+--   those functions apply here.
+{-# INLINE pathFP #-}
+pathFP :: Iso' Path FP.FilePath
+pathFP = pathString . iso FP.decodeString FP.encodeString
 
 -- | Uses the underlying 'IText' instance.
 instance ( Monad m
