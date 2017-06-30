@@ -62,16 +62,14 @@ import           Control.Monad.Trans.Except
 import           Control.Lens               ((^.))
 import qualified Control.Lens               as Lens
 
-import qualified Language.Ninja.Compile     as Ninja
-import qualified Language.Ninja.Parse       as Ninja
-import qualified Language.Ninja.Pretty      as Ninja
-
-import qualified Language.Ninja.AST         as AST
 import qualified Language.Ninja.AST.Env     as AST (Maps)
 
+import qualified Language.Ninja.AST         as AST
+import qualified Language.Ninja.Compile     as Compile
 import qualified Language.Ninja.IR          as IR
-
 import qualified Language.Ninja.Misc        as Misc
+import qualified Language.Ninja.Parse       as Parse
+import qualified Language.Ninja.Pretty      as Pretty
 
 import qualified Test.Tasty                 as T
 import qualified Test.Tasty.Golden          as T
@@ -134,15 +132,12 @@ testFiles = [ "buildseparate"
             , "test6"
             ]
 
-parseIO :: FP.FilePath -> IO AST.Ninja
-parseIO fp = runExceptT (Ninja.parseFile (fp ^. Lens.from Misc.pathFP))
-             >>= either throwIO pure
-
 parseTestNinja :: String -> IO AST.Ninja
 parseTestNinja name = do
   old <- Turtle.pwd
   Turtle.cd (FP.decodeString dataPrefix)
-  result <- parseIO (FP.decodeString (name <> ".ninja"))
+  let file = (FP.decodeString (name <> ".ninja")) ^. Lens.from Misc.pathFP
+  result <- Parse.parseFileIO file
   Turtle.cd old
   pure result
 
@@ -151,11 +146,11 @@ roundtripTest ninja = do
   let withTempDir = Turtle.with (Turtle.mktempdir "." "test")
 
   (expected, actual) <- withTempDir $ \tmpdir -> do
-    let prettyInput = Ninja.prettyNinja ninja
+    let prettyInput = Pretty.prettyNinja ninja
     let tmpfile = tmpdir </> "generated.ninja"
     Turtle.writeTextFile tmpfile prettyInput
-    output <- parseIO tmpfile
-    let prettyOutput = Ninja.prettyNinja output
+    output <- Parse.parseFileIO (tmpfile ^. Lens.from Misc.pathFP)
+    let prettyOutput = Pretty.prettyNinja output
     pure (prettyInput, prettyOutput)
 
   unless (actual == expected) $ do
@@ -169,7 +164,7 @@ roundtripTest ninja = do
 
 compileTest :: AST.Ninja -> IO ()
 compileTest ninja = void $ do
-  either (displayException .> fail) pure (Ninja.compile ninja)
+  either (displayException .> fail) pure (Compile.compile ninja)
 
 ninjaTests :: String -> AST.Ninja -> T.TestTree
 ninjaTests name ninja

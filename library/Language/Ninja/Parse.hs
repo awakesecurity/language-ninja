@@ -58,10 +58,10 @@
 --
 --   Parse a Ninja file.
 module Language.Ninja.Parse
-  ( parseFile,    parseFileWithEnv
-  , parseText,    parseTextWithEnv
-  , parseBS,      parseBSWithEnv
-  , parseLexemes, parseLexemesWithEnv
+  ( parseFileIO,    parseFile,    parseFileWithEnv
+  , parseTextIO,    parseText,    parseTextWithEnv
+  , parseBSIO,      parseBS,      parseBSWithEnv
+  , parseLexemesIO, parseLexemes, parseLexemesWithEnv
   ) where
 
 import           Prelude                      hiding (readFile)
@@ -73,6 +73,7 @@ import           Control.Monad                ((>=>))
 
 import           Control.Monad.Error.Class    (MonadError)
 import           Control.Monad.Trans.Class    (MonadTrans (..))
+import           Control.Monad.Trans.Except   (runExceptT)
 
 import qualified Control.Lens                 as Lens
 import           Control.Lens.Getter          (view)
@@ -98,7 +99,7 @@ import           Language.Ninja.Lexer
 import           Language.Ninja.Misc.Path     (Path, makePath, pathString)
 
 import qualified Language.Ninja.AST           as AST
-import qualified Language.Ninja.Errors        as Errors
+import qualified Language.Ninja.Errors        as Err
 import qualified Language.Ninja.Lexer         as Lexer
 import qualified Language.Ninja.Misc          as Misc
 import qualified Language.Ninja.Mock.ReadFile as MRF
@@ -108,22 +109,40 @@ import           Flow                         ((.>), (|>))
 --------------------------------------------------------------------------------
 
 -- | Parse the file at the given path into a 'Ninja'.
-parseFile :: (MonadError Errors.ParseError m, MRF.MonadReadFile m)
+parseFileIO :: Path -> IO AST.Ninja
+parseFileIO file = forceIO (parseFile file)
+
+-- | FIXME: doc
+parseTextIO :: Text -> IO AST.Ninja
+parseTextIO text = forceIO (parseText text)
+
+-- | FIXME: doc
+parseBSIO :: BSC8.ByteString -> IO AST.Ninja
+parseBSIO bs = forceIO (parseBS bs)
+
+-- | FIXME: doc
+parseLexemesIO :: [Lexeme] -> IO AST.Ninja
+parseLexemesIO lexemes = forceIO (parseLexemes lexemes)
+
+--------------------------------------------------------------------------------
+
+-- | Parse the file at the given path into a 'Ninja'.
+parseFile :: (MonadError Err.ParseError m, MRF.MonadReadFile m)
           => Path -> m AST.Ninja
 parseFile file = parseFileWithEnv file AST.makeEnv
 
 -- | FIXME: doc
-parseText :: (MonadError Errors.ParseError m, MRF.MonadReadFile m)
+parseText :: (MonadError Err.ParseError m, MRF.MonadReadFile m)
           => Text -> m AST.Ninja
 parseText text = parseTextWithEnv text AST.makeEnv
 
 -- | FIXME: doc
-parseBS :: (MonadError Errors.ParseError m, MRF.MonadReadFile m)
+parseBS :: (MonadError Err.ParseError m, MRF.MonadReadFile m)
           => BSC8.ByteString -> m AST.Ninja
 parseBS bs = parseBSWithEnv bs AST.makeEnv
 
 -- | FIXME: doc
-parseLexemes :: (MonadError Errors.ParseError m, MRF.MonadReadFile m)
+parseLexemes :: (MonadError Err.ParseError m, MRF.MonadReadFile m)
              => [Lexeme] -> m AST.Ninja
 parseLexemes lexemes = parseLexemesWithEnv lexemes AST.makeEnv
 
@@ -131,22 +150,22 @@ parseLexemes lexemes = parseLexemesWithEnv lexemes AST.makeEnv
 
 -- | Parse the file at the given path using the given Ninja variable context,
 --   resulting in a 'Ninja'.
-parseFileWithEnv :: (MonadError Errors.ParseError m, MRF.MonadReadFile m)
+parseFileWithEnv :: (MonadError Err.ParseError m, MRF.MonadReadFile m)
                  => Path -> AST.Env Text Text -> m AST.Ninja
 parseFileWithEnv path env = fst <$> parseFileInternal path (AST.makeNinja, env)
 
 -- | FIXME: doc
-parseTextWithEnv :: (MonadError Errors.ParseError m, MRF.MonadReadFile m)
+parseTextWithEnv :: (MonadError Err.ParseError m, MRF.MonadReadFile m)
                  => Text -> AST.Env Text Text -> m AST.Ninja
 parseTextWithEnv text env = fst <$> parseTextInternal text (AST.makeNinja, env)
 
 -- | FIXME: doc
-parseBSWithEnv :: (MonadError Errors.ParseError m, MRF.MonadReadFile m)
+parseBSWithEnv :: (MonadError Err.ParseError m, MRF.MonadReadFile m)
                  => BSC8.ByteString -> AST.Env Text Text -> m AST.Ninja
 parseBSWithEnv bs env = fst <$> parseBSInternal bs (AST.makeNinja, env)
 
 -- | FIXME: doc
-parseLexemesWithEnv :: (MonadError Errors.ParseError m, MRF.MonadReadFile m)
+parseLexemesWithEnv :: (MonadError Err.ParseError m, MRF.MonadReadFile m)
                     => [Lexeme] -> AST.Env Text Text -> m AST.Ninja
 parseLexemesWithEnv lex env
   = fst <$> parseLexemesInternal lex (AST.makeNinja, env)
@@ -157,23 +176,23 @@ type NinjaWithEnv = (AST.Ninja, AST.Env Text Text)
 
 --------------------------------------------------------------------------------
 
-parseFileInternal :: (MonadError Errors.ParseError m, MRF.MonadReadFile m)
+parseFileInternal :: (MonadError Err.ParseError m, MRF.MonadReadFile m)
                   => Path -> NinjaWithEnv -> m NinjaWithEnv
 parseFileInternal path (ninja, env) = do
   text <- MRF.readFile path
   parseTextInternal text (ninja, env)
 
-parseTextInternal :: (MonadError Errors.ParseError m, MRF.MonadReadFile m)
+parseTextInternal :: (MonadError Err.ParseError m, MRF.MonadReadFile m)
                   => Text -> NinjaWithEnv -> m NinjaWithEnv
 parseTextInternal text = parseBSInternal (Text.encodeUtf8 text)
 
-parseBSInternal :: (MonadError Errors.ParseError m, MRF.MonadReadFile m)
+parseBSInternal :: (MonadError Err.ParseError m, MRF.MonadReadFile m)
                   => BSC8.ByteString -> NinjaWithEnv -> m NinjaWithEnv
 parseBSInternal bs (ninja, env) = do
   lexemes <- Lexer.lexerBS bs
   parseLexemesInternal lexemes (ninja, env)
 
-parseLexemesInternal :: (MonadError Errors.ParseError m, MRF.MonadReadFile m)
+parseLexemesInternal :: (MonadError Err.ParseError m, MRF.MonadReadFile m)
                      => [Lexeme] -> NinjaWithEnv -> m NinjaWithEnv
 parseLexemesInternal lexemes (ninja, env) = withBinds lexemes
                                             |> map (uncurry applyStmt)
@@ -183,9 +202,14 @@ parseLexemesInternal lexemes (ninja, env) = withBinds lexemes
 
 --------------------------------------------------------------------------------
 
-type MonadApplyFun m = (MonadError Errors.ParseError m, MRF.MonadReadFile m)
+type MonadApplyFun m = (MonadError Err.ParseError m, MRF.MonadReadFile m)
 type ApplyFun' m = [(Text, AST.Expr)] -> NinjaWithEnv -> m NinjaWithEnv
 type ApplyFun = (forall m. (MonadApplyFun m) => ApplyFun' m)
+
+--------------------------------------------------------------------------------
+
+forceIO :: (forall m. (MonadApplyFun m) => m a) -> IO a
+forceIO action = runExceptT action >>= either throwIO pure
 
 --------------------------------------------------------------------------------
 
@@ -231,7 +255,7 @@ applyStmt lexeme binds (ninja, env)
     |> (\f -> f binds (ninja, env))
   where
     throwUnexpectedBinding (MkLBind (MkLName var) _)
-      = \_ _ -> Errors.throwParseUnexpectedBinding (Text.decodeUtf8 var)
+      = \_ _ -> Err.throwParseUnexpectedBinding (Text.decodeUtf8 var)
 
 applyBuild :: LBuild -> ApplyFun
 applyBuild (MkLBuild lexOutputs lexRule lexDeps) lexBinds (ninja, env) = do
@@ -300,13 +324,13 @@ splitDeps = HS.toList
       where
         (a, b, c) = go xs
 
-getDepth :: (MonadError Errors.ParseError m)
+getDepth :: (MonadError Err.ParseError m)
          => AST.Env Text Text -> [(Text, AST.Expr)] -> m Int
 getDepth env xs
   = case AST.askExpr env <$> lookup "depth" xs of
       Nothing  -> pure 1
       (Just x) -> case BSC8.readInt (Text.encodeUtf8 x) of
                     (Just (i, n)) | n == "" -> pure i
-                    _                       -> Errors.throwParseBadDepthField x
+                    _                       -> Err.throwParseBadDepthField x
 
 --------------------------------------------------------------------------------

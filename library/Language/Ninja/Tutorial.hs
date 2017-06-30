@@ -54,37 +54,33 @@ module Language.Ninja.Tutorial
     -- $faq
   ) where
 
-import qualified Language.Ninja.AST           as AST
-import qualified Language.Ninja.Compile       as Compile
-import qualified Language.Ninja.Errors        as Errors
-import qualified Language.Ninja.IR            as IR
-import qualified Language.Ninja.Lexer         as Lexer
--- FIXME: add Language.Ninja.Misc
-import qualified Language.Ninja.Misc.Command  as Misc
-import qualified Language.Ninja.Misc.IText    as Misc
-import qualified Language.Ninja.Misc.Located  as Misc
-import qualified Language.Ninja.Misc.Path     as Misc
-import qualified Language.Ninja.Misc.Positive as Misc
-import qualified Language.Ninja.Parse         as Parse
-import qualified Language.Ninja.Pretty        as Pretty
+import qualified Language.Ninja.AST        as AST
+import qualified Language.Ninja.Compile    as Compile
+import qualified Language.Ninja.Errors     as Errors
+import qualified Language.Ninja.IR         as IR
+import qualified Language.Ninja.Lexer      as Lexer
+import qualified Language.Ninja.Misc       as Misc
+import qualified Language.Ninja.Mock       as Mock
+import qualified Language.Ninja.Parse      as Parse
+import qualified Language.Ninja.Pretty     as Pretty
 
-import           Data.Either                  (either)
+import           Data.Either               (either)
 
-import           Control.Lens                 (Iso', Lens', Prism')
-import qualified Control.Lens                 as Lens
+import           Control.Lens              (Iso', Lens', Prism')
+import qualified Control.Lens              as Lens
 
-import           Control.Monad.Error.Class    (MonadError)
+import           Control.Monad.Error.Class (MonadError)
 
-import           Data.Text                    (Text)
-import qualified Data.Text                    as Text
+import           Data.Text                 (Text)
+import qualified Data.Text                 as Text
 
-import           Data.HashSet                 (HashSet)
-import qualified Data.HashSet                 as HS
+import           Data.HashSet              (HashSet)
+import qualified Data.HashSet              as HS
 
-import           Data.HashMap.Strict          (HashMap)
-import qualified Data.HashMap.Strict          as HM
+import           Data.HashMap.Strict       (HashMap)
+import qualified Data.HashMap.Strict       as HM
 
-import           Data.Versions                (Version)
+import           Data.Versions             (Version)
 
 --------------------------------------------------------------------------------
 
@@ -100,6 +96,7 @@ import           Data.Versions                (Version)
 -- import qualified "Language.Ninja.IR"         as IR
 -- import qualified "Language.Ninja.Errors"     as Errors
 -- import qualified "Language.Ninja.Misc"       as Misc
+-- import qualified "Language.Ninja.Mock"       as Mock
 -- import qualified "Language.Ninja.Lexer"      as Lexer
 -- import qualified "Language.Ninja.Parse"      as Parse
 -- import qualified "Language.Ninja.Pretty"     as Pretty
@@ -139,7 +136,7 @@ import           Data.Versions                (Version)
 -- To parse a Ninja file, we use the "Language.Ninja.Parse" module.
 -- In the simplest case, this amounts to parsing a file:
 --
--- @ast <- (Parse.'Parse.parse' "./build.ninja") :: IO AST.'AST.Ninja'@
+-- @ast <- (Parse.'Parse.parseFileIO' "./build.ninja") :: IO AST.'AST.Ninja'@
 --
 -- For more specialized use cases, consult the module documentation.
 --
