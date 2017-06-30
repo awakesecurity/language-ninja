@@ -334,8 +334,6 @@ import           Data.Versions             (Version)
 
 --------------------------------------------------------------------------------
 
--- FIXME: parse has the wrong type for this, we need parseText
-
 -- $printing
 --
 -- Currently there is a rudimentary pretty-printer for the AST in the
@@ -343,7 +341,7 @@ import           Data.Versions             (Version)
 --
 -- @
 -- let pretty = Pretty.'Pretty.prettyNinja'
--- let parse  = Parser.'Parser.parse'
+-- let parse  = Parser.'Parser.parseTextIO'
 -- @
 --
 -- then @pretty >=> parse >=> pretty >=> parse@ should be the same as @pure@,
