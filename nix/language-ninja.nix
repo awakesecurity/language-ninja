@@ -1,7 +1,7 @@
 { mkDerivation, aeson, aeson-diff, aeson-pretty, base, bytestring
 , concurrent-supply, containers, cryptonite, deepseq, directory
 , Earley, exceptions, extra, flow, hashable, HUnit, intern, lens
-, makefile, megaparsec, mtl, prettyprinter
+, makefile, megaparsec, monad-mock, mtl, prettyprinter
 , prettyprinter-ansi-terminal, QuickCheck, quickcheck-instances
 , shake, smallcheck, smallcheck-lens, stdenv, system-filepath
 , tasty, tasty-golden, tasty-html, tasty-hunit, tasty-lens
@@ -28,10 +28,10 @@ mkDerivation {
   ];
   testHaskellDepends = [
     aeson aeson-diff aeson-pretty base bytestring containers flow
-    hashable HUnit lens mtl QuickCheck quickcheck-instances smallcheck
-    smallcheck-lens system-filepath tasty tasty-golden tasty-html
-    tasty-hunit tasty-lens tasty-quickcheck tasty-smallcheck text
-    transformers turtle unordered-containers versions
+    hashable HUnit lens monad-mock mtl QuickCheck quickcheck-instances
+    smallcheck smallcheck-lens system-filepath tasty tasty-golden
+    tasty-html tasty-hunit tasty-lens tasty-quickcheck tasty-smallcheck
+    text transformers turtle unordered-containers versions
   ];
   homepage = "https://github.com/awakesecurity/language-ninja";
   description = "A Haskell library for parsing, pretty-printing, and compiling the Ninja build language";

@@ -63,11 +63,12 @@ with rec {
 
       {
         makefile                    = cp ./nix/makefile.nix;
-        versions                    = cp ./nix/versions.nix;
+        monad-mock                  = cp ./nix/monad-mock.nix;
         prettyprinter               = cp ./nix/prettyprinter.nix;
         prettyprinter-ansi-terminal = cp ./nix/prettyprinter-ansi-terminal.nix;
         smallcheck-lens             = doJailbreak super.smallcheck-lens;
         tasty-lens                  = doJailbreak super.tasty-lens;
+        versions                    = cp ./nix/versions.nix;
         language-ninja              = cp ./nix/language-ninja.nix;
       }
     );
