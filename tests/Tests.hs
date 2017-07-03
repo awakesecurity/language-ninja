@@ -108,6 +108,7 @@ import qualified Turtle
 
 import           Flow
 
+import           Tests.Mock
 import           Tests.Orphans              ()
 
 --------------------------------------------------------------------------------

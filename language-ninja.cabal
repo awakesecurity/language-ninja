@@ -99,7 +99,8 @@ test-suite tests
     type:                 exitcode-stdio-1.0
     hs-source-dirs:       tests
     main-is:              Tests.hs
-    other-modules:        Tests.Orphans
+    other-modules:        Tests.Mock
+                          Tests.Orphans
     build-depends:        language-ninja
                         , base                        >= 4.8   && < 5.0
                         , aeson                       >= 1.0   && < 1.3
