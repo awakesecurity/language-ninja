@@ -277,10 +277,11 @@ applyStmt lexeme binds (ninja, env)
 applyBuild :: LBuild -> ApplyFun
 applyBuild (MkLBuild lexOutputs lexRule lexDeps) lexBinds (ninja, env) = do
   let outputs = map (AST.askExpr env) lexOutputs
+  let rule    = lexRule |> (\(MkLName name) -> Text.decodeUtf8 name)
   let deps    = HS.fromList (map (AST.askExpr env) lexDeps)
   let binds   = HM.fromList (map (second (AST.askExpr env)) lexBinds)
   let (normal, implicit, orderOnly) = splitDeps deps
-  let build = AST.makeBuild (Text.decodeUtf8 lexRule) env
+  let build = AST.makeBuild rule env
               |> (AST.buildDeps . AST.depsNormal    .~ normal   )
               |> (AST.buildDeps . AST.depsImplicit  .~ implicit )
               |> (AST.buildDeps . AST.depsOrderOnly .~ orderOnly)
@@ -290,7 +291,7 @@ applyBuild (MkLBuild lexOutputs lexRule lexDeps) lexBinds (ninja, env) = do
                    |> HM.fromList
   let addS = HM.insert (head outputs) build
   let addM = HM.insert (HS.fromList outputs) build
-  let ninja' = if lexRule == "phony"
+  let ninja' = if rule ==  "phony"
                then ninja |> AST.ninjaPhonys %~ addP
                else (if length outputs == 1
                      then ninja |> AST.ninjaSingles   %~ addS

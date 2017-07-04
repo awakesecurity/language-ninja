@@ -39,10 +39,12 @@
 
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PatternGuards         #-}
 {-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE ViewPatterns          #-}
@@ -87,6 +89,7 @@ import           Data.Tuple.Extra             (first)
 
 import           Flow                         ((.>), (|>))
 
+import           Data.Aeson                   ((.:), (.=))
 import qualified Data.Aeson                   as Aeson
 
 import           Control.DeepSeq              (NFData)
@@ -125,6 +128,40 @@ data Lexeme
     LexDefault  ![AST.Expr]
   deriving (Eq, Show, Generic)
 
+-- | Converts to @{tag: …, value: …}@.
+instance Aeson.ToJSON Lexeme where
+  toJSON = (\case (LexDefine   value) -> obj "define"   value
+                  (LexBind     value) -> obj "bind"     value
+                  (LexInclude  value) -> obj "include"  value
+                  (LexSubninja value) -> obj "subninja" value
+                  (LexBuild    value) -> obj "build"    value
+                  (LexRule     value) -> obj "rule"     value
+                  (LexPool     value) -> obj "pool"     value
+                  (LexDefault  value) -> obj "default"  value)
+    where
+      obj :: (Aeson.ToJSON a) => Text -> a -> Aeson.Value
+      obj tag value = Aeson.object ["tag" .= tag, "value" .= value]
+
+-- | Inverse of the 'ToJSON' instance.
+instance Aeson.FromJSON Lexeme where
+  parseJSON = (Aeson.withObject "Lexeme" $ \o -> do
+                  tag <- o .: "tag"
+                  case (tag :: Text) of
+                    "define"   -> LexDefine   <$> (o .: "value")
+                    "bind"     -> LexBind     <$> (o .: "value")
+                    "include"  -> LexInclude  <$> (o .: "value")
+                    "subninja" -> LexSubninja <$> (o .: "value")
+                    "build"    -> LexBuild    <$> (o .: "value")
+                    "rule"     -> LexRule     <$> (o .: "value")
+                    "pool"     -> LexPool     <$> (o .: "value")
+                    "default"  -> LexDefault  <$> (o .: "value")
+                    owise      -> invalidTagError (Text.unpack owise))
+    where
+      invalidTagError x = [ "Invalid tag: ", x, "; expected one of: "
+                          , show [ "default", "bind", "include", "subninja"
+                                 , "build", "rule", "pool", "default" ]
+                          ] |> mconcat |> fail
+
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable Lexeme
 
@@ -140,6 +177,14 @@ newtype LName
     }
   deriving (Eq, Show, Generic)
 
+-- | Converts to a JSON string.
+instance Aeson.ToJSON LName where
+  toJSON (MkLName {..}) = Aeson.toJSON (Text.decodeUtf8 _lnameStr)
+
+-- | Inverse of the 'ToJSON' instance.
+instance Aeson.FromJSON LName where
+  parseJSON = Aeson.parseJSON .> fmap (Text.encodeUtf8 .> MkLName)
+
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable LName
 
@@ -154,6 +199,18 @@ newtype LFile
     { _lfileExpr :: AST.Expr
     }
   deriving (Eq, Show, Generic)
+
+-- | Converts to @{name: …, value: …}@.
+instance Aeson.ToJSON LFile where
+  toJSON (MkLFile {..})
+    = [ "file" .= _lfileExpr
+      ] |> Aeson.object
+
+-- | Inverse of the 'ToJSON' instance.
+instance Aeson.FromJSON LFile where
+  parseJSON = (Aeson.withObject "LFile" $ \o -> do
+                  _lfileExpr <- (o .: "file")  >>= pure
+                  pure (MkLFile {..}))
 
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable LFile
@@ -171,6 +228,20 @@ data LBind
     }
   deriving (Eq, Show, Generic)
 
+-- | Converts to @{name: …, value: …}@.
+instance Aeson.ToJSON LBind where
+  toJSON (MkLBind {..})
+    = [ "name"  .= _lbindName
+      , "value" .= _lbindValue
+      ] |> Aeson.object
+
+-- | Inverse of the 'ToJSON' instance.
+instance Aeson.FromJSON LBind where
+  parseJSON = (Aeson.withObject "LBind" $ \o -> do
+                  _lbindName  <- (o .: "name")  >>= pure
+                  _lbindValue <- (o .: "value") >>= pure
+                  pure (MkLBind {..}))
+
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable LBind
 
@@ -183,10 +254,31 @@ instance NFData LBind
 data LBuild
   = MkLBuild
     { _lbuildOuts :: ![AST.Expr]
-    , _lbuildRule :: !Str
+    , _lbuildRule :: !LName
     , _lbuildDeps :: ![AST.Expr]
     }
   deriving (Eq, Show, Generic)
+
+-- | FIXME: doc
+makeLBuild outs rule deps
+  = let filterExprs = filter (\e -> e /= (AST.Exprs []))
+    in MkLBuild (filterExprs outs) rule (filterExprs deps)
+
+-- | Converts to @{outs: …, rule: …, deps: …}@.
+instance Aeson.ToJSON LBuild where
+  toJSON (MkLBuild {..})
+    = [ "outs" .= _lbuildOuts
+      , "rule" .= _lbuildRule
+      , "deps" .= _lbuildDeps
+      ] |> Aeson.object
+
+-- | Inverse of the 'ToJSON' instance.
+instance Aeson.FromJSON LBuild where
+  parseJSON = (Aeson.withObject "LBuild" $ \o -> do
+                  _lbuildOuts <- (o .: "outs") >>= pure
+                  _lbuildRule <- (o .: "rule") >>= pure
+                  _lbuildDeps <- (o .: "deps") >>= pure
+                  pure (MkLBuild {..}))
 
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable LBuild
@@ -251,7 +343,7 @@ lexBuild x0 = do
   let (rule, x2) = Str0.span0 isVarDot $ dropSpace x1
   (deps, x3) <- lexxExprs False $ dropSpace x2
   x4 <- lexerLoop x3
-  pure (LexBuild (MkLBuild outputs rule deps) : x4)
+  pure (LexBuild (makeLBuild outputs (MkLName rule) deps) : x4)
 
 lexDefault :: (MonadError Err.ParseError m) => Str0 -> m [Lexeme]
 lexDefault str0 = do
@@ -298,7 +390,7 @@ lexxExprs sColon x0 = do
   (a, c_x) <- lexxExpr sColon True x0
   let c  = Str0.head0 c_x
   let x1 = Str0.tail0 c_x
-  case c of -- FIXME: nonexhaustive pattern match
+  case c of
     ' '           -> do (exprs, x2) <- lexxExprs sColon $ dropSpace x1
                         pure (a:exprs, x2)
     ':'  | sColon -> pure ([a], x1)
@@ -325,8 +417,8 @@ lexxExpr :: (MonadError Err.ParseError m)
 lexxExpr stopColon stopSpace str0 = first exprs <$> f str0
   where
     exprs :: [AST.Expr] -> AST.Expr
-    exprs [x] = x
-    exprs xs  = AST.Exprs xs
+    exprs [x] = AST.normalizeExpr x
+    exprs xs  = AST.normalizeExpr (AST.Exprs xs)
 
     special :: Char -> Bool
     special x = let b = x `elem` ['$', '\r', '\n', '\0']

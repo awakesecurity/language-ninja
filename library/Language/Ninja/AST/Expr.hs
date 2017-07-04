@@ -41,13 +41,14 @@ module Language.Ninja.AST.Expr
     Expr (..)
   , _Exprs, _Lit, _Var
   , askVar, askExpr, addBind, addBinds
+  , normalizeExpr
   ) where
 
 import           Control.Arrow             (second)
 import           Control.Lens.Prism        (Prism', prism')
 import           Data.Foldable             (asum)
 import           Data.Maybe                (fromMaybe)
-import           Data.Monoid               (Endo (..))
+import           Data.Monoid               (Endo (..), (<>))
 
 import           Flow                      ((.>), (|>))
 
@@ -132,6 +133,20 @@ addBinds :: [(Text, Expr)] -> AST.Env Text Text -> AST.Env Text Text
 addBinds bs e = map (second (askExpr e) .> uncurry AST.addEnv .> Endo) bs
                 |> mconcat
                 |> (\endo -> appEndo endo e)
+
+-- | FIXME: doc
+normalizeExpr :: Expr -> Expr
+normalizeExpr = flatten .> helper .> go
+  where
+    go [e] = e
+    go es  = Exprs es
+
+    flatten (Exprs es) = concatMap flatten es
+    flatten owise      = [owise]
+
+    helper []                     = []
+    helper (Lit x : Lit y : rest) = helper (Lit (x <> y) : rest)
+    helper (owise         : rest) = owise : helper rest
 
 -- | Converts 'Exprs' to a JSON list, 'Lit' to a JSON string,
 --   and 'Var' to @{var: …}@.

@@ -55,6 +55,7 @@ module Language.Ninja.AST
   , AST.Expr (..)
   , AST._Exprs, AST._Lit, AST._Var
   , AST.askVar, AST.askExpr, AST.addBind, AST.addBinds
+  , AST.normalizeExpr
 
     -- * @Env@
   , AST.Env
