@@ -384,7 +384,7 @@ opticsTests
         [ testLens 4 "ruleBind" AST.ruleBind
         ]
       ]
-    , testModule "Language.Ninja.AST"
+    , testModule "Language.Ninja.AST.Ninja"
       [ testType "Ninja" [] -- FIXME: combinatorial explosion
         -- [ testLens 1 "ninjaRules"     AST.ninjaRules
         -- , testLens 1 "ninjaSingles"   AST.ninjaSingles
@@ -393,13 +393,17 @@ opticsTests
         -- , testLens 1 "ninjaDefaults"  AST.ninjaDefaults
         -- , testLens 1 "ninjaSpecials"  AST.ninjaSpecials
         -- ]
-      , testType "Build" [] -- FIXME: combinatorial explosion
+      ]
+    , testModule "Language.Ninja.AST.Build"
+      [ testType "Build" [] -- FIXME: combinatorial explosion
         -- [ testLens 1 "buildRule" AST.buildRule
         -- , testLens 1 "buildEnv"  AST.buildEnv
         -- , testLens 1 "buildDeps" AST.buildDeps
         -- , testLens 1 "buildBind" AST.buildBind
         -- ]
-      , testType "Deps"
+      ]
+    , testModule "Language.Ninja.AST.Deps"
+      [ testType "Deps"
         [ testLens def "depsNormal"    AST.depsNormal
         , testLens def "depsImplicit"  AST.depsImplicit
         , testLens def "depsOrderOnly" AST.depsOrderOnly
