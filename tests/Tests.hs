@@ -210,80 +210,98 @@ ninjaTests name ninja
 aesonTests :: T.TestTree
 aesonTests
   = T.testGroup "aeson"
-    [ testModule "Language.Ninja.IR.Build"
-      -- FIXME: combinatorial explosion
-      [ -- testAeson (Ty.Proxy @IR.Build)
+    [ testModule "Language.Ninja.Lexer"
+      [ testAeson 2   (Ty.Proxy @Lexer.Lexeme)
+      , testAeson 4   (Ty.Proxy @Lexer.LName)
+      , testAeson 4   (Ty.Proxy @Lexer.LFile)
+      , testAeson 4   (Ty.Proxy @Lexer.LBind)
+      , testAeson 2   (Ty.Proxy @Lexer.LBuild)
+      ]
+    , testModule "Language.Ninja.IR.Build"
+      [ testAeson 2   (Ty.Proxy @IR.Build)
       ]
     , testModule "Language.Ninja.IR.Meta"
-      [ testAeson (Ty.Proxy @IR.Meta)
+      [ testAeson def (Ty.Proxy @IR.Meta)
       ]
     , testModule "Language.Ninja.IR.Ninja"
-      -- FIXME: combinatorial explosion
-      [ -- testAeson (Ty.Proxy @IR.Ninja)
+      [ testAeson 2   (Ty.Proxy @IR.Ninja)
       ]
     , testModule "Language.Ninja.IR.Pool"
-      [ testAeson (Ty.Proxy @IR.Pool)
-      , testAeson (Ty.Proxy @IR.PoolName)
-      , testAeson (Ty.Proxy @IR.PoolDepth)
+      [ testAeson def (Ty.Proxy @IR.Pool)
+      , testAeson def (Ty.Proxy @IR.PoolName)
+      , testAeson def (Ty.Proxy @IR.PoolDepth)
       ]
     , testModule "Language.Ninja.IR.Rule"
-      -- FIXME: combinatorial explosion
-      [ -- testAeson (Ty.Proxy @IR.Rule)
-        testAeson (Ty.Proxy @IR.SpecialDeps)
-      , testAeson (Ty.Proxy @IR.ResponseFile)
+      [ testAeson 1   (Ty.Proxy @IR.Rule)
+      , testAeson def (Ty.Proxy @IR.SpecialDeps)
+      , testAeson def (Ty.Proxy @IR.ResponseFile)
       ]
     , testModule "Language.Ninja.IR.Target"
-      [ testAeson (Ty.Proxy @IR.Target)
-      , testAeson (Ty.Proxy @IR.Output)
-      , testAeson (Ty.Proxy @IR.OutputType)
-      , testAeson (Ty.Proxy @IR.Dependency)
-      , testAeson (Ty.Proxy @IR.DependencyType)
+      [ testAeson def (Ty.Proxy @IR.Target)
+      , testAeson def (Ty.Proxy @IR.Output)
+      , testAeson def (Ty.Proxy @IR.OutputType)
+      , testAeson def (Ty.Proxy @IR.Dependency)
+      , testAeson def (Ty.Proxy @IR.DependencyType)
       ]
     , testModule "Language.Ninja.AST.Env"
-      [ testAeson (Ty.Proxy @(AST.Env Text Text))
+      [ testAeson def (Ty.Proxy @(AST.Env Text Text))
       ]
     , testModule "Language.Ninja.AST.Expr"
-      [ testAeson (Ty.Proxy @AST.Expr)
+      [ testAeson def (Ty.Proxy @AST.Expr)
       ]
     , testModule "Language.Ninja.AST.Rule"
-      [ testAeson (Ty.Proxy @AST.Rule)
+      [ testAeson def (Ty.Proxy @AST.Rule)
       ]
     , testModule "Language.Ninja.AST.Ninja"
-      -- FIXME: combinatorial explosion
-      [ -- testAeson (Ty.Proxy @AST.Ninja)
+      [ testAeson 0   (Ty.Proxy @AST.Ninja) -- FIXME: combinatorial explosion
       ]
     , testModule "Language.Ninja.AST.Build"
-      -- FIXME: combinatorial explosion
-      [ -- testAeson (Ty.Proxy @AST.Build)
+      [ testAeson 1   (Ty.Proxy @AST.Build)
       ]
     , testModule "Language.Ninja.AST.Deps"
-      [ testAeson (Ty.Proxy @AST.Deps)
+      [ testAeson def (Ty.Proxy @AST.Deps)
       ]
     , testModule "Language.Ninja.Misc.Command"
-      [ testAeson (Ty.Proxy @Misc.Command)
+      [ testAeson def (Ty.Proxy @Misc.Command)
       ]
     , testModule "Language.Ninja.Misc.Path"
-      [ testAeson (Ty.Proxy @Misc.Path)
+      [ testAeson def (Ty.Proxy @Misc.Path)
       ]
     , testModule "Language.Ninja.Misc.Located"
-      [ testAeson (Ty.Proxy @(Misc.Located Bool))
-      , testAeson (Ty.Proxy @Misc.Position)
+      [ testAeson def (Ty.Proxy @(Misc.Located Bool))
+      , testAeson def (Ty.Proxy @Misc.Position)
       ]
     , testModule "Language.Ninja.Misc.IText"
-      [ testAeson (Ty.Proxy @Misc.IText)
+      [ testAeson def (Ty.Proxy @Misc.IText)
       ]
     ]
   where
-    testModule = T.testGroup
-    testType = T.testGroup
-
     testAeson :: forall x.
                  ( Eq x, Show x, Ty.Typeable x, SC.Serial IO x
                  , Aeson.ToJSON x, Aeson.FromJSON x
-                 ) => Ty.Proxy x -> T.TestTree
-    testAeson p = let typeName = Ty.showsTypeRep (Ty.typeRep p) ""
-                  in testType typeName
-                     [T.testGroup "ToJSON/FromJSON Laws" [aesonSC p]]
+                 ) => Int -> Ty.Proxy x -> Maybe T.TestTree
+    testAeson d p = let typeName = Ty.showsTypeRep (Ty.typeRep p) ""
+                    in withDepth d
+                       (testType typeName
+                        [T.testGroup "ToJSON/FromJSON Laws" [aesonSC p]])
+
+    withDepth :: Int -> (T.TestTree -> Maybe T.TestTree)
+    withDepth 0     = const Nothing
+    withDepth depth = T.localOption (T.SmallCheckDepth depth) .> Just
+
+    testModule :: T.TestName -> [Maybe T.TestTree] -> T.TestTree
+    testModule name subtrees = T.testGroup name (catMaybes subtrees)
+
+    testType :: T.TestName -> [T.TestTree] -> T.TestTree
+    testType name subtrees = T.localOption typeTimeout
+                             $ T.testGroup name subtrees
+
+    def :: Int
+    def = (T.defaultValue :: T.SmallCheckDepth)
+          |> toInteger |> fromIntegral
+
+    typeTimeout :: T.Timeout
+    typeTimeout = T.mkTimeout 20000000 -- 20 seconds
 
 opticsTests :: T.TestTree
 opticsTests
