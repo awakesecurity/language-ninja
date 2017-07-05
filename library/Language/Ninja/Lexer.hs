@@ -49,6 +49,7 @@
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TupleSections         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 -- |
 --   Module      : Language.Ninja.Lexer
@@ -111,6 +112,9 @@ import qualified Data.Aeson                 as Aeson
 import           Control.DeepSeq            (NFData)
 import           Data.Hashable              (Hashable)
 import           GHC.Generics               (Generic)
+
+import           Test.SmallCheck.Series     ((<~>))
+import qualified Test.SmallCheck.Series     as SC
 
 import qualified Language.Ninja.AST         as AST
 import qualified Language.Ninja.Errors      as Err
@@ -179,6 +183,12 @@ instance Hashable Lexeme
 -- | Default 'NFData' instance via 'Generic'.
 instance NFData Lexeme
 
+-- | Default 'SC.Serial' instance via 'Generic'.
+instance (Monad m, SC.Serial m Text) => SC.Serial m Lexeme
+
+-- | Default 'SC.CoSerial' instance via 'Generic'.
+instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Lexeme
+
 --------------------------------------------------------------------------------
 
 -- | The name of a Ninja rule or pool.
@@ -201,6 +211,14 @@ instance Hashable LName
 
 -- | Default 'NFData' instance via 'Generic'.
 instance NFData LName
+
+-- | Uses the underlying 'SC.Serial' instances.
+instance (Monad m, SC.Serial m Text) => SC.Serial m LName where
+  series = SC.series |> fmap (Text.encodeUtf8 .> MkLName)
+
+-- | Default 'SC.CoSerial' instance via 'Generic'.
+instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m LName where
+  coseries = SC.coseries .> fmap (\f -> _lnameBS .> Text.decodeUtf8 .> f)
 
 --------------------------------------------------------------------------------
 
@@ -228,6 +246,12 @@ instance Hashable LFile
 
 -- | Default 'NFData' instance via 'Generic'.
 instance NFData LFile
+
+-- | Default 'SC.Serial' instance via 'Generic'.
+instance (Monad m, SC.Serial m Text) => SC.Serial m LFile
+
+-- | Default 'SC.CoSerial' instance via 'Generic'.
+instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m LFile
 
 --------------------------------------------------------------------------------
 
@@ -258,6 +282,12 @@ instance Hashable LBind
 
 -- | Default 'NFData' instance via 'Generic'.
 instance NFData LBind
+
+-- | Default 'SC.Serial' instance via 'Generic'.
+instance (Monad m, SC.Serial m Text) => SC.Serial m LBind
+
+-- | Default 'SC.CoSerial' instance via 'Generic'.
+instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m LBind
 
 --------------------------------------------------------------------------------
 
@@ -297,6 +327,13 @@ instance Hashable LBuild
 
 -- | Default 'NFData' instance via 'Generic'.
 instance NFData LBuild
+
+-- | Uses the underlying 'SC.Serial' instances.
+instance (Monad m, SC.Serial m Text) => SC.Serial m LBuild where
+  series = makeLBuild <$> SC.series <~> SC.series <~> SC.series
+
+-- | Default 'SC.CoSerial' instance via 'Generic'.
+instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m LBuild
 
 --------------------------------------------------------------------------------
 
