@@ -24,6 +24,8 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
@@ -40,6 +42,8 @@ module Main (main) where
 import           Data.Either
 import           Data.Maybe
 import           Data.Monoid
+
+import qualified Data.Typeable              as Ty
 
 import           Data.ByteString            (ByteString)
 import qualified Data.ByteString            as BS
@@ -94,6 +98,7 @@ import qualified Filesystem.Path.CurrentOS  as FP
 import qualified Data.Aeson                 as Aeson
 import qualified Data.Aeson.Diff            as Aeson
 import qualified Data.Aeson.Encode.Pretty   as Aeson
+import qualified Data.Aeson.Types           as Aeson
 
 import           Data.Hashable              (Hashable)
 
@@ -134,6 +139,20 @@ testFiles = [ "buildseparate"
             , "test5"
             , "test6"
             ]
+
+aesonSC' :: (Eq x, Show x)
+         => SC.Series IO x
+         -> (x -> Aeson.Value)
+         -> (Aeson.Value -> Aeson.Parser x)
+         -> T.TestTree
+aesonSC' s toJ fromJ
+  = T.testProperty "parseJSON . toJSON ≡ pure"
+    (T.over s (\x -> Aeson.parseEither fromJ (toJ x) == Right x))
+
+aesonSC :: forall x.
+           ( Eq x, Show x, SC.Serial IO x, Aeson.ToJSON x, Aeson.FromJSON x
+           ) => Ty.Proxy x -> T.TestTree
+aesonSC _ = aesonSC' @x SC.series Aeson.toJSON Aeson.parseJSON
 
 parseTestNinja :: String -> IO AST.Ninja
 parseTestNinja name = do
@@ -188,9 +207,88 @@ ninjaTests name ninja
         compileTest ninja
     ]
 
+aesonTests :: T.TestTree
+aesonTests
+  = T.testGroup "aeson"
+    [ testModule "Language.Ninja.IR.Build"
+      -- FIXME: combinatorial explosion
+      [ -- testAeson (Ty.Proxy @IR.Build)
+      ]
+    , testModule "Language.Ninja.IR.Meta"
+      [ testAeson (Ty.Proxy @IR.Meta)
+      ]
+    , testModule "Language.Ninja.IR.Ninja"
+      -- FIXME: combinatorial explosion
+      [ -- testAeson (Ty.Proxy @IR.Ninja)
+      ]
+    , testModule "Language.Ninja.IR.Pool"
+      [ testAeson (Ty.Proxy @IR.Pool)
+      , testAeson (Ty.Proxy @IR.PoolName)
+      , testAeson (Ty.Proxy @IR.PoolDepth)
+      ]
+    , testModule "Language.Ninja.IR.Rule"
+      -- FIXME: combinatorial explosion
+      [ -- testAeson (Ty.Proxy @IR.Rule)
+        testAeson (Ty.Proxy @IR.SpecialDeps)
+      , testAeson (Ty.Proxy @IR.ResponseFile)
+      ]
+    , testModule "Language.Ninja.IR.Target"
+      [ testAeson (Ty.Proxy @IR.Target)
+      , testAeson (Ty.Proxy @IR.Output)
+      , testAeson (Ty.Proxy @IR.OutputType)
+      , testAeson (Ty.Proxy @IR.Dependency)
+      , testAeson (Ty.Proxy @IR.DependencyType)
+      ]
+    , testModule "Language.Ninja.AST.Env"
+      [ testAeson (Ty.Proxy @(AST.Env Text Text))
+      ]
+    , testModule "Language.Ninja.AST.Expr"
+      [ testAeson (Ty.Proxy @AST.Expr)
+      ]
+    , testModule "Language.Ninja.AST.Rule"
+      [ testAeson (Ty.Proxy @AST.Rule)
+      ]
+    , testModule "Language.Ninja.AST.Ninja"
+      -- FIXME: combinatorial explosion
+      [ -- testAeson (Ty.Proxy @AST.Ninja)
+      ]
+    , testModule "Language.Ninja.AST.Build"
+      -- FIXME: combinatorial explosion
+      [ -- testAeson (Ty.Proxy @AST.Build)
+      ]
+    , testModule "Language.Ninja.AST.Deps"
+      [ testAeson (Ty.Proxy @AST.Deps)
+      ]
+    , testModule "Language.Ninja.Misc.Command"
+      [ testAeson (Ty.Proxy @Misc.Command)
+      ]
+    , testModule "Language.Ninja.Misc.Path"
+      [ testAeson (Ty.Proxy @Misc.Path)
+      ]
+    , testModule "Language.Ninja.Misc.Located"
+      -- FIXME: no SmallCheck instances for Located/Position
+      [ -- testAeson (Ty.Proxy @(Misc.Located Bool))
+        -- testAeson (Ty.Proxy @Misc.Position)
+      ]
+    , testModule "Language.Ninja.Misc.IText"
+      [ testAeson (Ty.Proxy @Misc.IText)
+      ]
+    ]
+  where
+    testModule = T.testGroup
+    testType = T.testGroup
+
+    testAeson :: forall x.
+                 ( Eq x, Show x, Ty.Typeable x, SC.Serial IO x
+                 , Aeson.ToJSON x, Aeson.FromJSON x
+                 ) => Ty.Proxy x -> T.TestTree
+    testAeson p = let typeName = Ty.showsTypeRep (Ty.typeRep p) ""
+                  in testType typeName
+                     [T.testGroup "ToJSON/FromJSON Laws" [aesonSC p]]
+
 opticsTests :: T.TestTree
 opticsTests
-  = T.testGroup "Testing optics with SmallCheck"
+  = T.testGroup "optics"
     [ testModule "Language.Ninja.IR.Build"
       [ testType "Build" [] -- FIXME: combinatorial explosion
         -- [ testLens 1 "buildRule" IR.buildRule
@@ -268,7 +366,7 @@ opticsTests
         , testPrism def "_OrderOnlyDependency" IR._OrderOnlyDependency
         ]
       ]
-    , testModule "Language.Ninja.Env"
+    , testModule "Language.Ninja.AST.Env"
       [ testType "Env"
         [ testIso 1 "fromEnv"
           (AST.fromEnv :: Lens.Iso' (AST.Env Text Int) (AST.Maps Text Int))
@@ -320,9 +418,18 @@ opticsTests
         , testIso def "pathFP"     Misc.pathFP
         ]
       ]
-    , testModule "Language.Ninja.Misc.Located"
-      [
-      ]
+    , testModule "Language.Ninja.Misc.Located" []
+      -- FIXME: no (Co)Serial instance for Located/Position
+      -- [ testType "Located"
+      --   [ testLens def "locatedPos" Misc.locatedPos
+      --   , testLens def "locatedVal" Misc.locatedVal
+      --   ]
+      -- , testType "Position"
+      --   [ testLens def "positionFile" Misc.positionFile
+      --   , testLens def "positionLine" Misc.positionLine
+      --   , testLens def "positionCol"  Misc.positionCol
+      --   ]
+      -- ]
     , testModule "Language.Ninja.Misc.IText"
       [ testType "IText"
         [ testIso def "itext" Misc.itext
@@ -372,8 +479,9 @@ testTree :: IO T.TestTree
 testTree = do
   ninjas <- forM testFiles parseTestNinja
   let tests = T.testGroup "language-ninja"
-              [ T.testGroup "golden tests"
+              [ T.testGroup "golden"
                  (fmap (uncurry ninjaTests) (zip testFiles ninjas))
+              , aesonTests
               , opticsTests
               ]
   pure tests

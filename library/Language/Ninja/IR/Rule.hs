@@ -290,11 +290,10 @@ instance ToJSON SpecialDeps where
 instance FromJSON SpecialDeps where
   parseJSON = Aeson.withObject "SpecialDeps" $ \o -> do
     deps <- o .: "deps"
-    prefix <- o .: "prefix"
     case T.pack deps of
       "gcc"  -> pure SpecialDepsGCC
-      "msvc" -> pure (SpecialDepsMSVC prefix)
-      owise  -> ["Invalid deps type ", "\"", owise, "\"; "
+      "msvc" -> SpecialDepsMSVC <$> (o .: "prefix")
+      owise  -> [ "Invalid deps type ", "\"", owise, "\"; "
                 , "should be one of [\"gcc\", \"msvc\"]."
                 ] |> mconcat |> T.unpack |> fail
 

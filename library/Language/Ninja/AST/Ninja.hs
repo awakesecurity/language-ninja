@@ -160,7 +160,7 @@ instance ToJSON Ninja where
       , "phonys"    .= _ninjaPhonys
       , "defaults"  .= _ninjaDefaults
       , "pools"     .= _ninjaPools
-      , "specials"  .= _ninjaPools
+      , "specials"  .= _ninjaSpecials
       ] |> Aeson.object
     where
       fixMultiples :: HashMap (HashSet Text) AST.Build -> Aeson.Value
