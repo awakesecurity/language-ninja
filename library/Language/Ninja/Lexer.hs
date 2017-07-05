@@ -3,7 +3,8 @@
 -- File: library/Language/Ninja/Lexer.hs
 --
 -- License:
---     Copyright Neil Mitchell 2011-2017.
+--     Copyright Neil Mitchell  2011-2017.
+--     Copyright Awake Networks 2017.
 --     All rights reserved.
 --
 --     Redistribution and use in source and binary forms, with or without
@@ -39,6 +40,7 @@
 
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
@@ -47,7 +49,6 @@
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TupleSections         #-}
-{-# LANGUAGE ViewPatterns          #-}
 
 -- |
 --   Module      : Language.Ninja.Lexer
@@ -59,52 +60,62 @@
 --   Lexing is a slow point, the code below is optimised.
 module Language.Ninja.Lexer
   ( -- * Lexing
-    lexerFile, lexerText, lexerBS
+    lexerFile
+  , lexerText, lexerBS
+  , lexerText', lexerBS'
+  , lexemesP
+  , Parser
 
     -- * Types
   , Lexeme (..)
   , LName  (..)
   , LFile  (..)
   , LBind  (..)
-  , LBuild (..)
+  , LBuild (..), makeLBuild
+
+    -- * Classes
+  , PositionParsing (..)
   ) where
 
+import           Control.Applicative        (Alternative (..))
 import qualified Control.Exception
-import           Control.Monad.Error.Class    (MonadError (..))
+import           Control.Monad              (unless, void, when)
+import           Control.Monad.Error.Class  (MonadError (..))
 
-import qualified Data.ByteString.Char8        as BSC8
-import qualified Data.ByteString.Internal     as BS.Internal
-import qualified Data.ByteString.Unsafe       as BS.Unsafe
+import           Control.Lens               ((^.))
+import qualified Control.Lens               as Lens
 
-import qualified Data.ByteString.Lazy         as LBS
-import qualified Data.ByteString.Lazy.Char8   as LBSC8
+import           Data.ByteString            (ByteString)
+import qualified Data.ByteString            as BS
 
-import           Data.Text                    (Text)
-import qualified Data.Text                    as Text
-import qualified Data.Text.Encoding           as Text
+import qualified Data.ByteString.Lazy       as LBS
+import qualified Data.ByteString.Lazy.Char8 as LBSC8
 
-import           Data.Char
-                 (isAsciiLower, isAsciiUpper, isDigit)
-import           Data.Tuple.Extra             (first)
+import           Data.Text                  (Text)
+import qualified Data.Text                  as Text
+import qualified Data.Text.Encoding         as Text
 
-import           Flow                         ((.>), (|>))
+import           Data.Char                  (isSpace)
+import           Data.Foldable              (asum)
+import           Data.Functor               (($>), (<$))
+import           Data.Maybe                 (catMaybes, fromMaybe)
 
-import           Data.Aeson                   ((.:), (.=))
-import qualified Data.Aeson                   as Aeson
+import           Flow                       ((.>), (|>))
 
-import           Control.DeepSeq              (NFData)
-import           Data.Hashable                (Hashable)
-import           GHC.Generics                 (Generic)
+import qualified Text.Megaparsec            as M
+import qualified Text.Megaparsec.Lexer      as M.Lexer
 
-import           Language.Ninja.AST           (Str)
+import           Data.Aeson                 ((.:), (.=))
+import qualified Data.Aeson                 as Aeson
 
-import qualified Language.Ninja.AST           as AST
-import qualified Language.Ninja.Errors        as Err
-import qualified Language.Ninja.Misc          as Misc
-import qualified Language.Ninja.Mock          as Mock
+import           Control.DeepSeq            (NFData)
+import           Data.Hashable              (Hashable)
+import           GHC.Generics               (Generic)
 
-import           Language.Ninja.Internal.Str0 (Str0 (..))
-import qualified Language.Ninja.Internal.Str0 as Str0
+import qualified Language.Ninja.AST         as AST
+import qualified Language.Ninja.Errors      as Err
+import qualified Language.Ninja.Misc        as Misc
+import qualified Language.Ninja.Mock        as Mock
 
 --------------------------------------------------------------------------------
 
@@ -173,13 +184,13 @@ instance NFData Lexeme
 -- | The name of a Ninja rule or pool.
 newtype LName
   = MkLName
-    { _lnameStr :: Str
+    { _lnameBS :: ByteString
     }
   deriving (Eq, Show, Generic)
 
 -- | Converts to a JSON string.
 instance Aeson.ToJSON LName where
-  toJSON (MkLName {..}) = Aeson.toJSON (Text.decodeUtf8 _lnameStr)
+  toJSON (MkLName {..}) = Aeson.toJSON (Text.decodeUtf8 _lnameBS)
 
 -- | Inverse of the 'ToJSON' instance.
 instance Aeson.FromJSON LName where
@@ -259,9 +270,10 @@ data LBuild
     }
   deriving (Eq, Show, Generic)
 
--- | FIXME: doc
+-- | Constructor for an 'LBuild'.
+makeLBuild :: [AST.Expr] -> LName -> [AST.Expr] -> LBuild
 makeLBuild outs rule deps
-  = let filterExprs = filter (\e -> e /= (AST.Exprs []))
+  = let filterExprs = filter (\e -> (e /= AST.Lit "") && (e /= AST.Exprs []))
     in MkLBuild (filterExprs outs) rule (filterExprs deps)
 
 -- | Converts to @{outs: …, rule: …, deps: …}@.
@@ -291,209 +303,228 @@ instance NFData LBuild
 -- | Lex the given file.
 lexerFile :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
           => Misc.Path -> m [Lexeme]
-lexerFile file = Mock.readFile file >>= lexerText
+lexerFile file = Mock.readFile file >>= lexerText' (Just file)
 
 -- | Lex the given 'Text'.
 lexerText :: (MonadError Err.ParseError m) => Text -> m [Lexeme]
-lexerText = Text.encodeUtf8 .> lexerBS
+lexerText = lexerText' Nothing
 
 -- | Lex the given 'BSC8.ByteString'.
-lexerBS :: (MonadError Err.ParseError m) => BSC8.ByteString -> m [Lexeme]
-lexerBS x = lexerLoop (MkStr0 (BSC8.append x "\n\n\0"))
+lexerBS :: (MonadError Err.ParseError m) => ByteString -> m [Lexeme]
+lexerBS = lexerBS' Nothing
+
+-- | Lex the given 'Text' that comes from the given 'Misc.Path', if provided.
+lexerText' :: (MonadError Err.ParseError m)
+           => Maybe Misc.Path -> Text -> m [Lexeme]
+lexerText' mp x = let file = fromMaybe "" (Lens.view Misc.pathString <$> mp)
+                  in M.runParserT lexemesP file x
+                     >>= either Err.throwLexParsecError pure
+
+-- | Lex the given 'ByteString' that comes from the given 'Misc.Path', if it is
+--   provided. The 'Misc.Path' is only used for error messages.
+lexerBS' :: (MonadError Err.ParseError m)
+         => Maybe Misc.Path -> ByteString -> m [Lexeme]
+lexerBS' mpath = Text.decodeUtf8 .> lexerText' mpath
 
 --------------------------------------------------------------------------------
 
-lexerLoop :: (MonadError Err.ParseError m) => Str0 -> m [Lexeme]
-lexerLoop c_x
-  = case c of
-      '\r'                                  -> lexerLoop x0
-      '\n'                                  -> lexerLoop x0
-      '#'                                   -> lexerLoop $ removeComment x0
-      ' '                                   -> lexBind     $ dropSpace x0
-      'b'  | Just x1 <- strip "uild "    x0 -> lexBuild    $ dropSpace x1
-      'r'  | Just x1 <- strip "ule "     x0 -> lexRule     $ dropSpace x1
-      'd'  | Just x1 <- strip "efault "  x0 -> lexDefault  $ dropSpace x1
-      'p'  | Just x1 <- strip "ool "     x0 -> lexPool     $ dropSpace x1
-      'i'  | Just x1 <- strip "nclude "  x0 -> lexInclude  $ dropSpace x1
-      's'  | Just x1 <- strip "ubninja " x0 -> lexSubninja $ dropSpace x1
-      '\0'                                  -> pure []
-      _                                     -> lexDefine c_x
+-- | This class is kind of like 'DeltaParsing' from @trifecta@.
+class (Monad m) => PositionParsing m where
+  getPosition :: m Misc.Position
+
+-- | Instance for 'M.ParsecT' from @megaparsec@.
+instance (Monad m) => PositionParsing (M.ParsecT M.Dec Text m) where
+  getPosition = convert <$> M.getPosition
+    where
+      convert :: M.SourcePos -> Misc.Position
+      convert (M.SourcePos fp line column)
+        = let path = fp ^. Lens.from Misc.pathString
+          in Misc.makePosition (Just path) (toLine line, toColumn column)
+
+      toLine   :: M.Pos -> Misc.Line
+      toColumn :: M.Pos -> Misc.Column
+      toLine   = M.unPos .> fromIntegral
+      toColumn = M.unPos .> fromIntegral
+
+--------------------------------------------------------------------------------
+
+-- | A @megaparsec@ parser.
+type Parser m a = M.ParsecT M.Dec Text m a
+
+-- | The @megaparsec@ parser for a Ninja file.
+lexemesP :: (Monad m) => Parser m [Lexeme]
+lexemesP = do
+  maybes <- [ Nothing <$  lineCommentP
+            , Nothing <$  M.separatorChar
+            , Nothing <$  M.eol
+            , Just    <$> (lexemeP <* lineEndP)
+            ] |> asum |> many
+  M.eof
+  pure (catMaybes maybes)
+
+--------------------------------------------------------------------------------
+
+lexemeP :: (Monad m) => Parser m Lexeme
+lexemeP = [ includeP, subninjaP, buildP, ruleP, poolP, defaultP, bindP, defineP
+          ] |> map M.try |> asum
+
+defineP :: (Monad m) => Parser m Lexeme
+defineP = debugP "defineP"
+          (LexDefine <$> equationP)
+
+bindP :: (Monad m) => Parser m Lexeme
+bindP = debugP "bindP"
+        (LexBind <$> indented f)
   where
-    removeComment = Str0.dropWhile0 (/= '\n')
+    f x | x < 2 = fail "bindP: not indented"
+    f _         = equationP
 
-    (c, x0) = Str0.list0 c_x
+includeP :: (Monad m) => Parser m Lexeme
+includeP = debugP "includeP" $ do
+  beginningOfLine
+  symbolP "include"
+  LexInclude <$> M.Lexer.lexeme spaceP fileP
 
-    strip str (MkStr0 x) = let b = BSC8.pack str
-                           in if b `BSC8.isPrefixOf` x
-                              then Just $ MkStr0 $ BSC8.drop (BSC8.length b) x
-                              else Nothing
+subninjaP :: (Monad m) => Parser m Lexeme
+subninjaP = debugP "subninjaP" $ do
+  beginningOfLine
+  symbolP "subninja"
+  LexSubninja <$> M.Lexer.lexeme spaceP fileP
 
-lexBind :: (MonadError Err.ParseError m) => Str0 -> m [Lexeme]
-lexBind c_x | (c, x) <- Str0.list0 c_x
-  = case c of
-      '\r' -> lexerLoop x
-      '\n' -> lexerLoop x
-      '#'  -> lexerLoop $ Str0.dropWhile0 (/= '\n') x
-      '\0' -> pure []
-      _    -> lexxBind LexBind c_x
+buildP :: (Monad m) => Parser m Lexeme
+buildP = debugP "buildP" $ do
+  let exprEmpty e = (e == (AST.Lit "")) || (e == (AST.Exprs []))
+  let cleanExprs = map AST.normalizeExpr .> filter (exprEmpty .> not)
+  beginningOfLine
+  symbolP "build"
+  outs <- cleanExprs <$> M.some outputP
+  symbolP ":"
+  rule <- nameP
+  deps <- cleanExprs <$> M.many (M.Lexer.lexeme spaceP exprP)
+  pure (LexBuild (MkLBuild outs rule deps))
 
-lexBuild :: (MonadError Err.ParseError m) => Str0 -> m [Lexeme]
-lexBuild x0 = do
-  (outputs, x1) <- lexxExprs True x0
-  let (rule, x2) = Str0.span0 isVarDot $ dropSpace x1
-  (deps, x3) <- lexxExprs False $ dropSpace x2
-  x4 <- lexerLoop x3
-  pure (LexBuild (makeLBuild outputs (MkLName rule) deps) : x4)
+ruleP :: (Monad m) => Parser m Lexeme
+ruleP = debugP "ruleP" $ do
+  beginningOfLine
+  symbolP "rule"
+  LexRule <$> nameP
 
-lexDefault :: (MonadError Err.ParseError m) => Str0 -> m [Lexeme]
-lexDefault str0 = do
-  (files, str1) <- lexxExprs False str0
-  str2 <- lexerLoop str1
-  pure (LexDefault files : str2)
+poolP :: (Monad m) => Parser m Lexeme
+poolP = debugP "poolP" $ do
+  beginningOfLine
+  symbolP "pool"
+  LexPool <$> nameP
 
-lexRule, lexPool, lexInclude, lexSubninja, lexDefine
-  :: (MonadError Err.ParseError m) => Str0 -> m [Lexeme]
-lexRule     = lexxName LexRule
-lexPool     = lexxName LexPool
-lexInclude  = lexxFile LexInclude
-lexSubninja = lexxFile LexSubninja
-lexDefine   = lexxBind LexDefine
+defaultP :: (Monad m) => Parser m Lexeme
+defaultP = debugP "defaultP" $ do
+  beginningOfLine
+  symbolP "default"
+  LexDefault <$> M.many (M.Lexer.lexeme spaceP exprP)
 
-lexxBind :: (MonadError Err.ParseError m)
-         => (LBind -> Lexeme) -> Str0 -> m [Lexeme]
-lexxBind ctor x0 = do
-  let (var,  x1) = Str0.span0 isVarDot x0
-  let (eq,   x2) = Str0.list0 $ dropSpace x1
-  (expr, x3) <- lexxExpr False False $ dropSpace x2
-  x4         <- lexerLoop x3
-  if (eq == '=')
-    then pure (ctor (MkLBind (MkLName var) expr) : x4)
-    else Err.throwLexBindingFailure (Text.pack (show (Str0.take0 100 x0)))
+lineEndP :: (Monad m) => Parser m ()
+lineEndP = do
+  M.many M.separatorChar
+  lineCommentP <|> pure ()
+  void M.eol
 
-lexxFile :: (MonadError Err.ParseError m)
-         => (LFile -> Lexeme) -> Str0 -> m [Lexeme]
-lexxFile ctor str0 = do
-  (expr, str1) <- lexxExpr False False (dropSpace str0)
-  str2         <- lexerLoop str1
-  pure (ctor (MkLFile expr) : str2)
+equationP :: (Monad m) => Parser m LBind
+equationP = debugP "equationP" $ do
+  name <- nameP
+  symbolP "="
+  value <- exprsP
+  pure (MkLBind name value)
 
-lexxName :: (MonadError Err.ParseError m)
-         => (LName -> Lexeme) -> Str0 -> m [Lexeme]
-lexxName ctor x = do
-  let (name, rest) = splitLineCont x
-  lexemes <- lexerLoop rest
-  pure (ctor (MkLName name) : lexemes)
+nameP :: (Monad m) => Parser m LName
+nameP = varDotP
+        |> fmap (Text.pack .> Text.encodeUtf8 .> MkLName)
+        |> M.Lexer.lexeme spaceP
+        |> debugP "nameP"
 
-lexxExprs :: (MonadError Err.ParseError m)
-          => Bool -> Str0 -> m ([AST.Expr], Str0)
-lexxExprs sColon x0 = do
-  (a, c_x) <- lexxExpr sColon True x0
-  let c  = Str0.head0 c_x
-  let x1 = Str0.tail0 c_x
-  case c of
-    ' '           -> do (exprs, x2) <- lexxExprs sColon $ dropSpace x1
-                        pure (a:exprs, x2)
-    ':'  | sColon -> pure ([a], x1)
-    _    | sColon -> Err.throwLexExpectedColon
-    '\r'          -> pure (a $: dropN x1)
-    '\n'          -> pure (a $: x1)
-    '\0'          -> pure (a $: c_x)
-    _             -> Err.throwLexUnexpectedSeparator c
+fileP :: (Monad m) => Parser m LFile
+fileP = MkLFile <$> exprP
+        |> M.Lexer.lexeme spaceP
+        |> debugP "fileP"
+
+outputP :: (Monad m) => Parser m AST.Expr
+outputP = M.some (dollarP <|> litP)
+          |> fmap (AST.Exprs .> AST.normalizeExpr)
+          |> M.Lexer.lexeme spaceP
   where
-    ($:) :: AST.Expr -> Str0 -> ([AST.Expr], Str0)
-    (AST.Exprs []) $: s = ([],     s)
-    expr           $: s = ([expr], s)
+    litP = M.some (M.satisfy isOutputChar)
+           |> fmap (Text.pack .> AST.Lit)
 
-{-# NOINLINE lexxExpr #-}
-lexxExpr :: (MonadError Err.ParseError m)
-         => Bool
-         -- ^ @stopColon@
-         -> Bool
-         -- ^ @stopSpace@
-         -> Str0
-         -- ^ The input bytestring
-         -> m (AST.Expr, Str0)
-         -- ^ The second field will start with one of @" :\n\r"@ or be empty
-lexxExpr stopColon stopSpace str0 = first exprs <$> f str0
+    isOutputChar :: Char -> Bool
+    isOutputChar '$'             = False
+    isOutputChar ':'             = False
+    isOutputChar '\n'            = False
+    isOutputChar '\r'            = False
+    isOutputChar c   | isSpace c = False
+    isOutputChar _               = True
+
+exprsP :: (Monad m) => Parser m AST.Expr
+exprsP = [ exprP
+         , AST.Lit . Text.pack <$> some M.separatorChar
+         ] |> asum |> M.many |> fmap (AST.Exprs .> AST.normalizeExpr)
+
+exprP :: (Monad m) => Parser m AST.Expr
+exprP = M.some (dollarP <|> litP)
+        |> fmap (AST.Exprs .> AST.normalizeExpr)
   where
-    exprs :: [AST.Expr] -> AST.Expr
-    exprs [x] = AST.normalizeExpr x
-    exprs xs  = AST.normalizeExpr (AST.Exprs xs)
+    litP = M.some (M.satisfy isExprChar) |> fmap (Text.pack .> AST.Lit)
 
-    special :: Char -> Bool
-    special x = let b = x `elem` ['$', '\r', '\n', '\0']
-                in case (stopColon, stopSpace) of
-                     (True , True ) -> (x <= ':') && or [x == ':', x == ' ', b]
-                     (True , False) -> (x <= ':') && or [x == ':',           b]
-                     (False, True ) -> (x <= '$') && or [          x == ' ', b]
-                     (False, False) -> (x <= '$') && or [                    b]
+    isExprChar :: Char -> Bool
+    isExprChar '$'             = False
+    isExprChar '\n'            = False
+    isExprChar '\r'            = False
+    isExprChar c   | isSpace c = False
+    isExprChar _               = True
 
-    f :: (MonadError Err.ParseError m) => Str0 -> m ([AST.Expr], Str0)
-    f (Str0.break00 special -> (a, x))
-      = if BSC8.null a
-        then g x
-        else g x >>= \y -> pure (AST.Lit (Text.decodeUtf8 a) $: y)
-
-    g :: (MonadError Err.ParseError m) => Str0 -> m ([AST.Expr], Str0)
-    g x0 | (Str0.head0 x0 /= '$') = pure ([], x0)
-    g (Str0.tail0 -> c_x) =
-      let (c, x0) = Str0.list0 c_x
-      in case c of
-           '$'   -> f x0 >>= (AST.Lit "$" $:) .> pure
-           ' '   -> f x0 >>= (AST.Lit " " $:) .> pure
-           ':'   -> f x0 >>= (AST.Lit ":" $:) .> pure
-           '\n'  -> f (dropSpace x0)
-           '\r'  -> f (dropSpace (dropN x0))
-           '{' | (name, x1) <- Str0.span0 isVarDot x0
-               , ('}',  x2) <- Str0.list0 x1
-               , not (BSC8.null name)
-                 -> f x2 >>= (AST.Var (Text.decodeUtf8 name) $:) .> pure
-           _   | (name, x1) <- Str0.span0 isVar c_x
-               , not $ BSC8.null name
-                 -> f x1 >>= (AST.Var (Text.decodeUtf8 name) $:) .> pure
-           _     -> Err.throwLexUnexpectedDollar
-
-    ($:) :: a -> ([a], b) -> ([a], b)
-    x $: (xs, y) = (x:xs, y)
-
-splitLineCont :: Str0 -> (Str, Str0)
-splitLineCont = go .> first BSC8.concat
+dollarP :: (Monad m) => Parser m AST.Expr
+dollarP = debugP "dollarP"
+          (M.char '$'
+           *> ([ makeLit <$> M.string "$"
+               , makeLit <$> M.string " "
+               , makeLit <$> M.string ":"
+               , makeLit <$> (M.eol *> M.many M.separatorChar *> pure "")
+               , makeVar <$> (M.char '{' *> varDotP <* M.char '}')
+               , makeVar <$> varP
+               ] |> asum))
   where
-    go = splitLineCR .> go'
+    makeLit = Text.pack .> AST.Lit
+    makeVar = Text.pack .> AST.Var
 
-    go' (a, b) | not (endsDollar a) = ([a], b)
-               | otherwise          = let (c, d) = go (dropSpace b)
-                                      in (BSC8.init a : c, d)
+varDotP :: (Monad m) => Parser m String
+varDotP = let char = M.alphaNumChar <|> M.oneOf ['/', '-', '_', '.']
+          in debugP "varDotP" (M.some char)
 
-splitLineCR :: Str0 -> (Str, Str0)
-splitLineCR x = if BSC8.isSuffixOf (BSC8.singleton '\r') a
-                then (BSC8.init a, dropN b)
-                else (a, dropN b)
-  where
-    (a, b) = Str0.break0 (== '\n') x
+varP :: (Monad m) => Parser m String
+varP = let char = M.alphaNumChar <|> M.oneOf ['/', '-', '_']
+       in debugP "varP" (M.some char)
 
-isVar :: Char -> Bool
-isVar x = [ (x == '-')
-          , (x == '_')
-          , isAsciiLower x
-          , isAsciiUpper x
-          , isDigit x
-          ] |> or
+symbolP :: (Monad m) => String -> Parser m String
+symbolP = M.Lexer.symbol spaceP
 
-isVarDot :: Char -> Bool
-isVarDot x = [ x == '.'
-             , isVar x
-             ] |> or
+spaceP :: (Monad m) => Parser m ()
+spaceP = M.Lexer.space (void M.separatorChar) lineCommentP blockCommentP
 
-endsDollar :: Str -> Bool
-endsDollar = BSC8.isSuffixOf (BSC8.singleton '$')
+lineCommentP :: (Monad m) => Parser m ()
+lineCommentP = M.Lexer.skipLineComment "#"
 
-dropN :: Str0 -> Str0
-dropN x = if (Str0.head0 x == '\n')
-          then Str0.tail0 x
-          else x
+blockCommentP :: (Monad m) => Parser m ()
+blockCommentP = fail "always"
 
-dropSpace :: Str0 -> Str0
-dropSpace = Str0.dropWhile0 (== ' ')
+indented :: (Monad m) => (Misc.Column -> Parser m a) -> Parser m a
+indented f = do
+  let getCol = Lens.view Misc.positionCol <$> getPosition
+  M.many M.separatorChar
+  getCol >>= f
+
+beginningOfLine :: (Monad m) => Parser m ()
+beginningOfLine = do
+  col <- Lens.view Misc.positionCol <$> getPosition
+  unless (col == 1) (fail "beginningOfLine failed")
+
+debugP :: (Monad m, Show a) => String -> Parser m a -> Parser m a
+debugP = M.label -- M.dbg
 
 --------------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 -- -*- coding: utf-8; mode: haskell; -*-
 
--- File: library/Language/Ninja/Internal/Str0.hs
+-- File: tests/Tests/ReferenceLexer/Str0.hs
 --
 -- License:
 --     Copyright Neil Mitchell 2011-2017.
@@ -38,15 +38,15 @@
 {-# OPTIONS_HADDOCK #-}
 
 -- |
---   Module      : Language.Ninja.Internal.Str0
+--   Module      : Tests.ReferenceLexer.Str0
 --   Copyright   : Copyright 2011-2017 Neil Mitchell
 --   License     : BSD3
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
 --   FIXME: doc
-module Language.Ninja.Internal.Str0
-  ( module Language.Ninja.Internal.Str0 -- FIXME: specific export list
+module Tests.ReferenceLexer.Str0
+  ( module Tests.ReferenceLexer.Str0 -- FIXME: specific export list
   ) where
 
 import           Data.ByteString          (ByteString)

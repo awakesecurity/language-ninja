@@ -136,17 +136,21 @@ addBinds bs e = map (second (askExpr e) .> uncurry AST.addEnv .> Endo) bs
 
 -- | FIXME: doc
 normalizeExpr :: Expr -> Expr
-normalizeExpr = flatten .> helper .> go
+normalizeExpr = flatten .> removeEmpty .> combineAdj .> listToExpr
   where
-    go [e] = e
-    go es  = Exprs es
+    listToExpr [e] = e
+    listToExpr es  = Exprs es
 
     flatten (Exprs es) = concatMap flatten es
     flatten owise      = [owise]
 
-    helper []                     = []
-    helper (Lit x : Lit y : rest) = helper (Lit (x <> y) : rest)
-    helper (owise         : rest) = owise : helper rest
+    removeEmpty []              = []
+    removeEmpty (Lit "" : rest) = removeEmpty rest
+    removeEmpty (owise  : rest) = owise : removeEmpty rest
+
+    combineAdj []                     = []
+    combineAdj (Lit x : Lit y : rest) = combineAdj (Lit (x <> y) : rest)
+    combineAdj (owise         : rest) = owise : combineAdj rest
 
 -- | Converts 'Exprs' to a JSON list, 'Lit' to a JSON string,
 --   and 'Var' to @{var: …}@.

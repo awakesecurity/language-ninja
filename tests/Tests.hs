@@ -67,6 +67,7 @@ import qualified Language.Ninja.AST.Env     as AST (Maps)
 import qualified Language.Ninja.AST         as AST
 import qualified Language.Ninja.Compile     as Compile
 import qualified Language.Ninja.IR          as IR
+import qualified Language.Ninja.Lexer       as Lexer
 import qualified Language.Ninja.Misc        as Misc
 import qualified Language.Ninja.Parser      as Parser
 import qualified Language.Ninja.Pretty      as Pretty
@@ -110,6 +111,7 @@ import           Flow
 
 import           Tests.Mock
 import           Tests.Orphans              ()
+import qualified Tests.ReferenceLexer       as RefLex
 
 --------------------------------------------------------------------------------
 
@@ -142,6 +144,14 @@ parseTestNinja name = do
   Turtle.cd old
   pure result
 
+lexerEquivalentTest :: String -> IO ()
+lexerEquivalentTest name = do
+  let file = (dataPrefix <> name <> ".ninja") ^. Lens.from Misc.pathString
+  expected <- runExceptT (Lexer.lexerFile file)
+  actual   <- runExceptT (RefLex.lexerFile file)
+  unless (expected == actual) $ do
+    T.assertEqual "prefix" expected actual
+
 roundtripTest :: AST.Ninja -> IO ()
 roundtripTest ninja = do
   let withTempDir = Turtle.with (Turtle.mktempdir "." "test")
@@ -154,7 +164,7 @@ roundtripTest ninja = do
     let prettyOutput = Pretty.prettyNinja output
     pure (prettyInput, prettyOutput)
 
-  unless (actual == expected) $ do
+  unless (expected == actual) $ do
     -- let actualJ   = Aeson.toJSON actual
     -- let expectedJ = Aeson.toJSON expected
     -- -- LBSC8.putStrLn (Aeson.encodePretty (Aeson.diff actualJ expectedJ))
@@ -169,8 +179,10 @@ compileTest ninja = void $ do
 
 ninjaTests :: String -> AST.Ninja -> T.TestTree
 ninjaTests name ninja
-  = T.testGroup ("Testing " <> name <> ".ninja")
-    [ T.testCase "roundtrip through parser and pretty-printer" $ do
+  = T.testGroup (name <> ".ninja")
+    [ T.testCase "compare lexer against reference implementation" $ do
+        lexerEquivalentTest name
+    , T.testCase "roundtrip through parser and pretty-printer" $ do
         roundtripTest ninja
     , T.testCase "compile to Ninja" $ do
         compileTest ninja
@@ -359,10 +371,12 @@ ingredients = [ [T.htmlRunner]
 testTree :: IO T.TestTree
 testTree = do
   ninjas <- forM testFiles parseTestNinja
-  let tests = [ fmap (uncurry ninjaTests) (zip testFiles ninjas)
-              , [opticsTests]
-              ] |> mconcat
-  pure (T.testGroup "language-ninja" tests)
+  let tests = T.testGroup "language-ninja"
+              [ T.testGroup "golden tests"
+                 (fmap (uncurry ninjaTests) (zip testFiles ninjas))
+              , opticsTests
+              ]
+  pure tests
 
 test :: IO ()
 test = do

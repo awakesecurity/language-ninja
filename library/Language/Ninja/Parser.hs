@@ -40,6 +40,7 @@
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
@@ -87,7 +88,7 @@ import           Control.Monad.Trans.Class  (MonadTrans (..))
 import           Control.Monad.Trans.Except (runExceptT)
 
 import qualified Control.Lens               as Lens
-import           Control.Lens.Getter        (view)
+import           Control.Lens.Getter        (view, (^.))
 import           Control.Lens.Setter        ((%~), (.~))
 
 import           Data.Monoid                (Endo (..), (<>))

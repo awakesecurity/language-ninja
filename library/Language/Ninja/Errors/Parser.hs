@@ -43,6 +43,7 @@ module Language.Ninja.Errors.Parser
   , throwLexExpectedColon
   , throwLexUnexpectedDollar
   , throwLexUnexpectedSeparator
+  , throwLexParsecError
   , throwParseBadDepthField
   , throwParseUnexpectedBinding
   ) where
@@ -54,6 +55,8 @@ import           GHC.Generics              (Generic)
 import           Data.Text                 (Text)
 
 import           Flow                      ((.>), (|>))
+
+import qualified Text.Megaparsec           as M
 
 import qualified Language.Ninja.AST.Expr   as AST
 
@@ -71,6 +74,8 @@ data ParseError
     LexUnexpectedDollar
   | -- | Lexer expected a separator character but found something else
     LexUnexpectedSeparator Char
+  | -- | Any other lexer error.
+    LexParsecError         !(M.ParseError Char M.Dec)
   | -- | @Could not parse depth field in pool, got: <text>@
     ParseBadDepthField     !Text
   | -- | @Unexpected binding defining <text>@
@@ -103,6 +108,11 @@ throwLexUnexpectedDollar = throwParseError LexUnexpectedDollar
 -- | Throw a 'LexUnexpectedSeparator' error.
 throwLexUnexpectedSeparator :: (MonadError ParseError m) => Char -> m a
 throwLexUnexpectedSeparator c = throwParseError (LexUnexpectedSeparator c)
+
+-- | Throw a 'LexParsecError' error.
+throwLexParsecError :: (MonadError ParseError m)
+                    => M.ParseError Char M.Dec -> m a
+throwLexParsecError pe = throwParseError (LexParsecError pe)
 
 -- | Throw a 'ParseBadDepthField' error.
 throwParseBadDepthField :: (MonadError ParseError m) => Text -> m a

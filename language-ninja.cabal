@@ -85,7 +85,6 @@ library
                         , Language.Ninja.Misc.Located
                         , Language.Ninja.Misc.Path
                         , Language.Ninja.Misc.Positive
-    other-modules:        Language.Ninja.Internal.Str0
     default-language:     Haskell2010
     other-extensions:     OverloadedStrings
                           -- FIXME: add the rest of the extensions used
@@ -100,7 +99,9 @@ test-suite tests
     hs-source-dirs:       tests
     main-is:              Tests.hs
     other-modules:        Tests.Mock
-                          Tests.Orphans
+                        , Tests.Orphans
+                        , Tests.ReferenceLexer
+                        , Tests.ReferenceLexer.Str0
     build-depends:        language-ninja
                         , base                        >= 4.8   && < 5.0
                         , aeson                       >= 1.0   && < 1.3
