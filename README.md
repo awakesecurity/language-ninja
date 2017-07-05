@@ -29,14 +29,13 @@ Chromium, any CMake project, any Bazel project, or some Make-based projects
 
 ## Parsing
 
-The lexer/parser that `language-ninja` currently uses is from Neil Mitchell's
-`shake` project. It is optimized for performance, but is not obviously correct
-and does not have very good diagnostics, so there are plans to move to a
-`megaparsec`-based parser. This would also allow for the addition of location
-information to the parsed AST. In my view, it is very important that a parser
-output an AST that can be pretty-printed exactly to same sequence of bytes that
-were in the parsed file, as this makes testing and diagnostics much easier to
-write.
+Originally, `language-ninja` used the Ninja lexer/parser from Neil Mitchell's
+`shake` project. However, we now use a `megaparsec`-based lexer and a highly
+modified version of the old parser. There is still work to be done on improving
+the diagnostic data and pretty-printability of the AST from this parser.
+In my view, it is very important that a parser output an AST that can be
+pretty-printed exactly to same sequence of bytes that were in the parsed file,
+as this makes tests and diagnostics much easier to write.
 
 ## Pretty-printing
 
