@@ -22,10 +22,14 @@
 
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 -- |
 --   Module      : Language.Ninja.Misc.Located
@@ -74,6 +78,8 @@ import qualified Data.Map.Strict          as Map
 import           Control.DeepSeq          (NFData)
 import           Data.Hashable            (Hashable)
 import           GHC.Generics             (Generic)
+
+import qualified Test.SmallCheck.Series   as SC
 
 import           Data.Aeson
                  (FromJSON (..), KeyValue (..), ToJSON (..), (.:))
@@ -153,6 +159,14 @@ instance (Hashable t) => Hashable (Located t)
 -- | Default 'NFData' instance via 'Generic'.
 instance (NFData t) => NFData (Located t)
 
+-- | Default 'SC.Serial' instance via 'Generic'.
+instance ( Monad m, SC.Serial m Text, SC.Serial m t
+         ) => SC.Serial m (Located t)
+
+-- | Default 'SC.CoSerial' instance via 'Generic'.
+instance ( Monad m, SC.CoSerial m Text, SC.CoSerial m t
+         ) => SC.CoSerial m (Located t)
+
 --------------------------------------------------------------------------------
 
 -- | This datatype represents position of a cursor
@@ -208,6 +222,12 @@ instance Hashable Position
 
 -- | Default 'NFData' instance via 'Generic'.
 instance NFData Position
+
+-- | Default 'SC.Serial' instance via 'Generic'.
+instance (Monad m, SC.Serial m Text) => SC.Serial m Position
+
+-- | Default 'SC.CoSerial' instance via 'Generic'.
+instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Position
 
 --------------------------------------------------------------------------------
 

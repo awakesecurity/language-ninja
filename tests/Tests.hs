@@ -266,9 +266,8 @@ aesonTests
       [ testAeson (Ty.Proxy @Misc.Path)
       ]
     , testModule "Language.Ninja.Misc.Located"
-      -- FIXME: no SmallCheck instances for Located/Position
-      [ -- testAeson (Ty.Proxy @(Misc.Located Bool))
-        -- testAeson (Ty.Proxy @Misc.Position)
+      [ testAeson (Ty.Proxy @(Misc.Located Bool))
+      , testAeson (Ty.Proxy @Misc.Position)
       ]
     , testModule "Language.Ninja.Misc.IText"
       [ testAeson (Ty.Proxy @Misc.IText)
@@ -422,18 +421,19 @@ opticsTests
         , testIso def "pathFP"     Misc.pathFP
         ]
       ]
-    , testModule "Language.Ninja.Misc.Located" []
-      -- FIXME: no (Co)Serial instance for Located/Position
-      -- [ testType "Located"
-      --   [ testLens def "locatedPos" Misc.locatedPos
-      --   , testLens def "locatedVal" Misc.locatedVal
-      --   ]
-      -- , testType "Position"
-      --   [ testLens def "positionFile" Misc.positionFile
-      --   , testLens def "positionLine" Misc.positionLine
-      --   , testLens def "positionCol"  Misc.positionCol
-      --   ]
-      -- ]
+    , testModule "Language.Ninja.Misc.Located"
+      [ testType "Located"
+        [ testLens 4 "locatedPos"
+          (Misc.locatedPos :: Lens.Lens' (Misc.Located Bool) Misc.Position)
+        , testLens 4 "locatedVal"
+          (Misc.locatedVal :: Lens.Lens' (Misc.Located Bool) Bool)
+        ]
+      , testType "Position"
+        [ testLens 4 "positionFile" Misc.positionFile
+        , testLens 4 "positionLine" Misc.positionLine
+        , testLens 4 "positionCol"  Misc.positionCol
+        ]
+      ]
     , testModule "Language.Ninja.Misc.IText"
       [ testType "IText"
         [ testIso def "itext" Misc.itext
