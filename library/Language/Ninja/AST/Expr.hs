@@ -59,9 +59,7 @@ import           Control.DeepSeq           (NFData)
 import           Data.Hashable             (Hashable)
 import           GHC.Generics              (Generic)
 
-import qualified Test.QuickCheck           as Q
-import           Test.QuickCheck.Arbitrary (Arbitrary (..))
-import           Test.QuickCheck.Gen       (Gen (..))
+import qualified Test.QuickCheck           as QC
 import           Test.QuickCheck.Instances ()
 
 import qualified Test.SmallCheck.Series    as SC
@@ -170,19 +168,19 @@ instance FromJSON Expr where
              -> (Aeson.Value -> Aeson.Parser a)
       choice = flip (\v -> map (\f -> f v)) .> fmap asum
 
--- | Reasonable 'Arbitrary' instance for 'PExpr'.
-instance Arbitrary Expr where
-  arbitrary = Q.sized go
+-- | Reasonable 'QC.Arbitrary' instance for 'Expr'.
+instance QC.Arbitrary Expr where
+  arbitrary = QC.sized go
     where
-      go :: Int -> Gen Expr
-      go n | n <= 0 = [ Lit <$> Q.resize litLength arbitrary
-                      , Var <$> Q.resize varLength arbitrary
-                      ] |> Q.oneof
+      go :: Int -> QC.Gen Expr
+      go n | n <= 0 = [ Lit <$> QC.resize litLength QC.arbitrary
+                      , Var <$> QC.resize varLength QC.arbitrary
+                      ] |> QC.oneof
       go n          = [ go 0
-                      , do width <- (`mod` maxWidth) <$> arbitrary
+                      , do width <- (`mod` maxWidth) <$> QC.arbitrary
                            let subtree = go (n `div` lossRate)
-                           Exprs <$> Q.vectorOf width subtree
-                      ] |> Q.oneof
+                           Exprs <$> QC.vectorOf width subtree
+                      ] |> QC.oneof
 
       litLength, varLength, lossRate, maxWidth :: Int
       litLength = 10

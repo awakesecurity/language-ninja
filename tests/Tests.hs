@@ -82,11 +82,17 @@ import qualified Test.Tasty.HUnit           as T
 import qualified Test.Tasty.Ingredients     as T
 import qualified Test.Tasty.Options         as T
 import qualified Test.Tasty.Runners.Html    as T
-import qualified Test.Tasty.SmallCheck      as T
+
+import qualified Test.Tasty.QuickCheck      as T.QC
+import qualified Test.Tasty.SmallCheck      as T.SC
 
 import qualified Test.Tasty.Lens.Iso        as T.Iso
 import qualified Test.Tasty.Lens.Lens       as T.Lens
 import qualified Test.Tasty.Lens.Prism      as T.Prism
+
+import           Test.QuickCheck            ((===))
+import qualified Test.QuickCheck            as QC
+import           Test.QuickCheck.Instances  ()
 
 import qualified Test.SmallCheck.Series     as SC
 
@@ -146,13 +152,28 @@ aesonSC' :: (Eq x, Show x)
          -> (Aeson.Value -> Aeson.Parser x)
          -> T.TestTree
 aesonSC' s toJ fromJ
-  = T.testProperty "parseJSON . toJSON ≡ pure"
-    (T.over s (\x -> Aeson.parseEither fromJ (toJ x) == Right x))
+  = T.SC.testProperty "parseJSON . toJSON ≡ₛ pure"
+    (T.SC.over s (\x -> Aeson.parseEither fromJ (toJ x) == Right x))
 
 aesonSC :: forall x.
            ( Eq x, Show x, SC.Serial IO x, Aeson.ToJSON x, Aeson.FromJSON x
            ) => Ty.Proxy x -> T.TestTree
 aesonSC _ = aesonSC' @x SC.series Aeson.toJSON Aeson.parseJSON
+
+aesonQC' :: (Eq x, Show x)
+         => (QC.Gen x, x -> [x])
+         -> (x -> Aeson.Value)
+         -> (Aeson.Value -> Aeson.Parser x)
+         -> T.TestTree
+aesonQC' (gen, shrink) toJ fromJ
+  = T.QC.testProperty "parseJSON . toJSON ≡ₐ pure"
+    (T.QC.forAllShrink gen shrink
+     (\x -> Aeson.parseEither fromJ (toJ x) === Right x))
+
+aesonQC :: forall x.
+           ( Eq x, Show x, QC.Arbitrary x, Aeson.ToJSON x, Aeson.FromJSON x
+           ) => Ty.Proxy x -> T.TestTree
+aesonQC _ = aesonQC' @x (QC.arbitrary, QC.shrink) Aeson.toJSON Aeson.parseJSON
 
 parseTestNinja :: String -> IO AST.Ninja
 parseTestNinja name = do
@@ -211,93 +232,104 @@ aesonTests :: T.TestTree
 aesonTests
   = T.testGroup "aeson"
     [ testModule "Language.Ninja.Lexer"
-      [ testAeson 2   (Ty.Proxy @Lexer.Lexeme)
-      , testAeson 4   (Ty.Proxy @Lexer.LName)
-      , testAeson 4   (Ty.Proxy @Lexer.LFile)
-      , testAeson 4   (Ty.Proxy @Lexer.LBind)
-      , testAeson 2   (Ty.Proxy @Lexer.LBuild)
+      [ testAesonSC 2   (Ty.Proxy @Lexer.Lexeme)
+      , testAesonSC 4   (Ty.Proxy @Lexer.LName)
+      , testAesonSC 4   (Ty.Proxy @Lexer.LFile)
+      , testAesonSC 4   (Ty.Proxy @Lexer.LBind)
+      , testAesonSC 2   (Ty.Proxy @Lexer.LBuild)
       ]
     , testModule "Language.Ninja.IR.Build"
-      [ testAeson 2   (Ty.Proxy @IR.Build)
+      [ testAesonSC 2   (Ty.Proxy @IR.Build)
       ]
     , testModule "Language.Ninja.IR.Meta"
-      [ testAeson def (Ty.Proxy @IR.Meta)
+      [ testAesonSC def (Ty.Proxy @IR.Meta)
       ]
     , testModule "Language.Ninja.IR.Ninja"
-      [ testAeson 2   (Ty.Proxy @IR.Ninja)
+      [ testAesonSC 2   (Ty.Proxy @IR.Ninja)
       ]
     , testModule "Language.Ninja.IR.Pool"
-      [ testAeson def (Ty.Proxy @IR.Pool)
-      , testAeson def (Ty.Proxy @IR.PoolName)
-      , testAeson def (Ty.Proxy @IR.PoolDepth)
+      [ testAesonSC def (Ty.Proxy @IR.Pool)
+      , testAesonSC def (Ty.Proxy @IR.PoolName)
+      , testAesonSC def (Ty.Proxy @IR.PoolDepth)
       ]
     , testModule "Language.Ninja.IR.Rule"
-      [ testAeson 1   (Ty.Proxy @IR.Rule)
-      , testAeson def (Ty.Proxy @IR.SpecialDeps)
-      , testAeson def (Ty.Proxy @IR.ResponseFile)
+      [ testAesonSC 1   (Ty.Proxy @IR.Rule)
+      , testAesonSC def (Ty.Proxy @IR.SpecialDeps)
+      , testAesonSC def (Ty.Proxy @IR.ResponseFile)
       ]
     , testModule "Language.Ninja.IR.Target"
-      [ testAeson def (Ty.Proxy @IR.Target)
-      , testAeson def (Ty.Proxy @IR.Output)
-      , testAeson def (Ty.Proxy @IR.OutputType)
-      , testAeson def (Ty.Proxy @IR.Dependency)
-      , testAeson def (Ty.Proxy @IR.DependencyType)
+      [ testAesonSC def (Ty.Proxy @IR.Target)
+      , testAesonSC def (Ty.Proxy @IR.Output)
+      , testAesonSC def (Ty.Proxy @IR.OutputType)
+      , testAesonSC def (Ty.Proxy @IR.Dependency)
+      , testAesonSC def (Ty.Proxy @IR.DependencyType)
       ]
     , testModule "Language.Ninja.AST.Env"
-      [ testAeson def (Ty.Proxy @(AST.Env Text Text))
+      [ testAesonSC def (Ty.Proxy @(AST.Env Text Text))
       ]
     , testModule "Language.Ninja.AST.Expr"
-      [ testAeson def (Ty.Proxy @AST.Expr)
+      [ testAesonSC def (Ty.Proxy @AST.Expr)
       ]
     , testModule "Language.Ninja.AST.Rule"
-      [ testAeson def (Ty.Proxy @AST.Rule)
+      [ testAesonSC def (Ty.Proxy @AST.Rule)
       ]
     , testModule "Language.Ninja.AST.Ninja"
-      [ testAeson 0   (Ty.Proxy @AST.Ninja) -- FIXME: combinatorial explosion
+      [ testAesonSC 0   (Ty.Proxy @AST.Ninja) -- FIXME: combinatorial explosion
+      -- , testAesonQC     (Ty.Proxy @AST.Ninja)
       ]
     , testModule "Language.Ninja.AST.Build"
-      [ testAeson 1   (Ty.Proxy @AST.Build)
+      [ testAesonSC 1   (Ty.Proxy @AST.Build)
       ]
     , testModule "Language.Ninja.AST.Deps"
-      [ testAeson def (Ty.Proxy @AST.Deps)
+      [ testAesonSC def (Ty.Proxy @AST.Deps)
       ]
     , testModule "Language.Ninja.Misc.Command"
-      [ testAeson def (Ty.Proxy @Misc.Command)
+      [ testAesonSC def (Ty.Proxy @Misc.Command)
       ]
     , testModule "Language.Ninja.Misc.Path"
-      [ testAeson def (Ty.Proxy @Misc.Path)
+      [ testAesonSC def (Ty.Proxy @Misc.Path)
       ]
     , testModule "Language.Ninja.Misc.Located"
-      [ testAeson def (Ty.Proxy @(Misc.Located Bool))
-      , testAeson def (Ty.Proxy @Misc.Position)
+      [ testAesonSC def (Ty.Proxy @(Misc.Located Bool))
+      , testAesonSC def (Ty.Proxy @Misc.Position)
       ]
     , testModule "Language.Ninja.Misc.IText"
-      [ testAeson def (Ty.Proxy @Misc.IText)
+      [ testAesonSC def (Ty.Proxy @Misc.IText)
       ]
     ]
   where
-    testAeson :: forall x.
-                 ( Eq x, Show x, Ty.Typeable x, SC.Serial IO x
-                 , Aeson.ToJSON x, Aeson.FromJSON x
-                 ) => Int -> Ty.Proxy x -> Maybe T.TestTree
-    testAeson d p = let typeName = Ty.showsTypeRep (Ty.typeRep p) ""
-                    in withDepth d
-                       (testType typeName
-                        [T.testGroup "ToJSON/FromJSON Laws" [aesonSC p]])
+    testAesonSC :: forall x.
+                   ( Eq x, Show x, Ty.Typeable x, SC.Serial IO x
+                   , Aeson.ToJSON x, Aeson.FromJSON x
+                   ) => Int -> Ty.Proxy x -> Maybe T.TestTree
+    testAesonSC d p = withDepth d
+                      (testType p
+                       [T.testGroup "ToJSON/FromJSON Laws" [aesonSC p]])
+
+    testAesonQC :: forall x.
+                   ( Eq x, Show x, Ty.Typeable x, QC.Arbitrary x
+                   , Aeson.ToJSON x, Aeson.FromJSON x
+                   ) => Ty.Proxy x -> Maybe T.TestTree
+    testAesonQC p = Just (testType p
+                          [T.testGroup "ToJSON/FromJSON Laws" [aesonQC p]])
 
     withDepth :: Int -> (T.TestTree -> Maybe T.TestTree)
     withDepth 0     = const Nothing
-    withDepth depth = T.localOption (T.SmallCheckDepth depth) .> Just
+    withDepth depth = T.localOption (T.SC.SmallCheckDepth depth) .> Just
 
     testModule :: T.TestName -> [Maybe T.TestTree] -> T.TestTree
     testModule name subtrees = T.testGroup name (catMaybes subtrees)
 
-    testType :: T.TestName -> [T.TestTree] -> T.TestTree
-    testType name subtrees = T.localOption typeTimeout
-                             $ T.testGroup name subtrees
+    testType :: forall x. (Ty.Typeable x)
+             => Ty.Proxy x -> [T.TestTree] -> T.TestTree
+    testType p subtrees = T.localOption typeTimeout
+                          $ T.testGroup (printProxy p) subtrees
+
+    printProxy :: forall x. (Ty.Typeable x) => Ty.Proxy x -> String
+    printProxy p = Ty.showsTypeRep (Ty.typeRep p) ""
 
     def :: Int
-    def = (T.defaultValue :: T.SmallCheckDepth)
+    def = (T.defaultValue :: T.SC.SmallCheckDepth)
           |> toInteger |> fromIntegral
 
     typeTimeout :: T.Timeout
@@ -476,7 +508,7 @@ opticsTests
     testPrism d name p = withDepth d $ T.testGroup name [T.Prism.test p]
 
     withDepth :: Int -> (T.TestTree -> T.TestTree)
-    withDepth depth = T.localOption (T.SmallCheckDepth depth)
+    withDepth depth = T.localOption (T.SC.SmallCheckDepth depth)
 
     testModule :: T.TestName -> [T.TestTree] -> T.TestTree
     testModule = T.testGroup
@@ -486,7 +518,7 @@ opticsTests
                              $ T.testGroup name subtrees
 
     def :: Int
-    def = (T.defaultValue :: T.SmallCheckDepth)
+    def = (T.defaultValue :: T.SC.SmallCheckDepth)
           |> toInteger |> fromIntegral
 
     typeTimeout :: T.Timeout

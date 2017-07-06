@@ -45,27 +45,31 @@ module Language.Ninja.AST.Build
   , BuildConstraint
   ) where
 
-import           Control.Lens.Lens       (Lens', lens)
+import qualified Control.Lens              as Lens
+import           Control.Lens.Lens         (Lens', lens)
 
-import           Flow                    ((|>))
+import           Flow                      ((|>))
 
-import           Data.HashMap.Strict     (HashMap)
-import           Data.HashSet            (HashSet)
-import           Data.Text               (Text)
+import           Data.HashMap.Strict       (HashMap)
+import           Data.HashSet              (HashSet)
+import           Data.Text                 (Text)
 
-import           Control.DeepSeq         (NFData)
-import           Data.Hashable           (Hashable)
-import           GHC.Generics            (Generic)
+import           Control.DeepSeq           (NFData)
+import           Data.Hashable             (Hashable)
+import           GHC.Generics              (Generic)
 
-import           GHC.Exts                (Constraint)
+import qualified Test.QuickCheck           as QC
+import           Test.QuickCheck.Instances ()
 
-import qualified Test.SmallCheck.Series  as SC
+import qualified Test.SmallCheck.Series    as SC
 
-import           Data.Aeson              (FromJSON, ToJSON, (.:), (.=))
-import qualified Data.Aeson              as Aeson
+import           GHC.Exts                  (Constraint)
 
-import qualified Language.Ninja.AST.Deps as AST
-import qualified Language.Ninja.AST.Env  as AST
+import           Data.Aeson                (FromJSON, ToJSON, (.:), (.=))
+import qualified Data.Aeson                as Aeson
+
+import qualified Language.Ninja.AST.Deps   as AST
+import qualified Language.Ninja.AST.Env    as AST
 
 --------------------------------------------------------------------------------
 
@@ -134,6 +138,14 @@ instance FromJSON Build where
                   _buildDeps <- (o .: "deps") >>= pure
                   _buildBind <- (o .: "bind") >>= pure
                   pure (MkBuild {..}))
+
+-- | Reasonable 'QC.Arbitrary' instance for 'Build'.
+instance QC.Arbitrary Build where
+  arbitrary = MkBuild
+              <$> QC.arbitrary
+              <*> QC.arbitrary
+              <*> QC.arbitrary
+              <*> QC.arbitrary
 
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable Build

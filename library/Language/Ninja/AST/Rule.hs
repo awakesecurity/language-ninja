@@ -38,23 +38,26 @@ module Language.Ninja.AST.Rule
   ( module Language.Ninja.AST.Rule -- FIXME: specific export list
   ) where
 
-import           Control.Lens.Lens       (Lens', lens)
+import           Control.Lens.Lens         (Lens', lens)
 
-import           Flow                    ((.>), (|>))
+import           Flow                      ((.>), (|>))
 
-import           Data.HashMap.Strict     (HashMap)
-import           Data.Text               (Text)
+import           Data.HashMap.Strict       (HashMap)
+import           Data.Text                 (Text)
 
-import           Control.DeepSeq         (NFData)
-import           Data.Hashable           (Hashable)
-import           GHC.Generics            (Generic)
+import           Control.DeepSeq           (NFData)
+import           Data.Hashable             (Hashable)
+import           GHC.Generics              (Generic)
 
-import qualified Test.SmallCheck.Series  as SC
+import qualified Test.QuickCheck           as QC
+import           Test.QuickCheck.Instances ()
 
-import           Data.Aeson              (FromJSON, ToJSON)
-import qualified Data.Aeson              as Aeson
+import qualified Test.SmallCheck.Series    as SC
 
-import qualified Language.Ninja.AST.Expr as AST
+import           Data.Aeson                (FromJSON, ToJSON)
+import qualified Data.Aeson                as Aeson
+
+import qualified Language.Ninja.AST.Expr   as AST
 
 --------------------------------------------------------------------------------
 
@@ -84,6 +87,10 @@ instance ToJSON Rule where
 -- | Inverse of the 'ToJSON' instance.
 instance FromJSON Rule where
   parseJSON = Aeson.parseJSON .> fmap MkRule
+
+-- | Reasonable 'QC.Arbitrary' instance for 'Rule'.
+instance QC.Arbitrary Rule where
+  arbitrary = MkRule <$> QC.arbitrary
 
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable Rule

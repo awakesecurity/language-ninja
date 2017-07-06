@@ -42,21 +42,24 @@ module Language.Ninja.AST.Deps
   , depsNormal, depsImplicit, depsOrderOnly
   ) where
 
-import           Control.Lens.Lens      (Lens', lens)
+import           Control.Lens.Lens         (Lens', lens)
 
-import           Flow                   ((|>))
+import           Flow                      ((|>))
 
-import           Data.HashSet           (HashSet)
-import           Data.Text              (Text)
+import           Data.HashSet              (HashSet)
+import           Data.Text                 (Text)
 
-import           Control.DeepSeq        (NFData)
-import           Data.Hashable          (Hashable)
-import           GHC.Generics           (Generic)
+import           Control.DeepSeq           (NFData)
+import           Data.Hashable             (Hashable)
+import           GHC.Generics              (Generic)
 
-import qualified Test.SmallCheck.Series as SC
+import qualified Test.QuickCheck           as QC
+import           Test.QuickCheck.Instances ()
 
-import           Data.Aeson             (FromJSON, ToJSON, (.:), (.=))
-import qualified Data.Aeson             as Aeson
+import qualified Test.SmallCheck.Series    as SC
+
+import           Data.Aeson                (FromJSON, ToJSON, (.:), (.=))
+import qualified Data.Aeson                as Aeson
 
 --------------------------------------------------------------------------------
 
@@ -111,6 +114,13 @@ instance FromJSON Deps where
                   _depsImplicit  <- (o .: "implicit")   >>= pure
                   _depsOrderOnly <- (o .: "order-only") >>= pure
                   pure (MkDeps {..}))
+
+-- | Reasonable 'QC.Arbitrary' instance for 'Deps'.
+instance QC.Arbitrary Deps where
+  arbitrary = MkDeps
+              <$> QC.arbitrary
+              <*> QC.arbitrary
+              <*> QC.arbitrary
 
 -- | Default 'Hashable' instance via 'Generic'.
 instance Hashable Deps

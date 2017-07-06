@@ -59,28 +59,34 @@ module Language.Ninja.AST.Env
   , scopeEnv, addEnv, askEnv
   ) where
 
-import           Control.Applicative    ((<|>))
-import           Control.Monad          ((>=>))
+import           Control.Applicative       ((<|>))
+import           Control.Monad             ((>=>))
 
-import           Control.Lens.Iso       (Iso', iso)
+import           Control.Lens.Iso          (Iso', iso)
 
-import           Data.List.NonEmpty     (NonEmpty (..))
-import qualified Data.List.NonEmpty     as NE
+import           Data.Monoid               (Endo (..))
 
-import           Data.HashMap.Strict    (HashMap)
-import qualified Data.HashMap.Strict    as HM
+import           Data.List.NonEmpty        (NonEmpty (..))
+import qualified Data.List.NonEmpty        as NE
 
-import           Control.DeepSeq        (NFData)
-import           Data.Hashable          (Hashable)
-import           GHC.Generics           (Generic)
-import qualified Test.SmallCheck.Series as SC
+import           Data.HashMap.Strict       (HashMap)
+import qualified Data.HashMap.Strict       as HM
+
+import           Control.DeepSeq           (NFData)
+import           Data.Hashable             (Hashable)
+import           GHC.Generics              (Generic)
+
+import qualified Test.QuickCheck           as QC
+import           Test.QuickCheck.Instances ()
+
+import qualified Test.SmallCheck.Series    as SC
 
 import           Data.Aeson
                  (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
-import qualified Data.Aeson             as Aeson
-import qualified Data.Aeson.Types       as Aeson
+import qualified Data.Aeson                as Aeson
+import qualified Data.Aeson.Types          as Aeson
 
-import           Flow                   ((.>), (|>))
+import           Flow                      ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
@@ -141,12 +147,20 @@ instance (ToJSONKey k, ToJSON v) => ToJSON (Env k v) where
   toJSON = _fromEnv .> NE.toList .> toJSON
 
 -- | Inverse of the 'ToJSON' instance.
-instance (Eq k, Hashable k, FromJSONKey k, FromJSON v) =>
-         FromJSON (Env k v) where
+instance ( Eq k, Hashable k, FromJSONKey k, FromJSON v
+         ) => FromJSON (Env k v) where
   parseJSON = parseJSON
               >=> NE.nonEmpty
               .>  maybe (fail "Env list was empty!") pure
               .>  fmap MkEnv
+
+-- | Reasonable 'QC.Arbitrary' instance for 'Env'.
+instance ( Eq k, Hashable k, QC.Arbitrary k, QC.Arbitrary v
+         ) => QC.Arbitrary (Env k v) where
+  arbitrary = QC.arbitrary
+              |> fmap (map (uncurry addEnv .> Endo)
+                       .> mconcat
+                       .> (\e -> appEndo e makeEnv))
 
 -- | Default 'Hashable' instance via 'Generic'.
 instance (Hashable k, Hashable v) => Hashable (Env k v)
