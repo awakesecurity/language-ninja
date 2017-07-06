@@ -21,6 +21,7 @@
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -70,28 +71,32 @@ import qualified Data.Aeson                as Aeson
 
 import qualified Language.Ninja.AST.Deps   as AST
 import qualified Language.Ninja.AST.Env    as AST
+import qualified Language.Ninja.Misc       as Misc
 
 --------------------------------------------------------------------------------
 
 -- | A parsed Ninja @build@ declaration.
-data Build
+data Build ann
   = MkBuild
-    { _buildRule :: !Text
+    { _buildAnn  :: !ann
+    , _buildRule :: !Text
     , _buildEnv  :: !(AST.Env Text Text)
-    , _buildDeps :: !AST.Deps
+    , _buildDeps :: !(AST.Deps ann)
     , _buildBind :: !(HashMap Text Text)
     }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Functor)
 
 -- | Construct a 'Build' with all default values.
 {-# INLINE makeBuild #-}
-makeBuild :: Text
+makeBuild :: (Monoid ann)
+          => Text
           -- ^ The rule name
           -> AST.Env Text Text
           -- ^ The environment
-          -> Build
+          -> Build ann
 makeBuild rule env = MkBuild
-                     { _buildRule = rule
+                     { _buildAnn  = mempty
+                     , _buildRule = rule
                      , _buildEnv  = env
                      , _buildDeps = AST.makeDeps
                      , _buildBind = mempty
@@ -99,40 +104,47 @@ makeBuild rule env = MkBuild
 
 -- | A lens into the rule name associated with a 'Build'.
 {-# INLINE buildRule #-}
-buildRule :: Lens' Build Text
+buildRule :: Lens' (Build ann) Text
 buildRule = lens _buildRule
             $ \(MkBuild {..}) x -> MkBuild { _buildRule = x, .. }
 
 -- | A lens into the environment associated with a 'Build'.
 {-# INLINE buildEnv #-}
-buildEnv :: Lens' Build (AST.Env Text Text)
+buildEnv :: Lens' (Build ann) (AST.Env Text Text)
 buildEnv = lens _buildEnv
            $ \(MkBuild {..}) x -> MkBuild { _buildEnv = x, .. }
 
 -- | A lens into the dependencies associated with a 'Build'.
 {-# INLINE buildDeps #-}
-buildDeps :: Lens' Build AST.Deps
+buildDeps :: Lens' (Build ann) (AST.Deps ann)
 buildDeps = lens _buildDeps
             $ \(MkBuild {..}) x -> MkBuild { _buildDeps = x, .. }
 
 -- | A lens into the bindings associated with a 'Build'.
 {-# INLINE buildBind #-}
-buildBind :: Lens' Build (HashMap Text Text)
+buildBind :: Lens' (Build ann) (HashMap Text Text)
 buildBind = lens _buildBind
             $ \(MkBuild {..}) x -> MkBuild { _buildBind = x, .. }
 
--- | Converts to @{rule: …, env: …, deps: …, bind: …}@.
-instance ToJSON Build where
+-- | The usual definition for 'Misc.Annotated'.
+instance Misc.Annotated Build where
+  annotation = lens _buildAnn
+               $ \(MkBuild {..}) x -> MkBuild { _buildAnn = x, .. }
+
+-- | Converts to @{ann: …, rule: …, env: …, deps: …, bind: …}@.
+instance (ToJSON ann) => ToJSON (Build ann) where
   toJSON (MkBuild {..})
-    = [ "rule" .= _buildRule
+    = [ "ann"  .= _buildAnn
+      , "rule" .= _buildRule
       , "env"  .= _buildEnv
       , "deps" .= _buildDeps
       , "bind" .= _buildBind
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
-instance FromJSON Build where
+instance (FromJSON ann) => FromJSON (Build ann) where
   parseJSON = (Aeson.withObject "Build" $ \o -> do
+                  _buildAnn  <- (o .: "ann")  >>= pure
                   _buildRule <- (o .: "rule") >>= pure
                   _buildEnv  <- (o .: "env")  >>= pure
                   _buildDeps <- (o .: "deps") >>= pure
@@ -140,32 +152,36 @@ instance FromJSON Build where
                   pure (MkBuild {..}))
 
 -- | Reasonable 'QC.Arbitrary' instance for 'Build'.
-instance QC.Arbitrary Build where
+instance (QC.Arbitrary ann) => QC.Arbitrary (Build ann) where
   arbitrary = MkBuild
               <$> QC.arbitrary
               <*> QC.arbitrary
               <*> QC.arbitrary
               <*> QC.arbitrary
+              <*> QC.arbitrary
 
 -- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Build
+instance (Hashable ann) => Hashable (Build ann)
 
 -- | Default 'NFData' instance via 'Generic'.
-instance NFData Build
+instance (NFData ann) => NFData (Build ann)
 
 -- | Default 'SC.Serial' instance via 'Generic'.
-instance (Monad m, BuildConstraint (SC.Serial m)) => SC.Serial m Build
+instance ( Monad m, BuildConstraint (SC.Serial m) ann
+         ) => SC.Serial m (Build ann)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
-instance (Monad m, BuildConstraint (SC.CoSerial m)) => SC.CoSerial m Build
+instance ( Monad m, BuildConstraint (SC.CoSerial m) ann
+         ) => SC.CoSerial m (Build ann)
 
 -- | The set of constraints required for a given constraint to be automatically
 --   computed for a 'Build'.
-type BuildConstraint (c :: * -> Constraint)
+type BuildConstraint (c :: * -> Constraint) (ann :: *)
   = ( c Text
     , c (HashSet Text)
     , c (HashMap Text Text)
     , c (AST.Maps Text Text)
+    , c ann
     )
 
 --------------------------------------------------------------------------------

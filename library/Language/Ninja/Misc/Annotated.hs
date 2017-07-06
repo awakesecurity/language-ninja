@@ -42,5 +42,6 @@ import           Control.Lens.Lens (Lens')
 class (Functor ty) => Annotated (ty :: * -> *) where
   -- | FIXME: doc
   annotation :: Lens' (ty ann) ann
+  -- annotation :: Lens (ty ann) (ty ann') ann ann'
 
 --------------------------------------------------------------------------------

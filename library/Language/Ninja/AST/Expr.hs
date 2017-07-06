@@ -20,9 +20,12 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
@@ -45,7 +48,10 @@ module Language.Ninja.AST.Expr
   ) where
 
 import           Control.Arrow             (second)
+
+import           Control.Lens.Lens         (lens)
 import           Control.Lens.Prism        (Prism', prism')
+
 import           Data.Foldable             (asum)
 import           Data.Maybe                (fromMaybe)
 import           Data.Monoid               (Endo (..), (<>))
@@ -64,50 +70,53 @@ import           Test.QuickCheck.Instances ()
 
 import qualified Test.SmallCheck.Series    as SC
 
+import           GHC.Exts                  (Constraint)
+
 import           Data.Aeson                (FromJSON, ToJSON, (.:), (.=))
 import qualified Data.Aeson                as Aeson
 import qualified Data.Aeson.Types          as Aeson
 
 import qualified Language.Ninja.AST.Env    as AST
+import qualified Language.Ninja.Misc       as Misc
 
 --------------------------------------------------------------------------------
 
 -- | An expression containing variable references in the Ninja language.
-data Expr
+data Expr ann
   = -- | Sequencing of expressions.
-    Exprs [Expr]
+    Exprs !ann ![Expr ann]
   | -- | A literal string.
-    Lit Text
+    Lit   !ann !Text
   | -- | A variable reference.
-    Var Text
-  deriving (Eq, Show, Generic)
+    Var   !ann !Text
+  deriving (Eq, Show, Generic, Functor)
 
--- | A prism for the 'PExprs' constructor.
+-- | A prism for the 'Exprs' constructor.
 {-# INLINE _Exprs #-}
-_Exprs :: Prism' Expr [Expr]
-_Exprs = prism' Exprs
-         $ \case (Exprs xs) -> Just xs
-                 _          -> Nothing
+_Exprs :: Prism' (Expr ann) (ann, [Expr ann])
+_Exprs = prism' (uncurry Exprs)
+         $ \case (Exprs ann es) -> Just (ann, es)
+                 _              -> Nothing
 
--- | A prism for the 'PLit' constructor.
+-- | A prism for the 'Lit' constructor.
 {-# INLINE _Lit #-}
-_Lit :: Prism' Expr Text
-_Lit = prism' Lit
-       $ \case (Lit t) -> Just t
-               _       -> Nothing
+_Lit :: Prism' (Expr ann) (ann, Text)
+_Lit = prism' (uncurry Lit)
+       $ \case (Lit ann text) -> Just (ann, text)
+               _              -> Nothing
 
--- | A prism for the 'PVar' constructor.
+-- | A prism for the 'Var' constructor.
 {-# INLINE _Var #-}
-_Var :: Prism' Expr Text
-_Var = prism' Var
-       $ \case (Var t) -> Just t
-               _       -> Nothing
+_Var :: Prism' (Expr ann) (ann, Text)
+_Var = prism' (uncurry Var)
+       $ \case (Var ann name) -> Just (ann, name)
+               _              -> Nothing
 
--- | Evaluate the given 'PExpr' in the given context (@'Env' 'Text' 'Text'@).
-askExpr :: AST.Env Text Text -> Expr -> Text
-askExpr e (Exprs xs) = Text.concat (map (askExpr e) xs)
-askExpr _ (Lit x)    = x
-askExpr e (Var x)    = askVar e x
+-- | Evaluate the given 'Expr' in the given context (@'Env' 'Text' 'Text'@).
+askExpr :: AST.Env Text Text -> Expr ann -> Text
+askExpr e (Exprs _ xs) = Text.concat (map (askExpr e) xs)
+askExpr _ (Lit   _ x)  = x
+askExpr e (Var   _ x)  = askVar e x
 
 -- | Look up the given variable in the given context, returning the empty string
 --   if the variable was not found.
@@ -116,7 +125,7 @@ askVar e x = fromMaybe Text.empty (AST.askEnv e x)
 
 -- | Add a binding with the given name ('Text') and value ('PExpr') to the
 --   given context.
-addBind :: Text -> Expr -> AST.Env Text Text -> AST.Env Text Text
+addBind :: Text -> Expr ann -> AST.Env Text Text -> AST.Env Text Text
 addBind k v e = AST.addEnv k (askExpr e v) e
 
 -- | Add bindings from a list. Note that this function evaluates all the
@@ -127,60 +136,71 @@ addBind k v e = AST.addEnv k (askExpr e v) e
 --   >>> let binds = [("x", PLit "5"), ("y", PVar "x")]
 --   >>> AST.headEnv (addBinds binds AST.makeEnv)
 --   fromList [("x","5"),("y","")]
-addBinds :: [(Text, Expr)] -> AST.Env Text Text -> AST.Env Text Text
+addBinds :: [(Text, Expr ann)] -> AST.Env Text Text -> AST.Env Text Text
 addBinds bs e = map (second (askExpr e) .> uncurry AST.addEnv .> Endo) bs
                 |> mconcat
                 |> (\endo -> appEndo endo e)
 
 -- | FIXME: doc
-normalizeExpr :: Expr -> Expr
+normalizeExpr :: Expr () -> Expr ()
 normalizeExpr = flatten .> removeEmpty .> combineAdj .> listToExpr
   where
     listToExpr [e] = e
-    listToExpr es  = Exprs es
+    listToExpr es  = Exprs () es
 
-    flatten (Exprs es) = concatMap flatten es
-    flatten owise      = [owise]
+    flatten (Exprs _ es) = concatMap flatten es
+    flatten owise        = [owise]
 
-    removeEmpty []              = []
-    removeEmpty (Lit "" : rest) = removeEmpty rest
-    removeEmpty (owise  : rest) = owise : removeEmpty rest
+    removeEmpty []                = []
+    removeEmpty (Lit _ "" : rest) = removeEmpty rest
+    removeEmpty (owise    : rest) = owise : removeEmpty rest
 
-    combineAdj []                     = []
-    combineAdj (Lit x : Lit y : rest) = combineAdj (Lit (x <> y) : rest)
-    combineAdj (owise         : rest) = owise : combineAdj rest
+    combineAdj []                         = []
+    combineAdj (Lit _ x : Lit _ y : rest) = combineAdj (Lit () (x <> y) : rest)
+    combineAdj (owise             : rest) = owise : combineAdj rest
 
--- | Converts 'Exprs' to a JSON list, 'Lit' to a JSON string,
---   and 'Var' to @{var: …}@.
-instance ToJSON Expr where
-  toJSON (Exprs xs) = Aeson.toJSON xs
-  toJSON (Lit  str) = Aeson.toJSON str
-  toJSON (Var  var) = Aeson.object ["var" .= var]
+-- | The usual definition for 'Misc.Annotated'.
+instance Misc.Annotated Expr where
+  annotation = lens (helper .> fst) (helper .> snd)
+    where
+      helper :: Expr ann -> (ann, ann -> Expr ann)
+      helper (Exprs ann   es) = (ann, \x -> Exprs x   es)
+      helper (Lit   ann text) = (ann, \x -> Lit   x text)
+      helper (Var   ann name) = (ann, \x -> Var   x name)
+
+-- | Converts 'Exprs' to @{ann: …, exprs: […]}@, 'Lit' to @{ann: …, lit: […]}@,
+--   and 'Var' to @{ann: …, var: …}@.
+instance (ToJSON ann) => ToJSON (Expr ann) where
+  toJSON (Exprs ann   es) = Aeson.object ["ann" .= ann, "exprs" .= es]
+  toJSON (Lit   ann text) = Aeson.object ["ann" .= ann, "lit"   .= text]
+  toJSON (Var   ann name) = Aeson.object ["ann" .= ann, "var"   .= name]
 
 -- | Inverse of the 'ToJSON' instance.
-instance FromJSON Expr where
-  parseJSON = [ \v -> Exprs <$> Aeson.parseJSON v
-              , \v -> Lit   <$> Aeson.parseJSON v
-              , Aeson.withObject "PExpr" $ \o -> Var <$> (o .: "var")
-              ] |> choice
-    where
-      choice :: [Aeson.Value -> Aeson.Parser a]
-             -> (Aeson.Value -> Aeson.Parser a)
-      choice = flip (\v -> map (\f -> f v)) .> fmap asum
+instance (FromJSON ann) => FromJSON (Expr ann) where
+  parseJSON = Aeson.withObject "Expr" $ \o -> do
+    ann <- o .: "ann"
+    asum [ Exprs ann <$> (o .: "exprs")
+         , Lit   ann <$> (o .: "lit")
+         , Var   ann <$> (o .: "var")
+         ]
 
 -- | Reasonable 'QC.Arbitrary' instance for 'Expr'.
-instance QC.Arbitrary Expr where
+instance (QC.Arbitrary ann) => QC.Arbitrary (Expr ann) where
   arbitrary = QC.sized go
     where
-      go :: Int -> QC.Gen Expr
-      go n | n <= 0 = [ Lit <$> QC.resize litLength QC.arbitrary
-                      , Var <$> QC.resize varLength QC.arbitrary
+      go :: (QC.Arbitrary ann) => Int -> QC.Gen (Expr ann)
+      go n | n <= 0 = [ litG (QC.resize litLength QC.arbitrary)
+                      , varG (QC.resize varLength QC.arbitrary)
                       ] |> QC.oneof
       go n          = [ go 0
                       , do width <- (`mod` maxWidth) <$> QC.arbitrary
                            let subtree = go (n `div` lossRate)
-                           Exprs <$> QC.vectorOf width subtree
+                           Exprs <$> QC.arbitrary <*> QC.vectorOf width subtree
                       ] |> QC.oneof
+
+      litG, varG :: (QC.Arbitrary ann) => QC.Gen Text -> QC.Gen (Expr ann)
+      litG g = Lit <$> QC.arbitrary <*> g
+      varG g = Var <$> QC.arbitrary <*> g
 
       litLength, varLength, lossRate, maxWidth :: Int
       litLength = 10
@@ -189,15 +209,21 @@ instance QC.Arbitrary Expr where
       lossRate  = 2
 
 -- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Expr
+instance (Hashable ann) => Hashable (Expr ann)
 
 -- | Default 'NFData' instance via 'Generic'.
-instance NFData Expr
+instance (NFData ann) => NFData (Expr ann)
 
 -- | Default 'SC.Serial' instance via 'Generic'.
-instance (Monad m, SC.Serial m Text) => SC.Serial m Expr
+instance ( Monad m, ExprConstraint (SC.Serial m) ann
+         ) => SC.Serial m (Expr ann)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
-instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Expr
+instance ( Monad m, ExprConstraint (SC.CoSerial m) ann
+         ) => SC.CoSerial m (Expr ann)
+
+-- | The set of constraints required for a given constraint to be automatically
+--   computed for a 'Expr'.
+type ExprConstraint (c :: * -> Constraint) (ann :: *) = (c Text, c ann)
 
 --------------------------------------------------------------------------------

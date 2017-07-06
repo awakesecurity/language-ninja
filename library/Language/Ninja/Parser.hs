@@ -122,44 +122,44 @@ import           Flow                       ((.>), (|>))
 
 -- | Parse the file at the given path into a 'AST.Ninja'.
 --   This function may throw an exception if parsing fails.
-parseFileIO :: Path -> IO AST.Ninja
+parseFileIO :: Path -> IO (AST.Ninja ())
 parseFileIO file = forceIO (parseFile file)
 
 -- | Parse the given 'Text' into a 'AST.Ninja'.
 --   This function may throw an exception if parsing fails.
-parseTextIO :: Text -> IO AST.Ninja
+parseTextIO :: Text -> IO (AST.Ninja ())
 parseTextIO text = forceIO (parseText text)
 
 -- | Parse the given 'BSC8.ByteString' into a 'AST.Ninja'.
 --   This function may throw an exception if parsing fails.
-parseBSIO :: BSC8.ByteString -> IO AST.Ninja
+parseBSIO :: BSC8.ByteString -> IO (AST.Ninja ())
 parseBSIO bs = forceIO (parseBS bs)
 
 -- | Parse the given list of 'Lexeme's into a 'AST.Ninja'.
 --   This function may throw an exception if parsing fails.
-parseLexemesIO :: [Lexeme] -> IO AST.Ninja
+parseLexemesIO :: [Lexeme ()] -> IO (AST.Ninja ())
 parseLexemesIO lexemes = forceIO (parseLexemes lexemes)
 
 --------------------------------------------------------------------------------
 
 -- | Parse the file at the given path into a 'AST.Ninja'.
 parseFile :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
-          => Path -> m AST.Ninja
+          => Path -> m (AST.Ninja ())
 parseFile file = parseFileWithEnv file AST.makeEnv
 
 -- | Parse the given 'Text' into a 'AST.Ninja'.
 parseText :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
-          => Text -> m AST.Ninja
+          => Text -> m (AST.Ninja ())
 parseText text = parseTextWithEnv text AST.makeEnv
 
 -- | Parse the given 'BSC8.ByteString' into a 'AST.Ninja'.
 parseBS :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
-          => BSC8.ByteString -> m AST.Ninja
+          => BSC8.ByteString -> m (AST.Ninja ())
 parseBS bs = parseBSWithEnv bs AST.makeEnv
 
 -- | Parse the given list of 'Lexeme's into a 'AST.Ninja'.
 parseLexemes :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
-             => [Lexeme] -> m AST.Ninja
+             => [Lexeme ()] -> m (AST.Ninja ())
 parseLexemes lexemes = parseLexemesWithEnv lexemes AST.makeEnv
 
 --------------------------------------------------------------------------------
@@ -167,30 +167,30 @@ parseLexemes lexemes = parseLexemesWithEnv lexemes AST.makeEnv
 -- | Parse the file at the given path using the given Ninja variable context,
 --   resulting in a 'AST.Ninja'.
 parseFileWithEnv :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
-                 => Path -> AST.Env Text Text -> m AST.Ninja
+                 => Path -> AST.Env Text Text -> m (AST.Ninja ())
 parseFileWithEnv path env = fst <$> parseFileInternal path (AST.makeNinja, env)
 
 -- | Parse the given 'Text' using the given Ninja variable context,
 --   resulting in a 'AST.Ninja'.
 parseTextWithEnv :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
-                 => Text -> AST.Env Text Text -> m AST.Ninja
+                 => Text -> AST.Env Text Text -> m (AST.Ninja ())
 parseTextWithEnv text env = fst <$> parseTextInternal text (AST.makeNinja, env)
 
 -- | Parse the given 'BSC8.ByteString' using the given Ninja variable context,
 --   resulting in a 'AST.Ninja'.
 parseBSWithEnv :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
-                 => BSC8.ByteString -> AST.Env Text Text -> m AST.Ninja
+                 => BSC8.ByteString -> AST.Env Text Text -> m (AST.Ninja ())
 parseBSWithEnv bs env = fst <$> parseBSInternal bs (AST.makeNinja, env)
 
 -- | Parse the given list of 'Lexeme's into a 'AST.Ninja'.
 parseLexemesWithEnv :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
-                    => [Lexeme] -> AST.Env Text Text -> m AST.Ninja
+                    => [Lexeme ()] -> AST.Env Text Text -> m (AST.Ninja ())
 parseLexemesWithEnv lexemes env
   = fst <$> parseLexemesInternal lexemes (AST.makeNinja, env)
 
 --------------------------------------------------------------------------------
 
-type NinjaWithEnv = (AST.Ninja, AST.Env Text Text)
+type NinjaWithEnv = (AST.Ninja (), AST.Env Text Text)
 
 --------------------------------------------------------------------------------
 
@@ -211,7 +211,7 @@ parseBSInternal bs (ninja, env) = do
   parseLexemesInternal lexemes (ninja, env)
 
 parseLexemesInternal :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
-                     => [Lexeme] -> NinjaWithEnv -> m NinjaWithEnv
+                     => [Lexeme ()] -> NinjaWithEnv -> m NinjaWithEnv
 parseLexemesInternal lexemes (ninja, env) = withBinds lexemes
                                             |> map (uncurry applyStmt)
                                             |> foldr (>=>) pure
@@ -221,7 +221,7 @@ parseLexemesInternal lexemes (ninja, env) = withBinds lexemes
 --------------------------------------------------------------------------------
 
 type MonadApplyFun m = (MonadError Err.ParseError m, Mock.MonadReadFile m)
-type ApplyFun' m = [(Text, AST.Expr)] -> NinjaWithEnv -> m NinjaWithEnv
+type ApplyFun' m = [(Text, AST.Expr ())] -> NinjaWithEnv -> m NinjaWithEnv
 type ApplyFun = (forall m. (MonadApplyFun m) => ApplyFun' m)
 
 --------------------------------------------------------------------------------
@@ -237,48 +237,48 @@ addSpecialVars (ninja, env) = (mutator ninja, env)
     specialVars :: [Text]
     specialVars = ["ninja_required_version", "builddir"]
 
-    addVariable :: Text -> (AST.Ninja -> AST.Ninja)
+    addVariable :: Text -> (AST.Ninja () -> AST.Ninja ())
     addVariable name = case AST.askEnv env name of
                          (Just val) -> AST.ninjaSpecials %~ HM.insert name val
                          Nothing    -> id
 
-    mutator :: AST.Ninja -> AST.Ninja
+    mutator :: AST.Ninja () -> AST.Ninja ()
     mutator = map addVariable specialVars |> map Endo |> mconcat |> appEndo
 
-withBinds :: [Lexeme] -> [(Lexeme, [(Text, AST.Expr)])]
+withBinds :: [Lexeme ()] -> [(Lexeme (), [(Text, AST.Expr ())])]
 withBinds = go
   where
     go []     = []
     go (x:xs) = let (a, b) = f xs
                 in (x, a) : withBinds b
 
-    f (LexBind binding : rest) = let MkLBind (MkLName a) b = binding
-                                     (as, bs) = f rest
-                                 in ((Text.decodeUtf8 a, b) : as, bs)
-    f xs                       = ([], xs)
+    f (LexBind _ binding : rest) = let MkLBind () (MkLName () a) b = binding
+                                       (as, bs) = f rest
+                                   in ((Text.decodeUtf8 a, b) : as, bs)
+    f xs                         = ([], xs)
 
 --------------------------------------------------------------------------------
 
-applyStmt :: Lexeme -> ApplyFun
+applyStmt :: Lexeme () -> ApplyFun
 applyStmt lexeme binds (ninja, env)
   = (case lexeme of
-       (LexBuild       lbuild) -> applyBuild    lbuild
-       (LexRule         lname) -> applyRule     lname
-       (LexDefault   defaults) -> applyDefault  defaults
-       (LexPool         lname) -> applyPool     lname
-       (LexInclude      lfile) -> applyInclude  lfile
-       (LexSubninja     lfile) -> applySubninja lfile
-       (LexDefine       lbind) -> applyDefine   lbind
-       (LexBind         lbind) -> throwUnexpectedBinding lbind)
+       (LexBuild    ()   lbuild) -> applyBuild    lbuild
+       (LexRule     ()    lname) -> applyRule     lname
+       (LexDefault  () defaults) -> applyDefault  defaults
+       (LexPool     ()    lname) -> applyPool     lname
+       (LexInclude  ()    lfile) -> applyInclude  lfile
+       (LexSubninja ()    lfile) -> applySubninja lfile
+       (LexDefine   ()    lbind) -> applyDefine   lbind
+       (LexBind     ()    lbind) -> throwUnexpectedBinding lbind)
     |> (\f -> f binds (ninja, env))
   where
-    throwUnexpectedBinding (MkLBind (MkLName var) _)
+    throwUnexpectedBinding (MkLBind () (MkLName () var) _)
       = \_ _ -> Err.throwParseUnexpectedBinding (Text.decodeUtf8 var)
 
-applyBuild :: LBuild -> ApplyFun
-applyBuild (MkLBuild lexOutputs lexRule lexDeps) lexBinds (ninja, env) = do
+applyBuild :: LBuild () -> ApplyFun
+applyBuild (MkLBuild () lexOutputs lexRule lexDeps) lexBinds (ninja, env) = do
   let outputs = map (AST.askExpr env) lexOutputs
-  let rule    = lexRule |> (\(MkLName name) -> Text.decodeUtf8 name)
+  let rule    = lexRule |> (\(MkLName () name) -> Text.decodeUtf8 name)
   let deps    = HS.fromList (map (AST.askExpr env) lexDeps)
   let binds   = HM.fromList (map (second (AST.askExpr env)) lexBinds)
   let (normal, implicit, orderOnly) = splitDeps deps
@@ -299,33 +299,33 @@ applyBuild (MkLBuild lexOutputs lexRule lexDeps) lexBinds (ninja, env) = do
                      else ninja |> AST.ninjaMultiples %~ addM)
   pure (ninja', env)
 
-applyRule :: LName -> ApplyFun
-applyRule (MkLName name) binds (ninja, env) = do
+applyRule :: LName () -> ApplyFun
+applyRule (MkLName () name) binds (ninja, env) = do
   let rule = AST.makeRule |> AST.ruleBind .~ HM.fromList binds
   pure (ninja |> AST.ninjaRules %~ HM.insert (Text.decodeUtf8 name) rule, env)
 
-applyDefault :: [AST.Expr] -> ApplyFun
+applyDefault :: [AST.Expr ()] -> ApplyFun
 applyDefault lexDefaults _ (ninja, env) = do
   let defaults = HS.fromList (map (AST.askExpr env) lexDefaults)
   pure (ninja |> AST.ninjaDefaults %~ (defaults <>), env)
 
-applyPool :: LName -> ApplyFun
-applyPool (MkLName name) binds (ninja, env) = do
+applyPool :: LName () -> ApplyFun
+applyPool (MkLName _ name) binds (ninja, env) = do
   depth <- getDepth env binds
   pure (ninja |> AST.ninjaPools %~ HM.insert (Text.decodeUtf8 name) depth, env)
 
-applyInclude :: LFile -> ApplyFun
+applyInclude :: LFile () -> ApplyFun
 applyInclude (MkLFile expr) _ (ninja, env) = do
   let file = AST.askExpr env expr |> Lens.view (Lens.from Misc.pathText)
   parseFileInternal file (ninja, env)
 
-applySubninja :: LFile -> ApplyFun
+applySubninja :: LFile () -> ApplyFun
 applySubninja (MkLFile expr) _ (ninja, env) = do
   let file = AST.askExpr env expr |> Lens.view (Lens.from Misc.pathText)
   parseFileInternal file (ninja, AST.scopeEnv env)
 
-applyDefine :: LBind -> ApplyFun
-applyDefine (MkLBind (MkLName var) value) _ (ninja, env) = do
+applyDefine :: LBind () -> ApplyFun
+applyDefine (MkLBind () (MkLName () var) value) _ (ninja, env) = do
   pure (ninja, AST.addBind (Text.decodeUtf8 var) value env)
 
 --------------------------------------------------------------------------------
@@ -344,7 +344,7 @@ splitDeps = HS.toList
         (a, b, c) = go xs
 
 getDepth :: (MonadError Err.ParseError m)
-         => AST.Env Text Text -> [(Text, AST.Expr)] -> m Int
+         => AST.Env Text Text -> [(Text, AST.Expr ())] -> m Int
 getDepth env xs
   = case AST.askExpr env <$> lookup "depth" xs of
       Nothing  -> pure 1

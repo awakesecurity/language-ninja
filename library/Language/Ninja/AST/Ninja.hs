@@ -21,6 +21,7 @@
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -68,12 +69,12 @@ import           Control.DeepSeq           (NFData)
 import           Data.Hashable             (Hashable)
 import           GHC.Generics              (Generic)
 
-import           GHC.Exts                  (Constraint)
-
 import qualified Test.QuickCheck           as QC
 import           Test.QuickCheck.Instances ()
 
 import qualified Test.SmallCheck.Series    as SC
+
+import           GHC.Exts                  (Constraint)
 
 import           Data.Aeson                (FromJSON, ToJSON, (.:), (.=))
 import qualified Data.Aeson                as Aeson
@@ -81,27 +82,30 @@ import qualified Data.Aeson.Types          as Aeson
 
 import qualified Language.Ninja.AST.Build  as AST
 import qualified Language.Ninja.AST.Rule   as AST
+import qualified Language.Ninja.Misc       as Misc
 
 --------------------------------------------------------------------------------
 
 -- | A parsed Ninja file.
-data Ninja
+data Ninja ann
   = MkNinja
-    { _ninjaRules     :: !(HashMap Text AST.Rule)
-    , _ninjaSingles   :: !(HashMap Text AST.Build)
-    , _ninjaMultiples :: !(HashMap (HashSet Text) AST.Build)
+    { _ninjaAnn       :: !ann
+    , _ninjaRules     :: !(HashMap Text (AST.Rule ann))
+    , _ninjaSingles   :: !(HashMap Text (AST.Build ann))
+    , _ninjaMultiples :: !(HashMap (HashSet Text) (AST.Build ann))
     , _ninjaPhonys    :: !(HashMap Text (HashSet Text))
     , _ninjaDefaults  :: !(HashSet Text)
     , _ninjaPools     :: !(HashMap Text Int)
     , _ninjaSpecials  :: !(HashMap Text Text)
     }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Functor)
 
 -- | Construct a 'Ninja' with all default values
 {-# INLINE makeNinja #-}
-makeNinja :: Ninja
+makeNinja :: (Monoid ann) => Ninja ann
 makeNinja = MkNinja
-            { _ninjaRules     = mempty
+            { _ninjaAnn       = mempty
+            , _ninjaRules     = mempty
             , _ninjaSingles   = mempty
             , _ninjaMultiples = mempty
             , _ninjaPhonys    = mempty
@@ -112,52 +116,58 @@ makeNinja = MkNinja
 
 -- | The rules defined in a parsed Ninja file.
 {-# INLINE ninjaRules #-}
-ninjaRules :: Lens' Ninja (HashMap Text AST.Rule)
+ninjaRules :: Lens' (Ninja ann) (HashMap Text (AST.Rule ann))
 ninjaRules = lens _ninjaRules
              $ \(MkNinja {..}) x -> MkNinja { _ninjaRules = x, .. }
 
 -- | The set of build declarations with precisely one output.
 {-# INLINE ninjaSingles #-}
-ninjaSingles :: Lens' Ninja (HashMap Text AST.Build)
+ninjaSingles :: Lens' (Ninja ann) (HashMap Text (AST.Build ann))
 ninjaSingles = lens _ninjaSingles
                $ \(MkNinja {..}) x -> MkNinja { _ninjaSingles = x, .. }
 
 -- | The set of build declarations with two or more outputs.
 {-# INLINE ninjaMultiples #-}
-ninjaMultiples :: Lens' Ninja (HashMap (HashSet Text) AST.Build)
+ninjaMultiples :: Lens' (Ninja ann) (HashMap (HashSet Text) (AST.Build ann))
 ninjaMultiples = lens _ninjaMultiples
                  $ \(MkNinja {..}) x -> MkNinja { _ninjaMultiples = x, .. }
 
 -- | The set of phony build declarations.
 {-# INLINE ninjaPhonys #-}
-ninjaPhonys :: Lens' Ninja (HashMap Text (HashSet Text))
+ninjaPhonys :: Lens' (Ninja ann) (HashMap Text (HashSet Text))
 ninjaPhonys = lens _ninjaPhonys
               $ \(MkNinja {..}) x -> MkNinja { _ninjaPhonys = x, .. }
 
 -- | The set of default targets.
 {-# INLINE ninjaDefaults #-}
-ninjaDefaults :: Lens' Ninja (HashSet Text)
+ninjaDefaults :: Lens' (Ninja ann) (HashSet Text)
 ninjaDefaults = lens _ninjaDefaults
                 $ \(MkNinja {..}) x -> MkNinja { _ninjaDefaults = x, .. }
 
 -- | A mapping from pool names to pool depth integers.
 {-# INLINE ninjaPools #-}
-ninjaPools :: Lens' Ninja (HashMap Text Int)
+ninjaPools :: Lens' (Ninja ann) (HashMap Text Int)
 ninjaPools = lens _ninjaPools
              $ \(MkNinja {..}) x -> MkNinja { _ninjaPools = x, .. }
 
 -- | A map from "special" top-level variables to their values.
 {-# INLINE ninjaSpecials #-}
-ninjaSpecials :: Lens' Ninja (HashMap Text Text)
+ninjaSpecials :: Lens' (Ninja ann) (HashMap Text Text)
 ninjaSpecials = lens _ninjaSpecials
                 $ \(MkNinja {..}) x -> MkNinja { _ninjaSpecials = x, .. }
 
+-- | The usual definition for 'Misc.Annotated'.
+instance Misc.Annotated Ninja where
+  annotation = lens _ninjaAnn
+               $ \(MkNinja {..}) x -> MkNinja { _ninjaAnn = x, .. }
+
 -- | Converts to
---   @{rules: …, singles: …, multiples: …, phonys: …, defaults: …,
+--   @{ann: …, rules: …, singles: …, multiples: …, phonys: …, defaults: …,
 --     pools: …, specials: …}@.
-instance ToJSON Ninja where
+instance (ToJSON ann) => ToJSON (Ninja ann) where
   toJSON (MkNinja {..})
-    = [ "rules"     .= _ninjaRules
+    = [ "ann"       .= _ninjaAnn
+      , "rules"     .= _ninjaRules
       , "singles"   .= _ninjaSingles
       , "multiples" .= fixMultiples _ninjaMultiples
       , "phonys"    .= _ninjaPhonys
@@ -166,16 +176,18 @@ instance ToJSON Ninja where
       , "specials"  .= _ninjaSpecials
       ] |> Aeson.object
     where
-      fixMultiples :: HashMap (HashSet Text) AST.Build -> Aeson.Value
+      fixMultiples :: (ToJSON ann)
+                   => HashMap (HashSet Text) (AST.Build ann) -> Aeson.Value
       fixMultiples = HM.toList .> map (uncurry printPair) .> Aeson.toJSON
 
-      printPair :: HashSet Text -> AST.Build -> Aeson.Value
+      printPair :: (ToJSON ann) => HashSet Text -> AST.Build ann -> Aeson.Value
       printPair outputs build =
         Aeson.object ["outputs" .= outputs, "build" .= build]
 
 -- | Inverse of the 'ToJSON' instance.
-instance FromJSON Ninja where
+instance (FromJSON ann) => FromJSON (Ninja ann) where
   parseJSON = (Aeson.withObject "Ninja" $ \o -> do
+                  _ninjaAnn       <- (o .: "ann")       >>= pure
                   _ninjaRules     <- (o .: "rules")     >>= pure
                   _ninjaSingles   <- (o .: "singles")   >>= pure
                   _ninjaMultiples <- (o .: "multiples") >>= fixMultiples
@@ -185,20 +197,23 @@ instance FromJSON Ninja where
                   _ninjaSpecials  <- (o .: "specials")  >>= pure
                   pure (MkNinja {..}))
     where
-      fixMultiples :: Aeson.Value
-                   -> Aeson.Parser (HashMap (HashSet Text) AST.Build)
+      fixMultiples :: (FromJSON ann)
+                   => Aeson.Value
+                   -> Aeson.Parser (HashMap (HashSet Text) (AST.Build ann))
       fixMultiples = Aeson.parseJSON
                      >=> mapM parsePair
                      >=> (HM.fromList .> pure)
 
-      parsePair :: Aeson.Value -> Aeson.Parser (HashSet Text, AST.Build)
+      parsePair :: (FromJSON ann)
+                => Aeson.Value
+                -> Aeson.Parser (HashSet Text, AST.Build ann)
       parsePair = (Aeson.withObject "Ninja.multiples" $ \o -> do
                       outputs <- (o .: "outputs") >>= pure
                       build   <- (o .: "build")   >>= pure
                       pure (outputs, build))
 
 -- | Reasonable 'QC.Arbitrary' instance for 'Ninja'.
-instance QC.Arbitrary Ninja where
+instance (QC.Arbitrary ann) => QC.Arbitrary (Ninja ann) where
   arbitrary = MkNinja
               <$> QC.arbitrary
               <*> QC.arbitrary
@@ -207,28 +222,32 @@ instance QC.Arbitrary Ninja where
               <*> QC.arbitrary
               <*> QC.arbitrary
               <*> QC.arbitrary
+              <*> QC.arbitrary
 
 -- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Ninja
+instance (Hashable ann) => Hashable (Ninja ann)
 
 -- | Default 'NFData' instance via 'Generic'.
-instance NFData Ninja
+instance (NFData ann) => NFData (Ninja ann)
 
 -- | Default 'SC.Serial' instance via 'Generic'.
-instance (Monad m, NinjaConstraint (SC.Serial m)) => SC.Serial m Ninja
+instance ( Monad m, NinjaConstraint (SC.Serial m) ann
+         ) => SC.Serial m (Ninja ann)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
-instance (Monad m, NinjaConstraint (SC.CoSerial m)) => SC.CoSerial m Ninja
+instance ( Monad m, NinjaConstraint (SC.CoSerial m) ann
+         ) => SC.CoSerial m (Ninja ann)
 
 -- | The set of constraints required for a given constraint to be automatically
 --   computed for a 'Ninja'.
-type NinjaConstraint (c :: * -> Constraint)
-  = ( AST.BuildConstraint c
-    , c (HashMap (HashSet Text) AST.Build)
+type NinjaConstraint (c :: * -> Constraint) (ann :: *)
+  = ( AST.BuildConstraint c ann
+    , c (HashMap (HashSet Text) (AST.Build ann))
     , c (HashMap Text (HashSet Text))
-    , c (HashMap Text AST.Rule)
-    , c (HashMap Text AST.Build)
+    , c (HashMap Text (AST.Rule ann))
+    , c (HashMap Text (AST.Build ann))
     , c (HashMap Text Int)
+    , c ann
     )
 
 --------------------------------------------------------------------------------

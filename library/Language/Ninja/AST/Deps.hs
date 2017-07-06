@@ -20,6 +20,7 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
+{-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -61,79 +62,91 @@ import qualified Test.SmallCheck.Series    as SC
 import           Data.Aeson                (FromJSON, ToJSON, (.:), (.=))
 import qualified Data.Aeson                as Aeson
 
+import qualified Language.Ninja.Misc       as Misc
+
 --------------------------------------------------------------------------------
 
 -- | A set of Ninja build dependencies.
-data Deps
+data Deps ann
   = MkDeps
-    { _depsNormal    :: !(HashSet Text)
+    { _depsAnn       :: !ann
+    , _depsNormal    :: !(HashSet Text)
     , _depsImplicit  :: !(HashSet Text)
     , _depsOrderOnly :: !(HashSet Text)
     }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Functor)
 
 -- | Construct a 'Deps' with all default values
 {-# INLINE makeDeps #-}
-makeDeps :: Deps
+makeDeps :: (Monoid ann) => Deps ann
 makeDeps = MkDeps
-            { _depsNormal    = mempty
+            { _depsAnn       = mempty
+            , _depsNormal    = mempty
             , _depsImplicit  = mempty
             , _depsOrderOnly = mempty
             }
 
 -- | A lens into the set of normal dependencies in a 'Deps'.
 {-# INLINE depsNormal #-}
-depsNormal :: Lens' Deps (HashSet Text)
+depsNormal :: Lens' (Deps ann) (HashSet Text)
 depsNormal = lens _depsNormal
              $ \(MkDeps {..}) x -> MkDeps { _depsNormal = x, .. }
 
 -- | A lens into the set of implicit dependencies in a 'Deps'.
 {-# INLINE depsImplicit #-}
-depsImplicit :: Lens' Deps (HashSet Text)
+depsImplicit :: Lens' (Deps ann) (HashSet Text)
 depsImplicit = lens _depsImplicit
                $ \(MkDeps {..}) x -> MkDeps { _depsImplicit = x, .. }
 
 -- | A lens into the set of order-only dependencies in a 'Deps'.
 {-# INLINE depsOrderOnly #-}
-depsOrderOnly :: Lens' Deps (HashSet Text)
+depsOrderOnly :: Lens' (Deps ann) (HashSet Text)
 depsOrderOnly = lens _depsOrderOnly
                 $ \(MkDeps {..}) x -> MkDeps { _depsOrderOnly = x, .. }
 
--- | Converts to @{normal: …, implicit: …, order-only: …}@.
-instance ToJSON Deps where
+-- | The usual definition for 'Misc.Annotated'.
+instance Misc.Annotated Deps where
+  annotation = lens _depsAnn
+               $ \(MkDeps {..}) x -> MkDeps { _depsAnn = x, .. }
+
+-- | Converts to @{ann: …, normal: …, implicit: …, order-only: …}@.
+instance (ToJSON ann) => ToJSON (Deps ann) where
   toJSON (MkDeps {..})
-    = [ "normal"     .= _depsNormal
+    = [ "ann"        .= _depsAnn
+      , "normal"     .= _depsNormal
       , "implicit"   .= _depsImplicit
       , "order-only" .= _depsOrderOnly
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
-instance FromJSON Deps where
+instance (FromJSON ann) => FromJSON (Deps ann) where
   parseJSON = (Aeson.withObject "Deps" $ \o -> do
+                  _depsAnn       <- (o .: "ann")        >>= pure
                   _depsNormal    <- (o .: "normal")     >>= pure
                   _depsImplicit  <- (o .: "implicit")   >>= pure
                   _depsOrderOnly <- (o .: "order-only") >>= pure
                   pure (MkDeps {..}))
 
 -- | Reasonable 'QC.Arbitrary' instance for 'Deps'.
-instance QC.Arbitrary Deps where
+instance (QC.Arbitrary ann) => QC.Arbitrary (Deps ann) where
   arbitrary = MkDeps
               <$> QC.arbitrary
               <*> QC.arbitrary
               <*> QC.arbitrary
+              <*> QC.arbitrary
 
 -- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Deps
+instance (Hashable ann) => Hashable (Deps ann)
 
 -- | Default 'NFData' instance via 'Generic'.
-instance NFData Deps
+instance (NFData ann) => NFData (Deps ann)
 
 -- | Default 'SC.Serial' instance via 'Generic'.
-instance ( Monad m, SC.Serial m (HashSet Text)
-         ) => SC.Serial m Deps
+instance ( Monad m, SC.Serial m (HashSet Text), SC.Serial m ann
+         ) => SC.Serial m (Deps ann)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
-instance ( Monad m, SC.CoSerial m (HashSet Text)
-         ) => SC.CoSerial m Deps
+instance ( Monad m, SC.CoSerial m (HashSet Text), SC.CoSerial m ann
+         ) => SC.CoSerial m (Deps ann)
 
 --------------------------------------------------------------------------------

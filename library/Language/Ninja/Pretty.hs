@@ -76,7 +76,7 @@ import           Flow                  ((.>), (|>))
 --------------------------------------------------------------------------------
 
 -- | Pretty-print a 'AST.Ninja'.
-prettyNinja :: AST.Ninja -> Text
+prettyNinja :: AST.Ninja () -> Text
 prettyNinja ninja
   = [ map prettyRule     (HM.toList (ninja ^. AST.ninjaRules))
     , map prettySingle   (HM.toList (ninja ^. AST.ninjaSingles))
@@ -87,15 +87,15 @@ prettyNinja ninja
     ] |> mconcat |> mconcat
 
 -- | Pretty-print an 'AST.Expr'
-prettyExpr :: AST.Expr -> Text
+prettyExpr :: AST.Expr () -> Text
 prettyExpr = go .> mconcat
   where
-    go (AST.Exprs es) = map prettyExpr es
-    go (AST.Lit  str) = [str]
-    go (AST.Var name) = ["${", name, "}"]
+    go (AST.Exprs _   es) = map prettyExpr es
+    go (AST.Lit   _ text) = [text]
+    go (AST.Var   _ name) = ["${", name, "}"]
 
 -- | Pretty-print a Ninja @rule@ declaration.
-prettyRule :: (Text, AST.Rule) -> Text
+prettyRule :: (Text, AST.Rule ()) -> Text
 prettyRule (name, rule) = do
   let binds = rule ^. AST.ruleBind
               |> HM.toList
@@ -104,11 +104,11 @@ prettyRule (name, rule) = do
   mconcat ["rule ", name, "\n", binds]
 
 -- | Pretty-print a Ninja @build@ declaration with one output.
-prettySingle :: (FileText, AST.Build) -> Text
+prettySingle :: (FileText, AST.Build ()) -> Text
 prettySingle (output, build) = prettyMultiple (HS.singleton output, build)
 
 -- | Pretty-print a Ninja @build@ declaration with multiple outputs.
-prettyMultiple :: (HashSet FileText, AST.Build) -> Text
+prettyMultiple :: (HashSet FileText, AST.Build ()) -> Text
 prettyMultiple (outputs, build) = do
   let prefixIfThere :: Text -> Text -> Text
       prefixIfThere pfx rest = if T.all isSpace rest then "" else pfx <> rest

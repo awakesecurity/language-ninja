@@ -101,12 +101,12 @@ import           NinjaToNix.Types
 
 --------------------------------------------------------------------------------
 
-parseIO :: (MonadIO m) => FilePath -> m AST.Ninja
+parseIO :: (MonadIO m) => FilePath -> m (AST.Ninja ())
 parseIO fp = liftIO $ do
   let path = Misc.makePath (Text.pack fp)
   runExceptT (Parser.parseFile path) >>= either throwIO pure
 
-compileToIR :: AST.Ninja -> IO IR.Ninja
+compileToIR :: AST.Ninja () -> IO IR.Ninja
 compileToIR ast = either throwIO pure (Compile.compile ast)
 
 simplifyIO :: (MonadIO m) => IR.Ninja -> m SNinja

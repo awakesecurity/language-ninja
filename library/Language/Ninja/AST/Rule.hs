@@ -20,10 +20,15 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
 -- |
@@ -35,7 +40,9 @@
 --
 --   FIXME: doc
 module Language.Ninja.AST.Rule
-  ( module Language.Ninja.AST.Rule -- FIXME: specific export list
+  ( Rule, makeRule
+  , ruleBind
+  , RuleConstraint
   ) where
 
 import           Control.Lens.Lens         (Lens', lens)
@@ -54,56 +61,80 @@ import           Test.QuickCheck.Instances ()
 
 import qualified Test.SmallCheck.Series    as SC
 
-import           Data.Aeson                (FromJSON, ToJSON)
+import           GHC.Exts                  (Constraint)
+
+import           Data.Aeson                (FromJSON, ToJSON, (.:), (.=))
 import qualified Data.Aeson                as Aeson
 
 import qualified Language.Ninja.AST.Expr   as AST
+import qualified Language.Ninja.Misc       as Misc
 
 --------------------------------------------------------------------------------
 
 -- | A parsed Ninja @rule@ declaration.
-newtype Rule
+data Rule ann
   = MkRule
-    { _ruleBind :: HashMap Text AST.Expr
+    { _ruleAnn  :: !ann
+    , _ruleBind :: !(HashMap Text (AST.Expr ann))
     }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Functor)
 
 -- | Construct a 'Rule' with all default values
 {-# INLINE makeRule #-}
-makeRule :: Rule
+makeRule :: (Monoid ann) => Rule ann
 makeRule = MkRule
-           { _ruleBind = mempty
+           { _ruleAnn  = mempty
+           , _ruleBind = mempty
            }
 
 -- | The set of bindings in scope during the execution of this rule.
 {-# INLINE ruleBind #-}
-ruleBind :: Lens' Rule (HashMap Text AST.Expr)
-ruleBind = lens _ruleBind (const MkRule)
+ruleBind :: Lens' (Rule ann) (HashMap Text (AST.Expr ann))
+ruleBind = lens _ruleBind
+           $ \(MkRule {..}) x -> MkRule { _ruleBind = x, .. }
 
--- | Uses the 'ToJSON' instance of the underlying @'HashMap' 'Text' 'PEXpr'@.
-instance ToJSON Rule where
-  toJSON = _ruleBind .> Aeson.toJSON
+-- | The usual definition for 'Misc.Annotated'.
+instance Misc.Annotated Rule where
+  annotation = lens _ruleAnn
+               $ \(MkRule {..}) x -> MkRule { _ruleAnn = x, .. }
+
+-- | Converts to @{ann: …, bind: …}@.
+instance (ToJSON ann) => ToJSON (Rule ann) where
+  toJSON (MkRule {..})
+    = [ "ann"  .= _ruleAnn
+      , "bind" .= _ruleBind
+      ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
-instance FromJSON Rule where
-  parseJSON = Aeson.parseJSON .> fmap MkRule
+instance (FromJSON ann) => FromJSON (Rule ann) where
+  parseJSON = (Aeson.withObject "Rule" $ \o -> do
+                  _ruleAnn  <- (o .: "ann")  >>= pure
+                  _ruleBind <- (o .: "bind") >>= pure
+                  pure (MkRule {..}))
 
 -- | Reasonable 'QC.Arbitrary' instance for 'Rule'.
-instance QC.Arbitrary Rule where
-  arbitrary = MkRule <$> QC.arbitrary
+instance (QC.Arbitrary ann) => QC.Arbitrary (Rule ann) where
+  arbitrary = MkRule <$> QC.arbitrary <*> QC.arbitrary
 
 -- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Rule
+instance (Hashable ann) => Hashable (Rule ann)
 
 -- | Default 'NFData' instance via 'Generic'.
-instance NFData Rule
+instance (NFData ann) => NFData (Rule ann)
 
 -- | Default 'SC.Serial' instance via 'Generic'.
-instance ( Monad m, SC.Serial m (HashMap Text AST.Expr)
-         ) => SC.Serial m Rule
+instance ( Monad m, RuleConstraint (SC.Serial m) ann
+         ) => SC.Serial m (Rule ann)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
-instance ( Monad m, SC.CoSerial m (HashMap Text AST.Expr)
-         ) => SC.CoSerial m Rule
+instance ( Monad m, RuleConstraint (SC.CoSerial m) ann
+         ) => SC.CoSerial m (Rule ann)
+
+-- | The set of constraints required for a given constraint to be automatically
+--   computed for a 'Rule'.
+type RuleConstraint (c :: * -> Constraint) (ann :: *)
+  = ( c (HashMap Text (AST.Expr ann))
+    , c ann
+    )
 
 --------------------------------------------------------------------------------

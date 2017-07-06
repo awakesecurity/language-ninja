@@ -111,20 +111,20 @@ import qualified Tests.ReferenceLexer.Str0  as Str0
 
 -- | Lex the given file.
 lexerFile :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
-          => Misc.Path -> m [Lexeme]
+          => Misc.Path -> m [Lexeme ()]
 lexerFile file = Mock.readFile file >>= lexerText
 
 -- | Lex the given 'Text'.
-lexerText :: (MonadError Err.ParseError m) => Text -> m [Lexeme]
+lexerText :: (MonadError Err.ParseError m) => Text -> m [Lexeme ()]
 lexerText = Text.encodeUtf8 .> lexerBS
 
 -- | Lex the given 'BSC8.ByteString'.
-lexerBS :: (MonadError Err.ParseError m) => BSC8.ByteString -> m [Lexeme]
+lexerBS :: (MonadError Err.ParseError m) => BSC8.ByteString -> m [Lexeme ()]
 lexerBS x = lexerLoop (MkStr0 (BSC8.append x "\n\n\0"))
 
 --------------------------------------------------------------------------------
 
-lexerLoop :: (MonadError Err.ParseError m) => Str0 -> m [Lexeme]
+lexerLoop :: (MonadError Err.ParseError m) => Str0 -> m [Lexeme ()]
 lexerLoop c_x
   = case c of
       '\r'                                  -> lexerLoop x0
@@ -149,64 +149,64 @@ lexerLoop c_x
                               then Just $ MkStr0 $ BSC8.drop (BSC8.length b) x
                               else Nothing
 
-lexBind :: (MonadError Err.ParseError m) => Str0 -> m [Lexeme]
+lexBind :: (MonadError Err.ParseError m) => Str0 -> m [Lexeme ()]
 lexBind c_x | (c, x) <- Str0.list0 c_x
   = case c of
       '\r' -> lexerLoop x
       '\n' -> lexerLoop x
       '#'  -> lexerLoop $ Str0.dropWhile0 (/= '\n') x
       '\0' -> pure []
-      _    -> lexxBind LexBind c_x
+      _    -> lexxBind (LexBind ()) c_x
 
-lexBuild :: (MonadError Err.ParseError m) => Str0 -> m [Lexeme]
+lexBuild :: (MonadError Err.ParseError m) => Str0 -> m [Lexeme ()]
 lexBuild x0 = do
   (outputs, x1) <- lexxExprs True x0
   let (rule, x2) = Str0.span0 isVarDot $ dropSpace x1
   (deps, x3) <- lexxExprs False $ dropSpace x2
   x4 <- lexerLoop x3
-  pure (LexBuild (makeLBuild outputs (MkLName rule) deps) : x4)
+  pure (LexBuild () (makeLBuild () outputs (MkLName () rule) deps) : x4)
 
-lexDefault :: (MonadError Err.ParseError m) => Str0 -> m [Lexeme]
+lexDefault :: (MonadError Err.ParseError m) => Str0 -> m [Lexeme ()]
 lexDefault str0 = do
   (files, str1) <- lexxExprs False str0
   str2 <- lexerLoop str1
-  pure (LexDefault files : str2)
+  pure (LexDefault () files : str2)
 
 lexRule, lexPool, lexInclude, lexSubninja, lexDefine
-  :: (MonadError Err.ParseError m) => Str0 -> m [Lexeme]
-lexRule     = lexxName LexRule
-lexPool     = lexxName LexPool
-lexInclude  = lexxFile LexInclude
-lexSubninja = lexxFile LexSubninja
-lexDefine   = lexxBind LexDefine
+  :: (MonadError Err.ParseError m) => Str0 -> m [Lexeme ()]
+lexRule     = lexxName (LexRule     ())
+lexPool     = lexxName (LexPool     ())
+lexInclude  = lexxFile (LexInclude  ())
+lexSubninja = lexxFile (LexSubninja ())
+lexDefine   = lexxBind (LexDefine   ())
 
 lexxBind :: (MonadError Err.ParseError m)
-         => (LBind -> Lexeme) -> Str0 -> m [Lexeme]
+         => (LBind () -> Lexeme ()) -> Str0 -> m [Lexeme ()]
 lexxBind ctor x0 = do
   let (var,  x1) = Str0.span0 isVarDot x0
   let (eq,   x2) = Str0.list0 $ dropSpace x1
   (expr, x3) <- lexxExpr False False $ dropSpace x2
   x4         <- lexerLoop x3
   if (eq == '=')
-    then pure (ctor (MkLBind (MkLName var) expr) : x4)
+    then pure (ctor (MkLBind () (MkLName () var) expr) : x4)
     else Err.throwLexBindingFailure (Text.pack (show (Str0.take0 100 x0)))
 
 lexxFile :: (MonadError Err.ParseError m)
-         => (LFile -> Lexeme) -> Str0 -> m [Lexeme]
+         => (LFile () -> Lexeme ()) -> Str0 -> m [Lexeme ()]
 lexxFile ctor str0 = do
   (expr, str1) <- lexxExpr False False (dropSpace str0)
   str2         <- lexerLoop str1
   pure (ctor (MkLFile expr) : str2)
 
 lexxName :: (MonadError Err.ParseError m)
-         => (LName -> Lexeme) -> Str0 -> m [Lexeme]
+         => (LName () -> Lexeme ()) -> Str0 -> m [Lexeme ()]
 lexxName ctor x = do
   let (name, rest) = splitLineCont x
   lexemes <- lexerLoop rest
-  pure (ctor (MkLName name) : lexemes)
+  pure (ctor (MkLName () name) : lexemes)
 
 lexxExprs :: (MonadError Err.ParseError m)
-          => Bool -> Str0 -> m ([AST.Expr], Str0)
+          => Bool -> Str0 -> m ([AST.Expr ()], Str0)
 lexxExprs sColon x0 = do
   (a, c_x) <- lexxExpr sColon True x0
   let c  = Str0.head0 c_x
@@ -221,9 +221,9 @@ lexxExprs sColon x0 = do
     '\0'          -> pure (a $: c_x)
     _             -> Err.throwLexUnexpectedSeparator c
   where
-    ($:) :: AST.Expr -> Str0 -> ([AST.Expr], Str0)
-    (AST.Exprs []) $: s = ([],     s)
-    expr           $: s = ([expr], s)
+    ($:) :: AST.Expr () -> Str0 -> ([AST.Expr ()], Str0)
+    (AST.Exprs () []) $: s = ([],     s)
+    expr              $: s = ([expr], s)
 
 {-# NOINLINE lexxExpr #-}
 lexxExpr :: (MonadError Err.ParseError m)
@@ -233,13 +233,13 @@ lexxExpr :: (MonadError Err.ParseError m)
          -- ^ @stopSpace@
          -> Str0
          -- ^ The input bytestring
-         -> m (AST.Expr, Str0)
+         -> m (AST.Expr (), Str0)
          -- ^ The second field will start with one of @" :\n\r"@ or be empty
 lexxExpr stopColon stopSpace str0 = first exprs <$> f str0
   where
-    exprs :: [AST.Expr] -> AST.Expr
+    exprs :: [AST.Expr ()] -> AST.Expr ()
     exprs [x] = AST.normalizeExpr x
-    exprs xs  = AST.normalizeExpr (AST.Exprs xs)
+    exprs xs  = AST.normalizeExpr (AST.Exprs () xs)
 
     special :: Char -> Bool
     special x = let b = x `elem` ['$', '\r', '\n', '\0']
@@ -249,29 +249,29 @@ lexxExpr stopColon stopSpace str0 = first exprs <$> f str0
                      (False, True ) -> (x <= '$') && or [          x == ' ', b]
                      (False, False) -> (x <= '$') && or [                    b]
 
-    f :: (MonadError Err.ParseError m) => Str0 -> m ([AST.Expr], Str0)
+    f :: (MonadError Err.ParseError m) => Str0 -> m ([AST.Expr ()], Str0)
     f (Str0.break00 special -> (a, x))
       = if BSC8.null a
         then g x
-        else g x >>= \y -> pure (AST.Lit (Text.decodeUtf8 a) $: y)
+        else g x >>= \y -> pure (AST.Lit () (Text.decodeUtf8 a) $: y)
 
-    g :: (MonadError Err.ParseError m) => Str0 -> m ([AST.Expr], Str0)
+    g :: (MonadError Err.ParseError m) => Str0 -> m ([AST.Expr ()], Str0)
     g x0 | (Str0.head0 x0 /= '$') = pure ([], x0)
     g (Str0.tail0 -> c_x) =
       let (c, x0) = Str0.list0 c_x
       in case c of
-           '$'   -> f x0 >>= (AST.Lit "$" $:) .> pure
-           ' '   -> f x0 >>= (AST.Lit " " $:) .> pure
-           ':'   -> f x0 >>= (AST.Lit ":" $:) .> pure
+           '$'   -> f x0 >>= (AST.Lit () "$" $:) .> pure
+           ' '   -> f x0 >>= (AST.Lit () " " $:) .> pure
+           ':'   -> f x0 >>= (AST.Lit () ":" $:) .> pure
            '\n'  -> f (dropSpace x0)
            '\r'  -> f (dropSpace (dropN x0))
            '{' | (name, x1) <- Str0.span0 isVarDot x0
                , ('}',  x2) <- Str0.list0 x1
                , not (BSC8.null name)
-                 -> f x2 >>= (AST.Var (Text.decodeUtf8 name) $:) .> pure
+                 -> f x2 >>= (AST.Var () (Text.decodeUtf8 name) $:) .> pure
            _   | (name, x1) <- Str0.span0 isVar c_x
                , not $ BSC8.null name
-                 -> f x1 >>= (AST.Var (Text.decodeUtf8 name) $:) .> pure
+                 -> f x1 >>= (AST.Var () (Text.decodeUtf8 name) $:) .> pure
            _     -> Err.throwLexUnexpectedDollar
 
     ($:) :: a -> ([a], b) -> ([a], b)

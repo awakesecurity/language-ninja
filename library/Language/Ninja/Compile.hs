@@ -91,8 +91,8 @@ import qualified Language.Ninja.Parser      as Parser
 -------------------------------------------------------------------------------
 
 -- | Compile an parsed Ninja file into a intermediate representation.
-compile :: forall m. (MonadError Err.CompileError m)
-        => AST.Ninja -> m IR.Ninja
+compile :: forall m ann. (MonadError Err.CompileError m)
+        => AST.Ninja ann -> m IR.Ninja
 compile ast = result
   where
     result :: m IR.Ninja
@@ -145,7 +145,7 @@ compile ast = result
     poolsM :: m (HashSet IR.Pool)
     poolsM = HM.toList ppools |> mapM compilePool |> fmap HS.fromList
 
-    compileBuild :: (HashSet Text, AST.Build) -> m IR.Build
+    compileBuild :: (HashSet Text, AST.Build ann) -> m IR.Build
     compileBuild (outputs, buildAST) = do
       let depsAST       = buildAST ^. AST.buildDeps
       let normalDeps    = HS.toList (depsAST ^. AST.depsNormal)
@@ -184,7 +184,7 @@ compile ast = result
                                  |> maybe (Err.throwInvalidPoolDepth d) pure
                            pure (IR.makePoolCustom name dp)
 
-    compileRule :: (HashSet IR.Output, AST.Build) -> m IR.Rule
+    compileRule :: (HashSet IR.Output, AST.Build ann) -> m IR.Rule
     compileRule (outputs, buildAST) = do
       (name, prule) <- lookupRule buildAST
 
@@ -263,15 +263,15 @@ compile ast = result
     compileCommand :: Text -> m Misc.Command
     compileCommand = Misc.makeCommand .> pure
 
-    lookupRule :: AST.Build -> m (Text, AST.Rule)
+    lookupRule :: AST.Build ann -> m (Text, AST.Rule ann)
     lookupRule buildAST = do
       let name = buildAST ^. AST.buildRule
       prule <- HM.lookup name prules
                |> maybe (Err.throwBuildRuleNotFound name) pure
       pure (name, prule)
 
-    computeRuleEnv :: (HashSet IR.Output, AST.Build)
-                   -> AST.Rule
+    computeRuleEnv :: (HashSet IR.Output, AST.Build ann)
+                   -> AST.Rule ann
                    -> AST.Env Text Text
     computeRuleEnv (outs, buildAST) prule = do
       let isExplicitOut out = (out ^. IR.outputType) == IR.ExplicitOutput
@@ -301,9 +301,9 @@ compile ast = result
         |> composeList (map (uncurry AST.addEnv) (HM.toList bindings))
         |> AST.addBinds (HM.toList (prule ^. AST.ruleBind))
 
-    prules     :: HashMap Text AST.Rule
-    psingles   :: HashMap Text AST.Build
-    pmultiples :: HashMap (HashSet Text) AST.Build
+    prules     :: HashMap Text (AST.Rule ann)
+    psingles   :: HashMap Text (AST.Build ann)
+    pmultiples :: HashMap (HashSet Text) (AST.Build ann)
     pphonys    :: HashMap Text (HashSet Text)
     pdefaults  :: HashSet Text
     ppools     :: HashMap Text Int

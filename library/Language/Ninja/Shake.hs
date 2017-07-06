@@ -116,8 +116,8 @@ runNinja file args tool = do
 --------------------------------------------------------------------------------
 
 data NinjaOptions
-  = NinjaOptionsBuild   !AST.Ninja ![Text]
-  | NinjaOptionsCompDB  !AST.Ninja ![Text]
+  = NinjaOptionsBuild   !(AST.Ninja ()) ![Text]
+  | NinjaOptionsCompDB  !(AST.Ninja ()) ![Text]
   | NinjaOptionsUnknown !Text
 
 parseNinjaOptions :: FilePath -> [String] -> Maybe String -> IO NinjaOptions
@@ -136,7 +136,10 @@ ninjaDispatch (NinjaOptionsUnknown tool)  =
   [ "Unknown tool: ", tool
   ] |> mconcat |> Text.unpack |> errorIO
 
-computeRuleEnv :: HashSet Text -> AST.Build -> AST.Rule -> AST.Env Text Text
+computeRuleEnv :: HashSet Text
+               -> AST.Build ()
+               -> AST.Rule  ()
+               -> AST.Env Text Text
 computeRuleEnv outputs b r = do
   let deps = b ^. AST.buildDeps . AST.depsNormal
   -- the order of adding new environment variables matters
@@ -152,7 +155,7 @@ computeRuleEnv outputs b r = do
         (map (uncurry AST.addEnv) (HM.toList (b ^. AST.buildBind)))
     |> AST.addBinds (HM.toList (r ^. AST.ruleBind))
 
-ninjaCompDB :: AST.Ninja -> [Text] -> IO (Maybe (Rules ()))
+ninjaCompDB :: AST.Ninja () -> [Text] -> IO (Maybe (Rules ()))
 ninjaCompDB ninja args = do
   dir <- System.Directory.getCurrentDirectory
 
@@ -162,7 +165,7 @@ ninjaCompDB ninja args = do
   let rules = HM.filterWithKey (curry inArgs) rules
 
   -- the build items are generated in reverse order, hence the reverse
-  let itemsToBuild :: [(HashSet Text, AST.Build, Text, AST.Rule)]
+  let itemsToBuild :: [(HashSet Text, AST.Build (), Text, AST.Rule ())]
       itemsToBuild = do
         let multiples = ninja ^. AST.ninjaMultiples
         let singles   = ninja ^. AST.ninjaSingles
@@ -183,7 +186,7 @@ ninjaCompDB ninja args = do
 
   pure Nothing
 
-ninjaBuild :: AST.Ninja -> [Text] -> IO (Maybe (Rules ()))
+ninjaBuild :: AST.Ninja () -> [Text] -> IO (Maybe (Rules ()))
 ninjaBuild ninja args = pure $ Just $ do
   let normMultiples = ninja
                       ^. AST.ninjaMultiples
@@ -205,7 +208,7 @@ ninjaBuild ninja args = pure $ Just $ do
   let pools     = poolList
   let defaults  = ninja ^. AST.ninjaDefaults
 
-  let build :: HashSet Text -> AST.Build -> Action ()
+  let build :: HashSet Text -> AST.Build () -> Action ()
       build = runBuild (needDeps ninja) phonys rules pools
 
   let targets :: HashSet Text
@@ -264,12 +267,12 @@ quote x                      = x
 -- 9.  delete depfile (can cause issues)
 -- 10. delete response file
 
-runBuild :: (AST.Build -> [Text] -> Action ())
+runBuild :: (AST.Build () -> [Text] -> Action ())
          -> HashMap Text (HashSet Text)
-         -> HashMap Text AST.Rule
+         -> HashMap Text (AST.Rule ())
          -> HashMap Text Shake.Resource
          -> HashSet Text
-         -> AST.Build
+         -> AST.Build ()
          -> Action ()
 runBuild needD phonys rules pools outputs build = do
   let errorA :: Text -> Action a
@@ -342,7 +345,7 @@ runBuild needD phonys rules pools outputs build = do
       -- when (deps == "gcc") $ liftIO $ do
       --   System.Directory.removeFile depfile
 
-needDeps :: AST.Ninja -> AST.Build -> [Text] -> Action ()
+needDeps :: AST.Ninja () -> AST.Build () -> [Text] -> Action ()
 needDeps ninja = \build xs -> do
   let errorA :: Text -> Action a
       errorA = Text.unpack .> errorIO .> liftIO
@@ -362,7 +365,7 @@ needDeps ninja = \build xs -> do
                , "file in deps is generated and not a pre-dependency"
                ] |> mconcat |> errorA
   where
-    builds :: HashMap Text AST.Build
+    builds :: HashMap Text (AST.Build ())
     builds = let singles   = ninja ^. AST.ninjaSingles
                  multiples = ninja ^. AST.ninjaMultiples
              in singles <> explodeHM multiples
@@ -391,7 +394,7 @@ needDeps ninja = \build xs -> do
 
     -- find all dependencies of a rule, no duplicates, with all dependencies of
     -- this rule listed first
-    allDependencies :: AST.Build -> [Text]
+    allDependencies :: AST.Build () -> [Text]
     allDependencies rule = f HS.empty [] [rule]
       where
         f _    []     []                = []

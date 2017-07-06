@@ -175,7 +175,7 @@ aesonQC :: forall x.
            ) => Ty.Proxy x -> T.TestTree
 aesonQC _ = aesonQC' @x (QC.arbitrary, QC.shrink) Aeson.toJSON Aeson.parseJSON
 
-parseTestNinja :: String -> IO AST.Ninja
+parseTestNinja :: String -> IO (AST.Ninja ())
 parseTestNinja name = do
   old <- Turtle.pwd
   Turtle.cd (FP.decodeString dataPrefix)
@@ -192,7 +192,7 @@ lexerEquivalentTest name = do
   unless (expected == actual) $ do
     T.assertEqual "prefix" expected actual
 
-roundtripTest :: AST.Ninja -> IO ()
+roundtripTest :: AST.Ninja () -> IO ()
 roundtripTest ninja = do
   let withTempDir = Turtle.with (Turtle.mktempdir "." "test")
 
@@ -213,11 +213,11 @@ roundtripTest ninja = do
     -- Aeson.encode actualJ `H.shouldBe` Aeson.encode expectedJ
     T.assertEqual "prefix" expected actual
 
-compileTest :: AST.Ninja -> IO ()
+compileTest :: AST.Ninja () -> IO ()
 compileTest ninja = void $ do
   either (displayException .> fail) pure (Compile.compile ninja)
 
-ninjaTests :: String -> AST.Ninja -> T.TestTree
+ninjaTests :: String -> AST.Ninja () -> T.TestTree
 ninjaTests name ninja
   = T.testGroup (name <> ".ninja")
     [ T.testCase "compare lexer against reference implementation" $ do
@@ -232,11 +232,11 @@ aesonTests :: T.TestTree
 aesonTests
   = T.testGroup "aeson"
     [ testModule "Language.Ninja.Lexer"
-      [ testAesonSC 2   (Ty.Proxy @Lexer.Lexeme)
-      , testAesonSC 4   (Ty.Proxy @Lexer.LName)
-      , testAesonSC 4   (Ty.Proxy @Lexer.LFile)
-      , testAesonSC 4   (Ty.Proxy @Lexer.LBind)
-      , testAesonSC 2   (Ty.Proxy @Lexer.LBuild)
+      [ testAesonSC 2   (Ty.Proxy @(Lexer.Lexeme Bool))
+      , testAesonSC 4   (Ty.Proxy @(Lexer.LName  Bool))
+      , testAesonSC 4   (Ty.Proxy @(Lexer.LFile  Bool))
+      , testAesonSC 4   (Ty.Proxy @(Lexer.LBind  Bool))
+      , testAesonSC 2   (Ty.Proxy @(Lexer.LBuild Bool))
       ]
     , testModule "Language.Ninja.IR.Build"
       [ testAesonSC 2   (Ty.Proxy @IR.Build)
@@ -268,20 +268,21 @@ aesonTests
       [ testAesonSC def (Ty.Proxy @(AST.Env Text Text))
       ]
     , testModule "Language.Ninja.AST.Expr"
-      [ testAesonSC def (Ty.Proxy @AST.Expr)
+      [ testAesonSC def (Ty.Proxy @(AST.Expr Bool))
       ]
     , testModule "Language.Ninja.AST.Rule"
-      [ testAesonSC def (Ty.Proxy @AST.Rule)
+      [ testAesonSC def (Ty.Proxy @(AST.Rule Bool))
       ]
     , testModule "Language.Ninja.AST.Ninja"
-      [ testAesonSC 0   (Ty.Proxy @AST.Ninja) -- FIXME: combinatorial explosion
-      -- , testAesonQC     (Ty.Proxy @AST.Ninja)
+      [ -- FIXME: combinatorial explosion
+        testAesonSC 0   (Ty.Proxy @(AST.Ninja Bool))
+      -- , testAesonQC     (Ty.Proxy @(AST.Ninja Bool))
       ]
     , testModule "Language.Ninja.AST.Build"
-      [ testAesonSC 1   (Ty.Proxy @AST.Build)
+      [ testAesonSC 1   (Ty.Proxy @(AST.Build Bool))
       ]
     , testModule "Language.Ninja.AST.Deps"
-      [ testAesonSC def (Ty.Proxy @AST.Deps)
+      [ testAesonSC def (Ty.Proxy @(AST.Deps Bool))
       ]
     , testModule "Language.Ninja.Misc.Command"
       [ testAesonSC def (Ty.Proxy @Misc.Command)
@@ -423,39 +424,39 @@ opticsTests
       ]
     , testModule "Language.Ninja.AST.Expr"
       [ testType "Expr"
-        [ testPrism 4 "_Exprs" AST._Exprs
-        , testPrism 4 "_Lit"   AST._Lit
-        , testPrism 4 "_Var"   AST._Var
+        [ testPrism 4 "_Exprs" (AST._Exprs @Bool)
+        , testPrism 4 "_Lit"   (AST._Lit   @Bool)
+        , testPrism 4 "_Var"   (AST._Var   @Bool)
         ]
       ]
     , testModule "Language.Ninja.AST.Rule"
       [ testType "Rule"
-        [ testLens 4 "ruleBind" AST.ruleBind
+        [ testLens 4 "ruleBind" (AST.ruleBind @Bool)
         ]
       ]
     , testModule "Language.Ninja.AST.Ninja"
       [ testType "Ninja" [] -- FIXME: combinatorial explosion
-        -- [ testLens 1 "ninjaRules"     AST.ninjaRules
-        -- , testLens 1 "ninjaSingles"   AST.ninjaSingles
-        -- , testLens 1 "ninjaMultiples" AST.ninjaMultiples
-        -- , testLens 1 "ninjaPhonys"    AST.ninjaPhonys
-        -- , testLens 1 "ninjaDefaults"  AST.ninjaDefaults
-        -- , testLens 1 "ninjaSpecials"  AST.ninjaSpecials
+        -- [ testLens 1 "ninjaRules"     (AST.ninjaRules     @Bool)
+        -- , testLens 1 "ninjaSingles"   (AST.ninjaSingles   @Bool)
+        -- , testLens 1 "ninjaMultiples" (AST.ninjaMultiples @Bool)
+        -- , testLens 1 "ninjaPhonys"    (AST.ninjaPhonys    @Bool)
+        -- , testLens 1 "ninjaDefaults"  (AST.ninjaDefaults  @Bool)
+        -- , testLens 1 "ninjaSpecials"  (AST.ninjaSpecials  @Bool)
         -- ]
       ]
     , testModule "Language.Ninja.AST.Build"
       [ testType "Build" [] -- FIXME: combinatorial explosion
-        -- [ testLens 1 "buildRule" AST.buildRule
-        -- , testLens 1 "buildEnv"  AST.buildEnv
-        -- , testLens 1 "buildDeps" AST.buildDeps
-        -- , testLens 1 "buildBind" AST.buildBind
+        -- [ testLens 1 "buildRule" (AST.buildRule @Bool)
+        -- , testLens 1 "buildEnv"  (AST.buildEnv  @Bool)
+        -- , testLens 1 "buildDeps" (AST.buildDeps @Bool)
+        -- , testLens 1 "buildBind" (AST.buildBind @Bool)
         -- ]
       ]
     , testModule "Language.Ninja.AST.Deps"
       [ testType "Deps"
-        [ testLens def "depsNormal"    AST.depsNormal
-        , testLens def "depsImplicit"  AST.depsImplicit
-        , testLens def "depsOrderOnly" AST.depsOrderOnly
+        [ testLens def "depsNormal"    (AST.depsNormal    @Bool)
+        , testLens def "depsImplicit"  (AST.depsImplicit  @Bool)
+        , testLens def "depsOrderOnly" (AST.depsOrderOnly @Bool)
         ]
       ]
     , testModule "Language.Ninja.Misc.Command"
