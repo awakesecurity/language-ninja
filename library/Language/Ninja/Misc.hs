@@ -51,10 +51,14 @@ module Language.Ninja.Misc
   , Misc.Position, Misc.makePosition
   , Misc.positionFile, Misc.positionLine, Misc.positionCol
   , Misc.Line, Misc.Column
+
+    -- * @Annotated@
+  , Misc.Annotated (..)
   ) where
 
-import qualified Language.Ninja.Misc.Command  as Misc
-import qualified Language.Ninja.Misc.IText    as Misc
-import qualified Language.Ninja.Misc.Located  as Misc
-import qualified Language.Ninja.Misc.Path     as Misc
-import qualified Language.Ninja.Misc.Positive as Misc
+import qualified Language.Ninja.Misc.Annotated as Misc
+import qualified Language.Ninja.Misc.Command   as Misc
+import qualified Language.Ninja.Misc.IText     as Misc
+import qualified Language.Ninja.Misc.Located   as Misc
+import qualified Language.Ninja.Misc.Path      as Misc
+import qualified Language.Ninja.Misc.Positive  as Misc

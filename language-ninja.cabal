@@ -81,6 +81,7 @@ library
                         , Language.Ninja.Mock
                         , Language.Ninja.Mock.ReadFile
                         , Language.Ninja.Misc
+                        , Language.Ninja.Misc.Annotated
                         , Language.Ninja.Misc.Command
                         , Language.Ninja.Misc.IText
                         , Language.Ninja.Misc.Located
