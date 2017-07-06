@@ -45,6 +45,7 @@ library
                         , lens                        >= 4.15  && < 4.16
                         , QuickCheck                  >= 2.9   && < 2.10
                         , quickcheck-instances        >= 0.3   && < 0.4
+                        , reflection                  >= 2.1   && < 2.2
                         , smallcheck                  >= 1.1   && < 1.2
                         , shake                       >= 0.15  && < 0.16
                         , system-filepath             >= 0.4   && < 0.5
@@ -117,6 +118,7 @@ test-suite tests
                         , mtl                         >= 2.2   && < 2.3
                         , QuickCheck                  >= 2.9   && < 2.10
                         , quickcheck-instances        >= 0.3   && < 0.4
+                        , reflection                  >= 2.1   && < 2.2
                         , smallcheck                  >= 1.1   && < 1.2
                         , smallcheck-lens             >= 0.3   && < 0.4
                         , system-filepath             >= 0.4   && < 0.5
