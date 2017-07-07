@@ -187,8 +187,10 @@ parseTestNinja name = do
 lexerEquivalentTest :: String -> IO ()
 lexerEquivalentTest name = do
   let file = (dataPrefix <> name <> ".ninja") ^. Lens.from Misc.pathString
-  expected <- runExceptT (Lexer.lexerFile file)
-  actual   <- runExceptT (RefLex.lexerFile file)
+  let oldLexer = RefLex.lexerFile
+  let newLexer = Lexer.lexerFile .> fmap (map (fmap (const ())))
+  expected <- runExceptT (oldLexer file)
+  actual   <- runExceptT (newLexer file)
   unless (expected == actual) $ do
     T.assertEqual "prefix" expected actual
 

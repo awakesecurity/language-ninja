@@ -50,6 +50,7 @@ module Language.Ninja.Misc
     -- * @Position@
   , Misc.Position, Misc.makePosition
   , Misc.positionFile, Misc.positionLine, Misc.positionCol
+  , Misc.comparePosition
   , Misc.Line, Misc.Column
 
     -- * @Annotated@

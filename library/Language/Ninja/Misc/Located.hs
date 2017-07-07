@@ -48,6 +48,7 @@ module Language.Ninja.Misc.Located
     -- * @Position@
   , Position, makePosition
   , positionFile, positionLine, positionCol
+  , comparePosition
 
     -- * Miscellaneous
   , Line, Column
@@ -55,14 +56,14 @@ module Language.Ninja.Misc.Located
 
 import           Control.Arrow            (second, (***))
 
-import qualified Control.Lens
+import qualified Control.Lens             as Lens
 import           Control.Lens.Getter      ((^.))
 import           Control.Lens.Lens        (Lens')
 
 import           Control.Monad.ST         (ST)
-import qualified Control.Monad.ST
+import qualified Control.Monad.ST         as ST
 import           Data.STRef               (STRef)
-import qualified Data.STRef
+import qualified Data.STRef               as ST
 
 import           Data.Char                (isSpace)
 import qualified Data.Maybe
@@ -130,13 +131,13 @@ untokenize = undefined -- FIXME: implement
 -- | The position of this located value.
 {-# INLINE locatedPos #-}
 locatedPos :: Lens' (Located t) Position
-locatedPos = Control.Lens.lens _locatedPos
+locatedPos = Lens.lens _locatedPos
              $ \(MkLocated {..}) x -> MkLocated { _locatedPos = x, .. }
 
 -- | The value underlying this located value.
 {-# INLINE locatedVal #-}
 locatedVal :: Lens' (Located t) t
-locatedVal = Control.Lens.lens _locatedVal
+locatedVal = Lens.lens _locatedVal
              $ \(MkLocated {..}) x -> MkLocated { _locatedVal = x, .. }
 
 -- | Converts to @{position: …, value: …}@.
@@ -186,20 +187,36 @@ makePosition file (line, column) = MkPosition file line column
 -- | The path of the file pointed to by this position, if any.
 {-# INLINE positionFile #-}
 positionFile :: Lens' Position (Maybe Path)
-positionFile = Control.Lens.lens _positionFile
+positionFile = Lens.lens _positionFile
                $ \(MkPosition {..}) x -> MkPosition { _positionFile = x, .. }
 
 -- | The line number in the file pointed to by this position.
 {-# INLINE positionLine #-}
 positionLine :: Lens' Position Line
-positionLine = Control.Lens.lens _positionLine
+positionLine = Lens.lens _positionLine
                $ \(MkPosition {..}) x -> MkPosition { _positionLine = x, .. }
 
 -- | The column number in the line pointed to by this position.
 {-# INLINE positionCol #-}
 positionCol :: Lens' Position Column
-positionCol = Control.Lens.lens _positionCol
+positionCol = Lens.lens _positionCol
               $ \(MkPosition {..}) x -> MkPosition { _positionCol = x, .. }
+
+-- | FIXME: doc
+comparePosition :: Position -> Position -> Maybe Ordering
+comparePosition = go
+  where
+    go (MkPosition fileX lineX colX) (MkPosition fileY lineY colY)
+      = compareTriple (fileX, lineX, colX) (fileY, lineY, colY)
+
+    compareTriple (mfileX, lineX, colX) (mfileY, lineY, colY)
+      | (mfileX == mfileY) = Just (comparePair (lineX, colX) (lineY, colY))
+      | otherwise          = Nothing
+
+    comparePair (lineX, colX) (lineY, colY)
+      | (lineX < lineY) = LT
+      | (lineX > lineY) = GT
+      | otherwise       = compare colX colY
 
 -- | Converts to @{file: …, line: …, col: …}@.
 instance ToJSON Position where
@@ -278,8 +295,8 @@ removeWhitespace (file, initLine, initCol) =
   go .> Data.Maybe.catMaybes .> map makeLoc
   where
     go :: Text -> [Maybe (Line, Column, Text)]
-    go text = Control.Monad.ST.runST $ do
-      ref <- Data.STRef.newSTRef (initLine, initCol)
+    go text = ST.runST $ do
+      ref <- ST.newSTRef (initLine, initCol)
       T.foldr chunksAddChar chunksNil text
         |> fromChunks
         |> mapM (applyChunk ref)
@@ -287,12 +304,12 @@ removeWhitespace (file, initLine, initCol) =
     applyChunk :: STRef s (Line, Column)
                -> Chunk -> ST s (Maybe (Line, Column, Text))
     applyChunk ref = \case
-      ChunkLine  n -> do Data.STRef.modifySTRef' ref ((+ n) *** const 0)
+      ChunkLine  n -> do ST.modifySTRef' ref ((+ n) *** const 0)
                          pure Nothing
-      ChunkSpace n -> do Data.STRef.modifySTRef' ref (second (+ n))
+      ChunkSpace n -> do ST.modifySTRef' ref (second (+ n))
                          pure Nothing
-      ChunkText  t -> do (line, column) <- Data.STRef.readSTRef ref
-                         Data.STRef.modifySTRef' ref (second (+ T.length t))
+      ChunkText  t -> do (line, column) <- ST.readSTRef ref
+                         ST.modifySTRef' ref (second (+ T.length t))
                          pure (Just (line, column, t))
 
     {-# INLINE makeLoc #-}

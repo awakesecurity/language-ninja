@@ -49,6 +49,7 @@ module Language.Ninja.AST.Expr
 
 import           Control.Arrow             (second)
 
+import qualified Control.Lens              as Lens
 import           Control.Lens.Lens         (lens)
 import           Control.Lens.Prism        (Prism', prism')
 
@@ -142,11 +143,11 @@ addBinds bs e = map (second (askExpr e) .> uncurry AST.addEnv .> Endo) bs
                 |> (\endo -> appEndo endo e)
 
 -- | FIXME: doc
-normalizeExpr :: Expr () -> Expr ()
+normalizeExpr :: (Monoid ann) => Expr ann -> Expr ann
 normalizeExpr = flatten .> removeEmpty .> combineAdj .> listToExpr
   where
     listToExpr [e] = e
-    listToExpr es  = Exprs () es
+    listToExpr es  = Exprs (mconcat (map (Lens.view Misc.annotation) es)) es
 
     flatten (Exprs _ es) = concatMap flatten es
     flatten owise        = [owise]
@@ -155,9 +156,11 @@ normalizeExpr = flatten .> removeEmpty .> combineAdj .> listToExpr
     removeEmpty (Lit _ "" : rest) = removeEmpty rest
     removeEmpty (owise    : rest) = owise : removeEmpty rest
 
-    combineAdj []                         = []
-    combineAdj (Lit _ x : Lit _ y : rest) = combineAdj (Lit () (x <> y) : rest)
-    combineAdj (owise             : rest) = owise : combineAdj rest
+    combineAdj = (\case
+      []                               -> []
+      (Lit annX x : Lit annY y : rest) -> (Lit (annX <> annY) (x <> y))
+                                          |> (\e -> combineAdj (e : rest))
+      (owise                   : rest) -> owise : combineAdj rest)
 
 -- | The usual definition for 'Misc.Annotated'.
 instance Misc.Annotated Expr where
