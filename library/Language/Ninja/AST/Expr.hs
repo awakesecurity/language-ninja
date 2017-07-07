@@ -21,6 +21,7 @@
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DeriveDataTypeable    #-}
 {-# LANGUAGE DeriveFoldable        #-}
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveGeneric         #-}
@@ -65,6 +66,7 @@ import           Data.Text                 (Text)
 import qualified Data.Text                 as Text
 
 import           Control.DeepSeq           (NFData)
+import           Data.Data                 (Data)
 import           Data.Hashable             (Hashable)
 import           GHC.Generics              (Generic)
 
@@ -92,7 +94,7 @@ data Expr ann
     Lit   !ann !Text
   | -- | A variable reference.
     Var   !ann !Text
-  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
+  deriving (Eq, Show, Generic, Data, Functor, Foldable, Traversable)
 
 -- | A prism for the 'Exprs' constructor.
 {-# INLINE _Exprs #-}
@@ -163,6 +165,9 @@ normalizeExpr = flatten .> removeEmpty .> combineAdj .> listToExpr
       (Lit annX x : Lit annY y : rest) -> (Lit (annX <> annY) (x <> y))
                                           |> (\e -> combineAdj (e : rest))
       (owise                   : rest) -> owise : combineAdj rest)
+
+-- | The usual definition for 'Lens.Plated'.
+instance (Data ann) => Lens.Plated (Expr ann)
 
 -- | The usual definition for 'Misc.Annotated'.
 instance Misc.Annotated Expr where
