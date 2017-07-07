@@ -124,6 +124,7 @@ parseNinjaOptions :: FilePath -> [String] -> Maybe String -> IO NinjaOptions
 parseNinjaOptions file (map Text.pack -> args) tool = do
   ninja <- runExceptT (Parser.parseFile (Misc.makePath (Text.pack file)))
            >>= either throwIO pure
+           >>= fmap (const ()) .> pure
   pure $ case tool of
     Nothing         -> NinjaOptionsBuild  ninja args
     (Just "compdb") -> NinjaOptionsCompDB ninja args

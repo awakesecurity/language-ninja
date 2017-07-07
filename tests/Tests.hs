@@ -180,7 +180,7 @@ parseTestNinja name = do
   old <- Turtle.pwd
   Turtle.cd (FP.decodeString dataPrefix)
   let file = (FP.decodeString (name <> ".ninja")) ^. Lens.from Misc.pathFP
-  result <- Parser.parseFileIO file
+  result <- Parser.parseFileIO file >>= fmap (const ()) .> pure
   Turtle.cd old
   pure result
 
@@ -203,6 +203,7 @@ roundtripTest ninja = do
     let tmpfile = tmpdir </> "generated.ninja"
     Turtle.writeTextFile tmpfile prettyInput
     output <- Parser.parseFileIO (tmpfile ^. Lens.from Misc.pathFP)
+              >>= fmap (const ()) .> pure
     let prettyOutput = Pretty.prettyNinja output
     pure (prettyInput, prettyOutput)
 
