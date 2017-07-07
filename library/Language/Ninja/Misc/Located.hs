@@ -20,8 +20,10 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
+{-# LANGUAGE DeriveFoldable             #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DeriveTraversable          #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -115,7 +117,7 @@ data Located t
     { _locatedPos :: {-# UNPACK #-} !Position
     , _locatedVal ::                !t
     }
-  deriving (Eq, Show, Functor, Generic)
+  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Construct a 'Located' value directly.
 {-# INLINE makeLocated #-}

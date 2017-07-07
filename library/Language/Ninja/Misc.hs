@@ -66,7 +66,7 @@ module Language.Ninja.Misc
   , Misc.Line, Misc.Column
 
     -- * @Annotated@
-  , Misc.Annotated (..)
+  , Misc.Annotated (..), Misc.annotation
   ) where
 
 import qualified Language.Ninja.Misc.Annotated as Misc

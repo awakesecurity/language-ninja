@@ -171,10 +171,9 @@ instance (Data ann) => Lens.Plated (Expr ann)
 
 -- | The usual definition for 'Misc.Annotated'.
 instance Misc.Annotated Expr where
-  annotation = lens (helper .> fst) (helper .> snd)
+  annotation' f = lens (helper .> fst) (helper .> snd)
     where
-      helper :: Expr ann -> (ann, ann -> Expr ann)
-      helper (Exprs ann   es) = (ann, \x -> Exprs x   es)
+      helper (Exprs ann   es) = (ann, \x -> Exprs x (map (fmap f) es))
       helper (Lit   ann text) = (ann, \x -> Lit   x text)
       helper (Var   ann name) = (ann, \x -> Var   x name)
 

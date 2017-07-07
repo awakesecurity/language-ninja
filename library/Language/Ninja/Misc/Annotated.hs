@@ -21,6 +21,7 @@
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE RankNTypes     #-}
 
 -- |
 --   Module      : Language.Ninja.Misc.Annotated
@@ -31,17 +32,20 @@
 --
 --   FIXME: doc
 module Language.Ninja.Misc.Annotated
-  ( Annotated (..)
+  ( Annotated (..), annotation
   ) where
 
-import           Control.Lens.Lens (Lens')
+import qualified Control.Lens as Lens
 
 --------------------------------------------------------------------------------
 
 -- | FIXME: doc
 class (Functor ty) => Annotated (ty :: * -> *) where
   -- | FIXME: doc
-  annotation :: Lens' (ty ann) ann
-  -- annotation :: Lens (ty ann) (ty ann') ann ann'
+  annotation' :: (ann -> ann') -> Lens.Lens (ty ann) (ty ann') ann ann'
+
+-- | FIXME: doc
+annotation :: (Annotated ty) => Lens.Lens' (ty ann) ann
+annotation = annotation' id
 
 --------------------------------------------------------------------------------

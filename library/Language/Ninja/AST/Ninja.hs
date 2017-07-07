@@ -160,8 +160,14 @@ ninjaSpecials = lens _ninjaSpecials
 
 -- | The usual definition for 'Misc.Annotated'.
 instance Misc.Annotated Ninja where
-  annotation = lens _ninjaAnn
-               $ \(MkNinja {..}) x -> MkNinja { _ninjaAnn = x, .. }
+  annotation' f = lens _ninjaAnn
+                  $ \(MkNinja {..}) x ->
+                      MkNinja
+                      { _ninjaAnn       = x
+                      , _ninjaRules     = HM.map (fmap f) _ninjaRules
+                      , _ninjaSingles   = HM.map (fmap f) _ninjaSingles
+                      , _ninjaMultiples = HM.map (fmap f) _ninjaMultiples
+                      , .. }
 
 -- | Converts to
 --   @{ann: …, rules: …, singles: …, multiples: …, phonys: …, defaults: …,

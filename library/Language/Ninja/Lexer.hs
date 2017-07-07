@@ -178,17 +178,16 @@ data Lexeme ann
 
 -- | The usual definition for 'Misc.Annotated'.
 instance Misc.Annotated Lexeme where
-  annotation = lens (helper .> fst) (helper .> snd)
+  annotation' f = lens (helper .> fst) (helper .> snd)
     where
-      helper :: Lexeme ann -> (ann, ann -> Lexeme ann)
-      helper (LexDefine   ann value) = (ann, \x -> LexDefine   x value)
-      helper (LexBind     ann value) = (ann, \x -> LexBind     x value)
-      helper (LexInclude  ann value) = (ann, \x -> LexInclude  x value)
-      helper (LexSubninja ann value) = (ann, \x -> LexSubninja x value)
-      helper (LexBuild    ann value) = (ann, \x -> LexBuild    x value)
-      helper (LexRule     ann value) = (ann, \x -> LexRule     x value)
-      helper (LexPool     ann value) = (ann, \x -> LexPool     x value)
-      helper (LexDefault  ann value) = (ann, \x -> LexDefault  x value)
+      helper (LexDefine   ann v) = (ann, \x -> LexDefine   x (f <$> v))
+      helper (LexBind     ann v) = (ann, \x -> LexBind     x (f <$> v))
+      helper (LexInclude  ann v) = (ann, \x -> LexInclude  x (f <$> v))
+      helper (LexSubninja ann v) = (ann, \x -> LexSubninja x (f <$> v))
+      helper (LexBuild    ann v) = (ann, \x -> LexBuild    x (f <$> v))
+      helper (LexRule     ann v) = (ann, \x -> LexRule     x (f <$> v))
+      helper (LexPool     ann v) = (ann, \x -> LexPool     x (f <$> v))
+      helper (LexDefault  ann v) = (ann, \x -> LexDefault  x (map (fmap f) v))
 
 -- | Converts to @{ann: …, tag: …, value: …}@.
 instance (Aeson.ToJSON ann) => Aeson.ToJSON (Lexeme ann) where
@@ -265,8 +264,8 @@ data LName ann
 
 -- | The usual definition for 'Misc.Annotated'.
 instance Misc.Annotated LName where
-  annotation = lens _lnameAnn
-               $ \(MkLName {..}) x -> MkLName { _lnameAnn = x, .. }
+  annotation' f = lens _lnameAnn
+                  $ \(MkLName {..}) x -> MkLName { _lnameAnn = x, .. }
 
 -- | Converts to @{ann: …, name: …}@.
 instance (Aeson.ToJSON ann) => Aeson.ToJSON (LName ann) where
@@ -416,8 +415,13 @@ makeLBuild ann outs rule deps
 
 -- | The usual definition for 'Misc.Annotated'.
 instance Misc.Annotated LBuild where
-  annotation = lens _lbuildAnn
-               $ \(MkLBuild {..}) x -> MkLBuild { _lbuildAnn = x, .. }
+  annotation' f = lens _lbuildAnn
+                  $ \(MkLBuild {..}) x ->
+                      MkLBuild { _lbuildAnn = x
+                               , _lbuildOuts = map (fmap f) _lbuildOuts
+                               , _lbuildRule = f <$> _lbuildRule
+                               , _lbuildDeps = map (fmap f) _lbuildOuts
+                               , .. }
 
 -- | Converts to @{ann: …, outs: …, rule: …, deps: …}@.
 instance (Aeson.ToJSON ann) => Aeson.ToJSON (LBuild ann) where

@@ -52,6 +52,8 @@ import           Control.Lens.Lens         (Lens', lens)
 import           Flow                      ((.>), (|>))
 
 import           Data.HashMap.Strict       (HashMap)
+import qualified Data.HashMap.Strict       as HM
+
 import           Data.Text                 (Text)
 
 import           Control.DeepSeq           (NFData)
@@ -97,8 +99,11 @@ ruleBind = lens _ruleBind
 
 -- | The usual definition for 'Misc.Annotated'.
 instance Misc.Annotated Rule where
-  annotation = lens _ruleAnn
-               $ \(MkRule {..}) x -> MkRule { _ruleAnn = x, .. }
+  annotation' f = lens _ruleAnn
+                  $ \(MkRule {..}) x ->
+                      MkRule { _ruleAnn = x
+                             , _ruleBind = HM.map (fmap f) _ruleBind
+                             , .. }
 
 -- | Converts to @{ann: …, bind: …}@.
 instance (ToJSON ann) => ToJSON (Rule ann) where

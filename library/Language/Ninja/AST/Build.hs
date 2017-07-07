@@ -51,7 +51,7 @@ module Language.Ninja.AST.Build
 import qualified Control.Lens              as Lens
 import           Control.Lens.Lens         (Lens', lens)
 
-import           Flow                      ((|>))
+import           Flow                      ((.>), (|>))
 
 import           Data.HashMap.Strict       (HashMap)
 import           Data.HashSet              (HashSet)
@@ -130,8 +130,11 @@ buildBind = lens _buildBind
 
 -- | The usual definition for 'Misc.Annotated'.
 instance Misc.Annotated Build where
-  annotation = lens _buildAnn
-               $ \(MkBuild {..}) x -> MkBuild { _buildAnn = x, .. }
+  annotation' f = lens (helper .> fst) (helper .> snd)
+    where
+      helper (MkBuild {..})
+        = ( _buildAnn
+          , \x -> MkBuild { _buildAnn = x, _buildDeps = f <$> _buildDeps, .. } )
 
 -- | Converts to @{ann: …, rule: …, env: …, deps: …, bind: …}@.
 instance (ToJSON ann) => ToJSON (Build ann) where

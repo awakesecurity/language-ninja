@@ -108,8 +108,8 @@ depsOrderOnly = lens _depsOrderOnly
 
 -- | The usual definition for 'Misc.Annotated'.
 instance Misc.Annotated Deps where
-  annotation = lens _depsAnn
-               $ \(MkDeps {..}) x -> MkDeps { _depsAnn = x, .. }
+  annotation' _ = lens _depsAnn
+                  $ \(MkDeps {..}) x -> MkDeps { _depsAnn = x, .. }
 
 -- | Converts to @{ann: …, normal: …, implicit: …, order-only: …}@.
 instance (ToJSON ann) => ToJSON (Deps ann) where
