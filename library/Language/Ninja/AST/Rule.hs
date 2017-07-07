@@ -21,8 +21,10 @@
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DeriveFoldable        #-}
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE DeriveTraversable     #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE KindSignatures        #-}
@@ -77,7 +79,7 @@ data Rule ann
     { _ruleAnn  :: !ann
     , _ruleBind :: !(HashMap Text (AST.Expr ann))
     }
-  deriving (Eq, Show, Generic, Functor)
+  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Construct a 'Rule' with all default values
 {-# INLINE makeRule #-}

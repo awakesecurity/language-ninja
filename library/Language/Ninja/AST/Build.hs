@@ -21,8 +21,10 @@
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DeriveFoldable        #-}
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE DeriveTraversable     #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE KindSignatures        #-}
@@ -84,7 +86,7 @@ data Build ann
     , _buildDeps :: !(AST.Deps ann)
     , _buildBind :: !(HashMap Text Text)
     }
-  deriving (Eq, Show, Generic, Functor)
+  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Construct a 'Build' with all default values.
 {-# INLINE makeBuild #-}

@@ -41,6 +41,7 @@
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DeriveTraversable          #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -48,8 +49,6 @@
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE PatternGuards              #-}
-{-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TupleSections              #-}
@@ -152,7 +151,7 @@ spanned p = do
   when (sfile /= efile) $ fail "spanned: somehow went over multiple files!"
   let file = sfile
   let offS = start ^. Misc.positionOffset
-  let offE = start ^. Misc.positionOffset
+  let offE = end   ^. Misc.positionOffset
   pure (Misc.makeSpans [Misc.makeSpan file offS offE], result)
 
 --------------------------------------------------------------------------------
@@ -175,7 +174,7 @@ data Lexeme ann
     LexPool     !ann !(LName ann)
   | -- | @default foo bar@
     LexDefault  !ann ![AST.Expr ann]
-  deriving (Eq, Show, Generic, Functor)
+  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | The usual definition for 'Misc.Annotated'.
 instance Misc.Annotated Lexeme where
@@ -224,9 +223,10 @@ instance (Aeson.FromJSON ann) => Aeson.FromJSON (Lexeme ann) where
                     owise      -> invalidTagError (Text.unpack owise))
     where
       invalidTagError x = [ "Invalid tag: ", x, "; expected one of: "
-                          , show [ "default", "bind", "include", "subninja"
-                                 , "build", "rule", "pool", "default" ]
+                          , show validTags
                           ] |> mconcat |> fail
+      validTags = [ "default", "bind", "include", "subninja"
+                  , "build", "rule", "pool", "default" ]
 
 -- | Default 'Hashable' instance via 'Generic'.
 instance (Hashable ann) => Hashable (Lexeme ann)
@@ -261,7 +261,7 @@ data LName ann
     { _lnameAnn :: !ann
     , _lnameBS  :: !ByteString
     }
-  deriving (Eq, Show, Generic, Functor)
+  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | The usual definition for 'Misc.Annotated'.
 instance Misc.Annotated LName where
@@ -309,7 +309,7 @@ newtype LFile ann
   = MkLFile
     { _lfileExpr :: AST.Expr ann
     }
-  deriving (Eq, Show, Generic, Functor)
+  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Converts to @{file: …}@.
 instance (Aeson.ToJSON ann) => Aeson.ToJSON (LFile ann) where
@@ -350,7 +350,7 @@ data LBind ann
     , _lbindName  :: !(LName ann)
     , _lbindValue :: !(AST.Expr ann)
     }
-  deriving (Eq, Show, Generic, Functor)
+  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Converts to @{ann: …, name: …, value: …}@.
 instance (Aeson.ToJSON ann) => Aeson.ToJSON (LBind ann) where
@@ -396,7 +396,7 @@ data LBuild ann
     , _lbuildRule :: !(LName ann)
     , _lbuildDeps :: ![AST.Expr ann]
     }
-  deriving (Eq, Show, Generic, Functor)
+  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Constructor for an 'LBuild'.
 makeLBuild :: ann

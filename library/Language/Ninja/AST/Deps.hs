@@ -20,8 +20,10 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
+{-# LANGUAGE DeriveFoldable        #-}
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE DeriveTraversable     #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -74,7 +76,7 @@ data Deps ann
     , _depsImplicit  :: !(HashSet Text)
     , _depsOrderOnly :: !(HashSet Text)
     }
-  deriving (Eq, Show, Generic, Functor)
+  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Construct a 'Deps' with all default values
 {-# INLINE makeDeps #-}

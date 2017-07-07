@@ -21,8 +21,10 @@
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DeriveFoldable        #-}
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE DeriveTraversable     #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE KindSignatures        #-}
@@ -90,7 +92,7 @@ data Expr ann
     Lit   !ann !Text
   | -- | A variable reference.
     Var   !ann !Text
-  deriving (Eq, Show, Generic, Functor)
+  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | A prism for the 'Exprs' constructor.
 {-# INLINE _Exprs #-}

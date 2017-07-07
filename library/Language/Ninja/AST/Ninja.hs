@@ -21,8 +21,10 @@
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DeriveFoldable        #-}
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE DeriveTraversable     #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE KindSignatures        #-}
@@ -98,7 +100,7 @@ data Ninja ann
     , _ninjaPools     :: !(HashMap Text Int)
     , _ninjaSpecials  :: !(HashMap Text Text)
     }
-  deriving (Eq, Show, Generic, Functor)
+  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Construct a 'Ninja' with all default values
 {-# INLINE makeNinja #-}
