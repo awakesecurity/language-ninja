@@ -70,11 +70,7 @@ module Language.Ninja.Lexer
   , lexerText', lexerBS'
   , lexemesP
   , Parser
-
-    -- * @Span@
-  , Span, makeEmptySpan, makeSourceSpan
-  , _EmptySpan, _SourceSpan, _CombineSpan
-  , spanToPairs, flattenSpan, normalizeSpan
+  , Ann
 
     -- * @Lexeme@ and friends
   , Lexeme (..)
@@ -143,131 +139,21 @@ import qualified Language.Ninja.Mock        as Mock
 
 --------------------------------------------------------------------------------
 
--- | FIXME: doc
-data Span
-  = EmptySpan
-  | SourceSpan  !Misc.Position !Misc.Position
-  | CombineSpan !(HashSet Span)
-  deriving (Eq, Show, Generic)
-
--- | FIXME: doc
-makeEmptySpan :: Span
-makeEmptySpan = EmptySpan
-
--- | FIXME: doc
-makeSourceSpan :: Misc.Position -> Misc.Position -> Maybe Span
-makeSourceSpan start end = Misc.comparePosition start end
-                           >>= (\case LT -> Just (SourceSpan start end)
-                                      EQ -> Just EmptySpan
-                                      GT -> makeSourceSpan end start)
-
--- | FIXME: doc
-_EmptySpan :: Lens.Prism' Span ()
-_EmptySpan = Lens.prism' (const EmptySpan)
-             $ \case EmptySpan -> Just ()
-                     _         -> Nothing
-
--- | FIXME: doc
-_SourceSpan :: Lens.Prism' (Maybe Span) (Misc.Position, Misc.Position)
-_SourceSpan = Lens.prism' (uncurry makeSourceSpan)
-              $ \case (Just (SourceSpan start end)) -> Just (start, end)
-                      _                             -> Nothing
-
--- | FIXME: doc
-_CombineSpan :: Lens.Prism' Span (HashSet Span)
-_CombineSpan = Lens.prism' CombineSpan
-               $ \case (CombineSpan spans) -> Just spans
-                       _                   -> Nothing
-
--- | FIXME: doc
-spanToPairs :: Span -> HashSet (Misc.Position, Misc.Position)
-spanToPairs EmptySpan        = HS.empty
-spanToPairs (SourceSpan s e) = HS.singleton (s, e)
-spanToPairs (CombineSpan xs) = mconcat (map spanToPairs (HS.toList xs))
-
--- | FIXME: doc
-flattenSpan :: Span -> HashSet Span
-flattenSpan = spanToPairs .> HS.map (uncurry SourceSpan)
-
--- | FIXME: doc
-normalizeSpan :: Span -> Span
-normalizeSpan sp = let flat = flattenSpan sp
-                   in case HS.toList flat of
-                        []  -> EmptySpan
-                        [x] -> x
-                        _   -> CombineSpan flat
-
--- | FIXME: doc
-instance Semigroup Span where
-  spanX <> spanY = sconcat (spanX :| [spanY])
-  sconcat = NE.toList .> HS.fromList .> CombineSpan .> normalizeSpan
-
--- | FIXME: doc
-instance Monoid Span where
-  mempty  = makeEmptySpan
-  mappend = (<>)
-  mconcat = HS.fromList .> CombineSpan
-
--- | Converts to @[{start: …, end: …}, …]@.
-instance Aeson.ToJSON Span where
-  toJSON = spanToPairs .> HS.toList .> map go .> Aeson.toJSON
-    where
-      go :: (Misc.Position, Misc.Position) -> Aeson.Value
-      go (start, end) = Aeson.object ["start" .= start, "end" .= end]
-
--- | Inverse of the 'ToJSON' instance.
-instance Aeson.FromJSON Span where
-  parseJSON = Aeson.parseJSON >=> mapM go >=> (catMaybes .> mconcat .> pure)
-    where
-      go = (Aeson.withObject "Span" $ \o -> do
-               start <- (o .: "start") >>= pure
-               end   <- (o .: "end")   >>= pure
-               pure (makeSourceSpan start end))
-      -- NOTE: this will silently drop invalid spans
-
--- | Default 'Hashable' instance via 'Generic'.
-instance Hashable Span
-
--- | Default 'NFData' instance via 'Generic'.
-instance NFData Span
+type Ann = Misc.Spans
 
 --------------------------------------------------------------------------------
 
-spanned :: (Monad m, PositionParsing m) => m a -> m (Span, a)
+spanned :: (Monad m, PositionParsing m) => m a -> m (Ann, a)
 spanned p = do
   start  <- getPosition
   result <- p
   end    <- getPosition
-  makeSourceSpan start end
-    |> maybe (fail "spanned: somehow went over multiple files!") pure
-    |> fmap (\sp -> (sp, result))
-
---------------------------------------------------------------------------------
-
--- | FIXME: doc
-data WithFile x
-  = InFile      !Misc.Path !x
-  | UnknownFile            !x
-  deriving (Eq, Show, Read, Generic)
-
--- | FIXME: doc
-withFileValue :: Lens.Lens (WithFile x) (WithFile y) x y
-withFileValue = Lens.lens (helper .> fst) (helper .> snd)
-  where
-    helper (InFile path x) = (x, InFile path)
-    helper (UnknownFile x) = (x, UnknownFile)
-
--- | FIXME: doc
-_InFile :: Lens.Prism' (WithFile x) (Misc.Path, x)
-_InFile = Lens.prism' (uncurry InFile)
-          $ \case (InFile path x) -> Just (path, x)
-                  _               -> Nothing
-
--- | FIXME: doc
-_UnknownFile :: Lens.Prism' (WithFile x) x
-_UnknownFile = Lens.prism' UnknownFile
-               $ \case (UnknownFile x) -> Just x
-                       _               -> Nothing
+  let (sfile, efile) = (start ^. Misc.positionFile, end ^. Misc.positionFile)
+  when (sfile /= efile) $ fail "spanned: somehow went over multiple files!"
+  let file = sfile
+  let offS = start ^. Misc.positionOffset
+  let offE = start ^. Misc.positionOffset
+  pure (Misc.makeSpans [Misc.makeSpan file offS offE], result)
 
 --------------------------------------------------------------------------------
 
@@ -574,20 +460,20 @@ type LBuildConstraint (c :: * -> Constraint) (ann :: *) = (c Text, c ann)
 
 -- | Lex the given file.
 lexerFile :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
-          => Misc.Path -> m [Lexeme Span]
+          => Misc.Path -> m [Lexeme Ann]
 lexerFile file = Mock.readFile file >>= lexerText' (Just file)
 
 -- | Lex the given 'Text'.
-lexerText :: (MonadError Err.ParseError m) => Text -> m [Lexeme Span]
+lexerText :: (MonadError Err.ParseError m) => Text -> m [Lexeme Ann]
 lexerText = lexerText' Nothing
 
 -- | Lex the given 'BSC8.ByteString'.
-lexerBS :: (MonadError Err.ParseError m) => ByteString -> m [Lexeme Span]
+lexerBS :: (MonadError Err.ParseError m) => ByteString -> m [Lexeme Ann]
 lexerBS = lexerBS' Nothing
 
 -- | Lex the given 'Text' that comes from the given 'Misc.Path', if provided.
 lexerText' :: (MonadError Err.ParseError m)
-           => Maybe Misc.Path -> Text -> m [Lexeme Span]
+           => Maybe Misc.Path -> Text -> m [Lexeme Ann]
 lexerText' mp x = let file = fromMaybe "" (Lens.view Misc.pathString <$> mp)
                   in M.runParserT lexemesP file x
                      >>= either Err.throwLexParsecError pure
@@ -595,7 +481,7 @@ lexerText' mp x = let file = fromMaybe "" (Lens.view Misc.pathString <$> mp)
 -- | Lex the given 'ByteString' that comes from the given 'Misc.Path', if it is
 --   provided. The 'Misc.Path' is only used for error messages.
 lexerBS' :: (MonadError Err.ParseError m)
-         => Maybe Misc.Path -> ByteString -> m [Lexeme Span]
+         => Maybe Misc.Path -> ByteString -> m [Lexeme Ann]
 lexerBS' mpath = Text.decodeUtf8 .> lexerText' mpath
 
 --------------------------------------------------------------------------------
@@ -624,7 +510,7 @@ instance (Monad m) => PositionParsing (M.ParsecT M.Dec Text m) where
 type Parser m a = M.ParsecT M.Dec Text m a
 
 -- | The @megaparsec@ parser for a Ninja file.
-lexemesP :: (Monad m) => Parser m [Lexeme Span]
+lexemesP :: (Monad m) => Parser m [Lexeme Ann]
 lexemesP = do
   maybes <- [ Nothing <$  lineCommentP
             , Nothing <$  M.separatorChar
@@ -636,16 +522,16 @@ lexemesP = do
 
 --------------------------------------------------------------------------------
 
-lexemeP :: (Monad m) => Parser m (Lexeme Span)
+lexemeP :: (Monad m) => Parser m (Lexeme Ann)
 lexemeP = [ includeP, subninjaP, buildP, ruleP, poolP, defaultP, bindP, defineP
           ] |> map M.try |> asum
 
-defineP :: (Monad m) => Parser m (Lexeme Span)
+defineP :: (Monad m) => Parser m (Lexeme Ann)
 defineP = spanned equationP
           |> fmap (uncurry LexDefine)
           |> debugP "defineP"
 
-bindP :: (Monad m) => Parser m (Lexeme Span)
+bindP :: (Monad m) => Parser m (Lexeme Ann)
 bindP = spanned (indented f)
         |> fmap (uncurry LexBind)
         |> debugP "bindP"
@@ -653,7 +539,7 @@ bindP = spanned (indented f)
     f x | x < 2 = fail "bindP: not indented"
     f _         = equationP
 
-includeP :: (Monad m) => Parser m (Lexeme Span)
+includeP :: (Monad m) => Parser m (Lexeme Ann)
 includeP = debugP "includeP" $ do
   (ann, file) <- spanned $ do
     beginningOfLine
@@ -661,7 +547,7 @@ includeP = debugP "includeP" $ do
     M.Lexer.lexeme spaceP fileP
   pure (LexInclude ann file)
 
-subninjaP :: (Monad m) => Parser m (Lexeme Span)
+subninjaP :: (Monad m) => Parser m (Lexeme Ann)
 subninjaP = debugP "subninjaP" $ do
   (ann, file) <- spanned $ do
     beginningOfLine
@@ -669,7 +555,7 @@ subninjaP = debugP "subninjaP" $ do
     M.Lexer.lexeme spaceP fileP
   pure (LexSubninja ann file)
 
-buildP :: (Monad m) => Parser m (Lexeme Span)
+buildP :: (Monad m) => Parser m (Lexeme Ann)
 buildP = debugP "buildP" $ do
   let exprEmpty (AST.Lit   _ "") = True
       exprEmpty (AST.Exprs _ []) = True
@@ -687,7 +573,7 @@ buildP = debugP "buildP" $ do
 
   pure (LexBuild ann (MkLBuild ann outs rule deps))
 
-ruleP :: (Monad m) => Parser m (Lexeme Span)
+ruleP :: (Monad m) => Parser m (Lexeme Ann)
 ruleP = debugP "ruleP" $ do
   (ann, ruleName) <- spanned $ do
     beginningOfLine
@@ -695,7 +581,7 @@ ruleP = debugP "ruleP" $ do
     nameP
   pure (LexRule ann ruleName)
 
-poolP :: (Monad m) => Parser m (Lexeme Span)
+poolP :: (Monad m) => Parser m (Lexeme Ann)
 poolP = debugP "poolP" $ do
   (ann, poolName) <- spanned $ do
     beginningOfLine
@@ -703,7 +589,7 @@ poolP = debugP "poolP" $ do
     nameP
   pure (LexPool ann poolName)
 
-defaultP :: (Monad m) => Parser m (Lexeme Span)
+defaultP :: (Monad m) => Parser m (Lexeme Ann)
 defaultP = debugP "defaultP" $ do
   (ann, defaults) <- spanned $ do
     beginningOfLine
@@ -717,7 +603,7 @@ lineEndP = do
   lineCommentP <|> pure ()
   void M.eol
 
-equationP :: (Monad m) => Parser m (LBind Span)
+equationP :: (Monad m) => Parser m (LBind Ann)
 equationP = debugP "equationP" $ do
   (ann, (name, value)) <- spanned $ do
     name <- nameP
@@ -727,18 +613,18 @@ equationP = debugP "equationP" $ do
 
   pure (MkLBind ann name value)
 
-nameP :: (Monad m) => Parser m (LName Span)
+nameP :: (Monad m) => Parser m (LName Ann)
 nameP = spanned varDotP
         |> fmap (second (Text.pack .> Text.encodeUtf8) .> uncurry MkLName)
         |> M.Lexer.lexeme spaceP
         |> debugP "nameP"
 
-fileP :: (Monad m) => Parser m (LFile Span)
+fileP :: (Monad m) => Parser m (LFile Ann)
 fileP = MkLFile <$> exprP
         |> M.Lexer.lexeme spaceP
         |> debugP "fileP"
 
-outputP :: (Monad m) => Parser m (AST.Expr Span)
+outputP :: (Monad m) => Parser m (AST.Expr Ann)
 outputP = spanned (M.some (dollarP <|> litP))
           |> fmap (uncurry AST.Exprs .> AST.normalizeExpr)
           |> M.Lexer.lexeme spaceP
@@ -754,14 +640,14 @@ outputP = spanned (M.some (dollarP <|> litP))
     isOutputChar c   | isSpace c = False
     isOutputChar _               = True
 
-exprsP :: (Monad m) => Parser m (AST.Expr Span)
+exprsP :: (Monad m) => Parser m (AST.Expr Ann)
 exprsP = asum [exprP, separatorP]
          |> M.many |> spanned |> fmap (uncurry AST.Exprs .> AST.normalizeExpr)
   where
     separatorP = spanned (some M.separatorChar)
                  |> fmap (second Text.pack .> uncurry AST.Lit)
 
-exprP :: (Monad m) => Parser m (AST.Expr Span)
+exprP :: (Monad m) => Parser m (AST.Expr Ann)
 exprP = spanned (M.some (dollarP <|> litP))
         |> fmap (uncurry AST.Exprs .> AST.normalizeExpr)
   where
@@ -775,7 +661,7 @@ exprP = spanned (M.some (dollarP <|> litP))
     isExprChar c   | isSpace c = False
     isExprChar _               = True
 
-dollarP :: (Monad m) => Parser m (AST.Expr Span)
+dollarP :: (Monad m) => Parser m (AST.Expr Ann)
 dollarP = debugP "dollarP"
           (M.char '$'
            *> ([ makeLit (M.string "$")

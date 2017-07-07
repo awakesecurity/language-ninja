@@ -45,20 +45,30 @@ module Language.Ninja.Misc.Located
     Located, tokenize, tokenizeFile, tokenizeText
   , locatedPos, locatedVal
 
+    -- * @Spans@
+  , Spans, makeSpans, spansSet
+
+    -- * @Span@
+  , Span, makeSpan, spanPath, spanRange, spanStart, spanEnd
+
     -- * @Position@
   , Position, makePosition
-  , positionFile, positionLine, positionCol
+  , positionFile, positionOffset, positionLine, positionCol
   , comparePosition
+
+    -- * @Offset@
+  , Offset, compareOffset, offsetLine, offsetColumn
 
     -- * Miscellaneous
   , Line, Column
   ) where
 
-import           Control.Arrow            (second, (***))
+import           Control.Arrow            (second, (&&&), (***))
 
 import qualified Control.Lens             as Lens
 import           Control.Lens.Getter      ((^.))
 import           Control.Lens.Lens        (Lens')
+import           Control.Lens.Tuple       (_1, _2)
 
 import           Control.Monad.ST         (ST)
 import qualified Control.Monad.ST         as ST
@@ -67,14 +77,19 @@ import qualified Data.STRef               as ST
 
 import           Data.Char                (isSpace)
 import qualified Data.Maybe
-import           Data.Monoid              ((<>))
+import           Data.Semigroup           (Semigroup (..))
 
 import           Data.Text                (Text)
 import qualified Data.Text                as T
 import qualified Data.Text.IO             as T
 
+import           Data.HashSet             (HashSet)
+import qualified Data.HashSet             as HS
+
 import           Data.Map.Strict          (Map)
 import qualified Data.Map.Strict          as Map
+
+import qualified Data.List.NonEmpty       as NE
 
 import           Control.DeepSeq          (NFData)
 import           Data.Hashable            (Hashable)
@@ -170,6 +185,108 @@ instance ( Monad m, SC.CoSerial m Text, SC.CoSerial m t
 
 --------------------------------------------------------------------------------
 
+-- | FIXME: doc
+newtype Spans
+  = MkSpans (HashSet Span)
+  deriving ( Eq, Show, Semigroup, Monoid
+           , Generic, ToJSON, FromJSON
+           , Hashable, NFData )
+
+-- | FIXME: doc
+{-# INLINE makeSpans #-}
+makeSpans :: [Span] -> Spans
+makeSpans = HS.fromList .> MkSpans
+
+-- | FIXME: doc
+{-# INLINE spansSet #-}
+spansSet :: Lens.Iso' Spans (HashSet Span)
+spansSet = Lens.iso (\(MkSpans s) -> s) MkSpans
+
+-- | Default 'SC.Serial' instance via 'Generic'.
+instance (Monad m, SC.Serial m (HashSet Span)) => SC.Serial m Spans
+
+-- | Default 'SC.CoSerial' instance via 'Generic'.
+instance (Monad m, SC.CoSerial m (HashSet Span)) => SC.CoSerial m Spans
+
+--------------------------------------------------------------------------------
+
+-- | Represents a span of source code.
+data Span
+  = MkSpan !(Maybe Path) !Offset !Offset
+  deriving (Eq, Show, Generic)
+
+-- | Construct a 'Span' from a given start position to a given end position.
+{-# INLINE makeSpan #-}
+makeSpan :: Maybe Path
+         -- ^ The file in which this span resides, if any.
+         -> Offset
+         -- ^ The start offset.
+         -> Offset
+         -- ^ The end offset.
+         -> Span
+makeSpan mpath start end = case compareOffset start end of
+                             GT -> makeSpan mpath end start
+                             _  -> MkSpan mpath start end
+
+-- | FIXME: doc
+{-# INLINE spanPath #-}
+spanPath :: Lens.Lens' Span (Maybe Path)
+spanPath = let helper (MkSpan p s e) = (p, \x -> MkSpan x s e)
+           in Lens.lens (helper .> fst) (helper .> snd)
+
+-- | FIXME: doc
+{-# INLINE spanRange #-}
+spanRange :: Lens.Lens' Span (Offset, Offset)
+spanRange = let helper (MkSpan p s e) = ((s, e), \(s', e') -> MkSpan p s' e')
+            in Lens.lens (helper .> fst) (helper .> snd)
+
+-- | FIXME: doc
+{-# INLINE spanStart #-}
+spanStart :: Lens.Lens' Span Offset
+spanStart = spanRange . _1
+
+-- | FIXME: doc
+{-# INLINE spanEnd #-}
+spanEnd :: Lens.Lens' Span Offset
+spanEnd = spanRange . _2
+
+-- | Converts to @{file: …, start: …, end: …}@.
+instance ToJSON Span where
+  toJSON (MkSpan file start end)
+    = [ "file"  .= maybe Aeson.Null toJSON file
+      , "start" .= offsetJ start
+      , "end"   .= offsetJ end
+      ] |> Aeson.object
+    where
+      offsetJ (line, col) = Aeson.object ["line" .= line, "col" .= col]
+
+-- | Inverse of the 'ToJSON' instance.
+instance FromJSON Span where
+  parseJSON = (Aeson.withObject "Span" $ \o -> do
+                  file  <- (o .: "file")  >>= pure
+                  start <- (o .: "start") >>= offsetP
+                  end   <- (o .: "end")   >>= offsetP
+                  pure (MkSpan file start end))
+    where
+      offsetP = (Aeson.withObject "Offset" $ \o -> do
+                    line <- (o .: "line") >>= pure
+                    col  <- (o .: "col")  >>= pure
+                    pure (line, col))
+
+-- | Default 'Hashable' instance via 'Generic'.
+instance Hashable Span
+
+-- | Default 'NFData' instance via 'Generic'.
+instance NFData Span
+
+-- | Default 'SC.Serial' instance via 'Generic'.
+instance (Monad m, SC.Serial m Text) => SC.Serial m Span
+
+-- | Default 'SC.CoSerial' instance via 'Generic'.
+instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Span
+
+--------------------------------------------------------------------------------
+
 -- | This datatype represents position of a cursor
 data Position
   = MkPosition
@@ -181,7 +298,7 @@ data Position
 
 -- | Construct a 'Position' from a (nullable) path and a @(line, column)@ pair.
 {-# INLINE makePosition #-}
-makePosition :: Maybe Path -> (Line, Column) -> Position
+makePosition :: Maybe Path -> Offset -> Position
 makePosition file (line, column) = MkPosition file line column
 
 -- | The path of the file pointed to by this position, if any.
@@ -190,33 +307,34 @@ positionFile :: Lens' Position (Maybe Path)
 positionFile = Lens.lens _positionFile
                $ \(MkPosition {..}) x -> MkPosition { _positionFile = x, .. }
 
+-- | The offset in the file pointed to by this position.
+{-# INLINE positionOffset #-}
+positionOffset :: Lens' Position Offset
+positionOffset
+  = Lens.lens (_positionLine &&& _positionCol)
+    $ \(MkPosition {..}) (line, col) ->
+        MkPosition { _positionLine = line, _positionCol = col, .. }
+
 -- | The line number in the file pointed to by this position.
 {-# INLINE positionLine #-}
 positionLine :: Lens' Position Line
-positionLine = Lens.lens _positionLine
-               $ \(MkPosition {..}) x -> MkPosition { _positionLine = x, .. }
+positionLine = positionOffset . _1
 
 -- | The column number in the line pointed to by this position.
 {-# INLINE positionCol #-}
 positionCol :: Lens' Position Column
-positionCol = Lens.lens _positionCol
-              $ \(MkPosition {..}) x -> MkPosition { _positionCol = x, .. }
+positionCol = positionOffset . _2
 
 -- | FIXME: doc
 comparePosition :: Position -> Position -> Maybe Ordering
 comparePosition = go
   where
     go (MkPosition fileX lineX colX) (MkPosition fileY lineY colY)
-      = compareTriple (fileX, lineX, colX) (fileY, lineY, colY)
+      = compareTriple (fileX, (lineX, colX)) (fileY, (lineY, colY))
 
-    compareTriple (mfileX, lineX, colX) (mfileY, lineY, colY)
-      | (mfileX == mfileY) = Just (comparePair (lineX, colX) (lineY, colY))
+    compareTriple (mfileX, offX) (mfileY, offY)
+      | (mfileX == mfileY) = Just (compareOffset offX offY)
       | otherwise          = Nothing
-
-    comparePair (lineX, colX) (lineY, colY)
-      | (lineX < lineY) = LT
-      | (lineX > lineY) = GT
-      | otherwise       = compare colX colY
 
 -- | Converts to @{file: …, line: …, col: …}@.
 instance ToJSON Position where
@@ -245,6 +363,28 @@ instance (Monad m, SC.Serial m Text) => SC.Serial m Position
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
 instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Position
+
+--------------------------------------------------------------------------------
+
+-- | A line/column offset into a file.
+type Offset = (Line, Column)
+
+-- | FIXME: doc
+compareOffset :: Offset -> Offset -> Ordering
+compareOffset (lineX, colX) (lineY, colY)
+  | (lineX < lineY) = LT
+  | (lineX > lineY) = GT
+  | otherwise       = compare colX colY
+
+-- | FIXME: doc
+{-# INLINE offsetLine #-}
+offsetLine :: Lens.Lens' Offset Line
+offsetLine = _1
+
+-- | FIXME: doc
+{-# INLINE offsetColumn #-}
+offsetColumn :: Lens.Lens' Offset Column
+offsetColumn = _2
 
 --------------------------------------------------------------------------------
 

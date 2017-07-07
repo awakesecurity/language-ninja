@@ -47,10 +47,22 @@ module Language.Ninja.Misc
   , Misc.Located, Misc.tokenize, Misc.tokenizeFile, Misc.tokenizeText
   , Misc.locatedPos, Misc.locatedVal
 
+    -- * @Spans@
+  , Misc.Spans, Misc.makeSpans
+  , Misc.spansSet
+
+    -- * @Span@
+  , Misc.Span, Misc.makeSpan
+  , Misc.spanPath, Misc.spanRange, Misc.spanStart, Misc.spanEnd
+
     -- * @Position@
   , Misc.Position, Misc.makePosition
-  , Misc.positionFile, Misc.positionLine, Misc.positionCol
+  , Misc.positionFile, Misc.positionOffset, Misc.positionLine, Misc.positionCol
   , Misc.comparePosition
+
+    -- * @Offset@
+  , Misc.Offset
+  , Misc.compareOffset, Misc.offsetLine, Misc.offsetColumn
   , Misc.Line, Misc.Column
 
     -- * @Annotated@
