@@ -59,17 +59,17 @@ with rec {
   hp = haskell.packages.${compiler}.override {
     overrides = self: super: (
       with haskell.lib;
-      with { cp = file: self.callPackage file {}; };
+      with { cp = file: (self.callPackage (./nix/haskell + "/${file}") {}); };
 
       {
-        makefile                    = cp ./nix/makefile.nix;
-        monad-mock                  = cp ./nix/monad-mock.nix;
-        prettyprinter               = cp ./nix/prettyprinter.nix;
-        prettyprinter-ansi-terminal = cp ./nix/prettyprinter-ansi-terminal.nix;
+        makefile                    = cp "makefile.nix";
+        monad-mock                  = cp "monad-mock.nix";
+        prettyprinter               = cp "prettyprinter.nix";
+        prettyprinter-ansi-terminal = cp "prettyprinter-ansi-terminal.nix";
         smallcheck-lens             = doJailbreak super.smallcheck-lens;
         tasty-lens                  = doJailbreak super.tasty-lens;
-        versions                    = cp ./nix/versions.nix;
-        language-ninja              = cp ./nix/language-ninja.nix;
+        versions                    = cp "versions.nix";
+        language-ninja              = cp "language-ninja.nix";
       }
     );
   };

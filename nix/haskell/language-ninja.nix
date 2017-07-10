@@ -11,7 +11,7 @@
 mkDerivation {
   pname = "language-ninja";
   version = "0.0.1";
-  src = ../.;
+  src = ../../.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
