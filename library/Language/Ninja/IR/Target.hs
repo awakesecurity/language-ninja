@@ -391,6 +391,8 @@ data DependencyType
     --   that is out of date.
     --
     --   FIXME: double check this interpretation of the Ninja manual
+    --
+    --   @since 0.1.0
     OrderOnlyDependency
   deriving (Eq, Ord, Show, Read, Generic)
 

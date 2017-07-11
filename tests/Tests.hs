@@ -120,6 +120,7 @@ import qualified Turtle
 
 import           Flow
 
+import           Tests.Lint
 import           Tests.Mock
 import           Tests.Orphans              ()
 import qualified Tests.ReferenceLexer       as RefLex
@@ -536,11 +537,17 @@ ingredients = [ [T.htmlRunner]
 testTree :: IO T.TestTree
 testTree = do
   ninjas <- forM testFiles parseTestNinja
+
+  haddockTests <- emptyLintHaddockOptions
+                  |> addComponentName "language-ninja"
+                  |> lintHaddock
+
   let tests = T.testGroup "language-ninja"
               [ T.testGroup "golden"
                  (fmap (uncurry ninjaTests) (zip testFiles ninjas))
               , aesonTests
               , opticsTests
+              , haddockTests
               ]
   pure tests
 
