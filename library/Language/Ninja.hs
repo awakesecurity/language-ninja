@@ -35,10 +35,8 @@ module Language.Ninja
   ( module Language.Ninja.Lexer
   , module Language.Ninja.Parser
   , module Language.Ninja.Pretty
-  , module Language.Ninja.Shake
   ) where
 
 import           Language.Ninja.Lexer
 import           Language.Ninja.Parser
 import           Language.Ninja.Pretty
-import           Language.Ninja.Shake
