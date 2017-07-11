@@ -69,7 +69,19 @@ with rec {
         smallcheck-lens             = doJailbreak super.smallcheck-lens;
         tasty-lens                  = doJailbreak super.tasty-lens;
         versions                    = cp "versions.nix";
-        language-ninja              = cp "language-ninja.nix";
+
+        language-ninja = (cp "language-ninja.nix").overrideDerivation (old:
+          with {
+            sf = name: type: let bn = baseNameOf (toString name); in !(
+              (type == "directory" && (bn == ".git"))
+              || pkgs.lib.hasSuffix "~" bn
+              || pkgs.lib.hasSuffix ".o" bn
+              || pkgs.lib.hasSuffix ".so" bn
+              || pkgs.lib.hasSuffix ".nix" bn
+              || (type == "symlink" && pkgs.lib.hasPrefix "result" bn)
+            );
+          };
+          { src = builtins.filterSource sf ./.; });
       }
     );
   };
