@@ -39,6 +39,8 @@
 --
 --   A datatype representing the intermediate representation of a Ninja file
 --   after compilation.
+--
+--   @since 0.1.0
 module Language.Ninja.IR.Ninja
   ( -- * @Ninja@
     Ninja, makeNinja
@@ -81,6 +83,8 @@ import           Flow                     ((|>))
 --------------------------------------------------------------------------------
 
 -- | A parsed and normalized Ninja file.
+--
+--   @since 0.1.0
 data Ninja
   = MkNinja
     { _ninjaMeta     :: !Meta
@@ -92,6 +96,8 @@ data Ninja
   deriving (Eq, Show, Generic)
 
 -- | Construct a default 'Ninja' value.
+--
+--   @since 0.1.0
 {-# INLINE makeNinja #-}
 makeNinja :: Ninja
 makeNinja = MkNinja
@@ -103,12 +109,16 @@ makeNinja = MkNinja
             }
 
 -- | Metadata, which includes top-level variables like @builddir@.
+--
+--   @since 0.1.0
 {-# INLINE ninjaMeta #-}
 ninjaMeta :: Lens' Ninja Meta
 ninjaMeta = Control.Lens.lens _ninjaMeta
             $ \(MkNinja {..}) x -> MkNinja { _ninjaMeta = x, .. }
 
 -- | Compiled @build@ declarations.
+--
+--   @since 0.1.0
 {-# INLINE ninjaBuilds #-}
 ninjaBuilds :: Lens' Ninja (HashSet Build)
 ninjaBuilds = Control.Lens.lens _ninjaBuilds
@@ -116,6 +126,8 @@ ninjaBuilds = Control.Lens.lens _ninjaBuilds
 
 -- | Phony targets, as documented
 --   <https://ninja-build.org/manual.html#_more_details here>.
+--
+--   @since 0.1.0
 {-# INLINE ninjaPhonys #-}
 ninjaPhonys :: Lens' Ninja (HashMap Target (HashSet Target))
 ninjaPhonys = Control.Lens.lens _ninjaPhonys
@@ -123,18 +135,24 @@ ninjaPhonys = Control.Lens.lens _ninjaPhonys
 
 -- | The set of default targets, as documented
 --   <https://ninja-build.org/manual.html#_default_target_statements here>.
+--
+--   @since 0.1.0
 {-# INLINE ninjaDefaults #-}
 ninjaDefaults :: Lens' Ninja (HashSet Target)
 ninjaDefaults = Control.Lens.lens _ninjaDefaults
                 $ \(MkNinja {..}) x -> MkNinja { _ninjaDefaults = x, .. }
 
 -- | The set of pools for this Ninja file.
+--
+--   @since 0.1.0
 {-# INLINE ninjaPools #-}
 ninjaPools :: Lens' Ninja (HashSet Pool)
 ninjaPools = Control.Lens.lens _ninjaPools
              $ \(MkNinja {..}) x -> MkNinja { _ninjaPools = x, .. }
 
 -- | Converts to @{meta: …, builds: …, phonys: …, defaults: …, pools: …}@.
+--
+--   @since 0.1.0
 instance ToJSON Ninja where
   toJSON (MkNinja {..})
     = [ "meta"     .= _ninjaMeta
@@ -145,6 +163,8 @@ instance ToJSON Ninja where
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance FromJSON Ninja where
   parseJSON = (Aeson.withObject "Ninja" $ \o -> do
                   _ninjaMeta     <- (o .: "meta")     >>= pure
@@ -155,19 +175,29 @@ instance FromJSON Ninja where
                   pure (MkNinja {..}))
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance Hashable Ninja
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance NFData Ninja
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m, NinjaConstraint (SC.Serial m)) => SC.Serial m Ninja
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m, NinjaConstraint (SC.CoSerial m)) => SC.CoSerial m Ninja
 
 -- | The set of constraints required for a given constraint to be automatically
 --   computed for a 'Ninja'.
+--
+--   @since 0.1.0
 type NinjaConstraint (c :: * -> Constraint)
   = ( c Text
     , c Ver.Version

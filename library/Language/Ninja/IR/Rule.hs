@@ -37,6 +37,8 @@
 --   Stability   : experimental
 --
 --   A datatype for Ninja @rule@ declarations.
+--
+--   @since 0.1.0
 module Language.Ninja.IR.Rule
   ( -- * @Rule@
     Rule, makeRule
@@ -79,6 +81,8 @@ import           Language.Ninja.Misc.Path    (Path)
 
 -- | A Ninja @rule@ declaration, as documented
 --   <https://ninja-build.org/manual.html#_rules here>.
+--
+--   @since 0.1.0
 data Rule
   = MkRule
     { _ruleName         :: !Text
@@ -95,6 +99,8 @@ data Rule
 
 -- | Construct an 'Rule' with the given name and command, with default values
 --   for all other attributes (e.g.: 'False', 'Nothing', 'poolDefault').
+--
+--   @since 0.1.0
 {-# INLINE makeRule #-}
 makeRule :: Text
          -- ^ The rule name.
@@ -116,12 +122,16 @@ makeRule name cmd
     }
 
 -- | The name of the rule.
+--
+--   @since 0.1.0
 {-# INLINE ruleName #-}
 ruleName :: Lens' Rule Text
 ruleName = lens _ruleName
            $ \(MkRule {..}) x -> MkRule { _ruleName = x, .. }
 
 -- | The command that this rule will run.
+--
+--   @since 0.1.0
 {-# INLINE ruleCommand #-}
 ruleCommand :: Lens' Rule Command
 ruleCommand = lens _ruleCommand
@@ -131,12 +141,16 @@ ruleCommand = lens _ruleCommand
 --   as it's running. The @ninja -v@ flag controls whether to print the
 --   full command or its description; if a command fails, the full command
 --   line will always be printed before the command's output.
+--
+--   @since 0.1.0
 {-# INLINE ruleDescription #-}
 ruleDescription :: Lens' Rule (Maybe Text)
 ruleDescription = lens _ruleDescription
                   $ \(MkRule {..}) x -> MkRule { _ruleDescription = x, .. }
 
 -- | The process pool in which this rule will be executed.
+--
+--   @since 0.1.0
 {-# INLINE rulePool #-}
 rulePool :: Lens' Rule PoolName
 rulePool = lens _rulePool
@@ -146,6 +160,8 @@ rulePool = lens _rulePool
 --   extra implicit dependencies. This is used to support C/C++ header
 --   dependencies. For more information, read the Ninja documentation
 --   <https://ninja-build.org/manual.html#_depfile here>.
+--
+--   @since 0.1.0
 {-# INLINE ruleDepfile #-}
 ruleDepfile :: Lens' Rule (Maybe Path)
 ruleDepfile = lens _ruleDepfile
@@ -154,6 +170,8 @@ ruleDepfile = lens _ruleDepfile
 -- | If set, enables special dependency processing used in C/C++ header
 --   dependencies. For more information, read the Ninja documentation
 --   <https://ninja-build.org/manual.html#_deps here>.
+--
+--   @since 0.1.0
 {-# INLINE ruleSpecialDeps #-}
 ruleSpecialDeps :: Lens' Rule (Maybe SpecialDeps)
 ruleSpecialDeps = lens _ruleSpecialDeps
@@ -163,6 +181,8 @@ ruleSpecialDeps = lens _ruleSpecialDeps
 --   generator program. Files built using generator rules are treated
 --   specially in two ways: firstly, they will not be rebuilt if the
 --   command line changes; and secondly, they are not cleaned by default.
+--
+--   @since 0.1.0
 {-# INLINE ruleGenerator #-}
 ruleGenerator :: Lens' Rule Bool
 ruleGenerator = lens _ruleGenerator
@@ -173,6 +193,8 @@ ruleGenerator = lens _ruleGenerator
 --   command did not change will be treated as though it had never needed
 --   to be built. This may cause the output's reverse dependencies to be
 --   removed from the list of pending build actions.
+--
+--   @since 0.1.0
 {-# INLINE ruleRestat #-}
 ruleRestat :: Lens' Rule Bool
 ruleRestat = lens _ruleRestat
@@ -184,6 +206,8 @@ ruleRestat = lens _ruleRestat
 --
 --   This is particularly useful on Windows OS, where the maximal length
 --   of a command line is limited and response files must be used instead.
+--
+--   @since 0.1.0
 {-# INLINE ruleResponseFile #-}
 ruleResponseFile :: Lens' Rule (Maybe ResponseFile)
 ruleResponseFile = lens _ruleResponseFile
@@ -192,6 +216,8 @@ ruleResponseFile = lens _ruleResponseFile
 -- | Converts to
 --   @{name: …, command: …, desc: …, pool: …, depfile: …,
 --     deps: …, generator: …, restat: …, rsp: …}@.
+--
+--   @since 0.1.0
 instance ToJSON Rule where
   toJSON (MkRule {..})
     = [ "name"      .= _ruleName
@@ -206,6 +232,8 @@ instance ToJSON Rule where
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance FromJSON Rule where
   parseJSON = (Aeson.withObject "Rule" $ \o -> do
                   _ruleName         <- (o .: "name")      >>= pure
@@ -220,17 +248,25 @@ instance FromJSON Rule where
                   pure (MkRule {..}))
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance Hashable Rule
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance NFData Rule
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.Serial m Text
          ) => SC.Serial m Rule
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.CoSerial m Text
          ) => SC.CoSerial m Rule
@@ -239,6 +275,8 @@ instance ( Monad m
 
 -- | Special dependency information, as described
 --   <https://ninja-build.org/manual.html#ref_headers here>.
+--
+--   @since 0.1.0
 data SpecialDeps
   = SpecialDepsGCC
   | SpecialDepsMSVC !Text
@@ -246,6 +284,8 @@ data SpecialDeps
 
 -- | Construct a 'SpecialDeps' corresponding to the case in which @deps = gcc@
 --   is set in a Ninja build rule.
+--
+--   @since 0.1.0
 {-# INLINE makeSpecialDepsGCC #-}
 makeSpecialDepsGCC :: SpecialDeps
 makeSpecialDepsGCC = SpecialDepsGCC
@@ -257,12 +297,16 @@ makeSpecialDepsGCC = SpecialDepsGCC
 --   from @msvc@'s @/showIncludes@ output. It is only needed if the version of
 --   Visual Studio being used is not English. The value of @msvc_deps_prefix@
 --   is @"Note: including file: "@ by default.
+--
+--   @since 0.1.0
 {-# INLINE makeSpecialDepsMSVC #-}
 makeSpecialDepsMSVC :: Text
                     -> SpecialDeps
 makeSpecialDepsMSVC = SpecialDepsMSVC
 
 -- | A prism for the @deps = gcc@ case.
+--
+--   @since 0.1.0
 {-# INLINE _SpecialDepsGCC #-}
 _SpecialDepsGCC :: Prism' SpecialDeps ()
 _SpecialDepsGCC = prism (const makeSpecialDepsGCC)
@@ -270,6 +314,8 @@ _SpecialDepsGCC = prism (const makeSpecialDepsGCC)
                           owise          -> Left owise
 
 -- | A prism for the @deps = msvc@ / @msvc_deps_prefix = …@ case.
+--
+--   @since 0.1.0
 {-# INLINE _SpecialDepsMSVC #-}
 _SpecialDepsMSVC :: Prism' SpecialDeps Text
 _SpecialDepsMSVC = prism makeSpecialDepsMSVC
@@ -277,6 +323,8 @@ _SpecialDepsMSVC = prism makeSpecialDepsMSVC
                            owise                    -> Left owise
 
 -- | Converts to @{deps: "gcc"}@ or @{deps: "msvc", prefix: …}@.
+--
+--   @since 0.1.0
 instance ToJSON SpecialDeps where
   toJSON = go
     where
@@ -287,6 +335,8 @@ instance ToJSON SpecialDeps where
       (gcc, msvc) = ("gcc", "msvc")
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance FromJSON SpecialDeps where
   parseJSON = Aeson.withObject "SpecialDeps" $ \o -> do
     deps <- o .: "deps"
@@ -298,17 +348,25 @@ instance FromJSON SpecialDeps where
                 ] |> mconcat |> T.unpack |> fail
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance Hashable SpecialDeps
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance NFData SpecialDeps
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.Serial m Text
          ) => SC.Serial m SpecialDeps
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.CoSerial m Text
          ) => SC.CoSerial m SpecialDeps
@@ -317,6 +375,8 @@ instance ( Monad m
 
 -- | A response file to use during rule execution, as documented
 --   <https://ninja-build.org/manual.html#ref_rule here>.
+--
+--   @since 0.1.0
 data ResponseFile
   = MkResponseFile
     { _responseFilePath    :: !Path
@@ -325,6 +385,8 @@ data ResponseFile
   deriving (Eq, Ord, Show, Generic)
 
 -- | Construct a 'ResponseFile' with the given 'Path' and content 'Text'.
+--
+--   @since 0.1.0
 {-# INLINE makeResponseFile #-}
 makeResponseFile :: Path
                  -- ^ Corresponds to @rspfile@.
@@ -334,6 +396,8 @@ makeResponseFile :: Path
 makeResponseFile = MkResponseFile
 
 -- | A lens for the @rspfile@ field.
+--
+--   @since 0.1.0
 {-# INLINE responseFilePath #-}
 responseFilePath :: Lens' ResponseFile Path
 responseFilePath = lens _responseFilePath
@@ -341,6 +405,8 @@ responseFilePath = lens _responseFilePath
                        MkResponseFile { _responseFilePath = x, .. }
 
 -- | A lens for the @rspfile_content@ field.
+--
+--   @since 0.1.0
 {-# INLINE responseFileContent #-}
 responseFileContent :: Lens' ResponseFile Text
 responseFileContent = lens _responseFileContent
@@ -348,6 +414,8 @@ responseFileContent = lens _responseFileContent
                           MkResponseFile { _responseFileContent = x, .. }
 
 -- | Converts to @{path: …, content: …}@.
+--
+--   @since 0.1.0
 instance ToJSON ResponseFile where
   toJSON (MkResponseFile {..})
     = [ "path"    .= _responseFilePath
@@ -355,6 +423,8 @@ instance ToJSON ResponseFile where
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance FromJSON ResponseFile where
   parseJSON = Aeson.withObject "ResponseFile" $ \o -> do
     MkResponseFile
@@ -362,17 +432,25 @@ instance FromJSON ResponseFile where
       <*> (o .: "content")
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance Hashable ResponseFile
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance NFData ResponseFile
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.Serial m Text
          ) => SC.Serial m ResponseFile
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.CoSerial m Text
          ) => SC.CoSerial m ResponseFile

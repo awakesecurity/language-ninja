@@ -41,6 +41,8 @@
 --   Stability   : experimental
 --
 --   FIXME: doc
+--
+--   @since 0.1.0
 module Language.Ninja.AST.Build
   ( -- * @Build@
     Build, makeBuild
@@ -78,6 +80,8 @@ import qualified Language.Ninja.Misc       as Misc
 --------------------------------------------------------------------------------
 
 -- | A parsed Ninja @build@ declaration.
+--
+--   @since 0.1.0
 data Build ann
   = MkBuild
     { _buildAnn  :: !ann
@@ -89,6 +93,8 @@ data Build ann
   deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Construct a 'Build' with all default values.
+--
+--   @since 0.1.0
 {-# INLINE makeBuild #-}
 makeBuild :: (Monoid ann)
           => Text
@@ -105,30 +111,40 @@ makeBuild rule env = MkBuild
                      }
 
 -- | A lens into the rule name associated with a 'Build'.
+--
+--   @since 0.1.0
 {-# INLINE buildRule #-}
 buildRule :: Lens' (Build ann) Text
 buildRule = lens _buildRule
             $ \(MkBuild {..}) x -> MkBuild { _buildRule = x, .. }
 
 -- | A lens into the environment associated with a 'Build'.
+--
+--   @since 0.1.0
 {-# INLINE buildEnv #-}
 buildEnv :: Lens' (Build ann) (AST.Env Text Text)
 buildEnv = lens _buildEnv
            $ \(MkBuild {..}) x -> MkBuild { _buildEnv = x, .. }
 
 -- | A lens into the dependencies associated with a 'Build'.
+--
+--   @since 0.1.0
 {-# INLINE buildDeps #-}
 buildDeps :: Lens' (Build ann) (AST.Deps ann)
 buildDeps = lens _buildDeps
             $ \(MkBuild {..}) x -> MkBuild { _buildDeps = x, .. }
 
 -- | A lens into the bindings associated with a 'Build'.
+--
+--   @since 0.1.0
 {-# INLINE buildBind #-}
 buildBind :: Lens' (Build ann) (HashMap Text Text)
 buildBind = lens _buildBind
             $ \(MkBuild {..}) x -> MkBuild { _buildBind = x, .. }
 
 -- | The usual definition for 'Misc.Annotated'.
+--
+--   @since 0.1.0
 instance Misc.Annotated Build where
   annotation' f = lens (helper .> fst) (helper .> snd)
     where
@@ -137,6 +153,8 @@ instance Misc.Annotated Build where
           , \x -> MkBuild { _buildAnn = x, _buildDeps = f <$> _buildDeps, .. } )
 
 -- | Converts to @{ann: …, rule: …, env: …, deps: …, bind: …}@.
+--
+--   @since 0.1.0
 instance (ToJSON ann) => ToJSON (Build ann) where
   toJSON (MkBuild {..})
     = [ "ann"  .= _buildAnn
@@ -147,6 +165,8 @@ instance (ToJSON ann) => ToJSON (Build ann) where
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance (FromJSON ann) => FromJSON (Build ann) where
   parseJSON = (Aeson.withObject "Build" $ \o -> do
                   _buildAnn  <- (o .: "ann")  >>= pure
@@ -157,6 +177,8 @@ instance (FromJSON ann) => FromJSON (Build ann) where
                   pure (MkBuild {..}))
 
 -- | Reasonable 'QC.Arbitrary' instance for 'Build'.
+--
+--   @since 0.1.0
 instance (QC.Arbitrary ann) => QC.Arbitrary (Build ann) where
   arbitrary = MkBuild
               <$> QC.arbitrary
@@ -166,21 +188,31 @@ instance (QC.Arbitrary ann) => QC.Arbitrary (Build ann) where
               <*> QC.arbitrary
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Hashable ann) => Hashable (Build ann)
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (NFData ann) => NFData (Build ann)
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, BuildConstraint (SC.Serial m) ann
          ) => SC.Serial m (Build ann)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, BuildConstraint (SC.CoSerial m) ann
          ) => SC.CoSerial m (Build ann)
 
 -- | The set of constraints required for a given constraint to be automatically
 --   computed for a 'Build'.
+--
+--   @since 0.1.0
 type BuildConstraint (c :: * -> Constraint) (ann :: *)
   = ( c Text
     , c (HashSet Text)

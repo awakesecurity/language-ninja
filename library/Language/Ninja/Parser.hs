@@ -56,6 +56,8 @@
 --   Stability   : experimental
 --
 --   Parse a Ninja file.
+--
+--   @since 0.1.0
 module Language.Ninja.Parser
   ( -- * @parse*IO@
     parseFileIO
@@ -123,42 +125,58 @@ import           Flow                       ((.>), (|>))
 
 -- | Parse the file at the given path into a 'AST.Ninja'.
 --   This function may throw an exception if parsing fails.
+--
+--   @since 0.1.0
 parseFileIO :: Path -> IO (AST.Ninja Ann)
 parseFileIO file = forceIO (parseFile file)
 
 -- | Parse the given 'Text' into a 'AST.Ninja'.
 --   This function may throw an exception if parsing fails.
+--
+--   @since 0.1.0
 parseTextIO :: Text -> IO (AST.Ninja Ann)
 parseTextIO text = forceIO (parseText text)
 
 -- | Parse the given 'BSC8.ByteString' into a 'AST.Ninja'.
 --   This function may throw an exception if parsing fails.
+--
+--   @since 0.1.0
 parseBSIO :: BSC8.ByteString -> IO (AST.Ninja Ann)
 parseBSIO bs = forceIO (parseBS bs)
 
 -- | Parse the given list of 'Lexeme's into a 'AST.Ninja'.
 --   This function may throw an exception if parsing fails.
+--
+--   @since 0.1.0
 parseLexemesIO :: [Lexeme Ann] -> IO (AST.Ninja Ann)
 parseLexemesIO lexemes = forceIO (parseLexemes lexemes)
 
 --------------------------------------------------------------------------------
 
 -- | Parse the file at the given path into a 'AST.Ninja'.
+--
+--   @since 0.1.0
 parseFile :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
           => Path -> m (AST.Ninja Ann)
 parseFile file = parseFileWithEnv file AST.makeEnv
 
 -- | Parse the given 'Text' into a 'AST.Ninja'.
+--
+--   @since 0.1.0
 parseText :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
           => Text -> m (AST.Ninja Ann)
 parseText text = parseTextWithEnv text AST.makeEnv
 
 -- | Parse the given 'BSC8.ByteString' into a 'AST.Ninja'.
+--
+--   @since 0.1.0
 parseBS :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
           => BSC8.ByteString -> m (AST.Ninja Ann)
 parseBS bs = parseBSWithEnv bs AST.makeEnv
 
 -- | Parse the given list of 'Lexeme's into a 'AST.Ninja'.
+--
+--   @since 0.1.0
 parseLexemes :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
              => [Lexeme Ann] -> m (AST.Ninja Ann)
 parseLexemes lexemes = parseLexemesWithEnv lexemes AST.makeEnv
@@ -167,23 +185,31 @@ parseLexemes lexemes = parseLexemesWithEnv lexemes AST.makeEnv
 
 -- | Parse the file at the given path using the given Ninja variable context,
 --   resulting in a 'AST.Ninja'.
+--
+--   @since 0.1.0
 parseFileWithEnv :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
                  => Path -> AST.Env Text Text -> m (AST.Ninja Ann)
 parseFileWithEnv path env = fst <$> parseFileInternal path (AST.makeNinja, env)
 
 -- | Parse the given 'Text' using the given Ninja variable context,
 --   resulting in a 'AST.Ninja'.
+--
+--   @since 0.1.0
 parseTextWithEnv :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
                  => Text -> AST.Env Text Text -> m (AST.Ninja Ann)
 parseTextWithEnv text env = fst <$> parseTextInternal text (AST.makeNinja, env)
 
 -- | Parse the given 'BSC8.ByteString' using the given Ninja variable context,
 --   resulting in a 'AST.Ninja'.
+--
+--   @since 0.1.0
 parseBSWithEnv :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
                  => BSC8.ByteString -> AST.Env Text Text -> m (AST.Ninja Ann)
 parseBSWithEnv bs env = fst <$> parseBSInternal bs (AST.makeNinja, env)
 
 -- | Parse the given list of 'Lexeme's into a 'AST.Ninja'.
+--
+--   @since 0.1.0
 parseLexemesWithEnv :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
                     => [Lexeme Ann] -> AST.Env Text Text -> m (AST.Ninja Ann)
 parseLexemesWithEnv lexemes env

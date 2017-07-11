@@ -41,6 +41,8 @@
 --   Stability   : experimental
 --
 --   FIXME: doc
+--
+--   @since 0.1.0
 module Language.Ninja.AST.Ninja
   ( -- * @Ninja@
     Ninja, makeNinja
@@ -89,6 +91,8 @@ import qualified Language.Ninja.Misc       as Misc
 --------------------------------------------------------------------------------
 
 -- | A parsed Ninja file.
+--
+--   @since 0.1.0
 data Ninja ann
   = MkNinja
     { _ninjaAnn       :: !ann
@@ -103,6 +107,8 @@ data Ninja ann
   deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Construct a 'Ninja' with all default values
+--
+--   @since 0.1.0
 {-# INLINE makeNinja #-}
 makeNinja :: (Monoid ann) => Ninja ann
 makeNinja = MkNinja
@@ -117,48 +123,64 @@ makeNinja = MkNinja
             }
 
 -- | The rules defined in a parsed Ninja file.
+--
+--   @since 0.1.0
 {-# INLINE ninjaRules #-}
 ninjaRules :: Lens' (Ninja ann) (HashMap Text (AST.Rule ann))
 ninjaRules = lens _ninjaRules
              $ \(MkNinja {..}) x -> MkNinja { _ninjaRules = x, .. }
 
 -- | The set of build declarations with precisely one output.
+--
+--   @since 0.1.0
 {-# INLINE ninjaSingles #-}
 ninjaSingles :: Lens' (Ninja ann) (HashMap Text (AST.Build ann))
 ninjaSingles = lens _ninjaSingles
                $ \(MkNinja {..}) x -> MkNinja { _ninjaSingles = x, .. }
 
 -- | The set of build declarations with two or more outputs.
+--
+--   @since 0.1.0
 {-# INLINE ninjaMultiples #-}
 ninjaMultiples :: Lens' (Ninja ann) (HashMap (HashSet Text) (AST.Build ann))
 ninjaMultiples = lens _ninjaMultiples
                  $ \(MkNinja {..}) x -> MkNinja { _ninjaMultiples = x, .. }
 
 -- | The set of phony build declarations.
+--
+--   @since 0.1.0
 {-# INLINE ninjaPhonys #-}
 ninjaPhonys :: Lens' (Ninja ann) (HashMap Text (HashSet Text))
 ninjaPhonys = lens _ninjaPhonys
               $ \(MkNinja {..}) x -> MkNinja { _ninjaPhonys = x, .. }
 
 -- | The set of default targets.
+--
+--   @since 0.1.0
 {-# INLINE ninjaDefaults #-}
 ninjaDefaults :: Lens' (Ninja ann) (HashSet Text)
 ninjaDefaults = lens _ninjaDefaults
                 $ \(MkNinja {..}) x -> MkNinja { _ninjaDefaults = x, .. }
 
 -- | A mapping from pool names to pool depth integers.
+--
+--   @since 0.1.0
 {-# INLINE ninjaPools #-}
 ninjaPools :: Lens' (Ninja ann) (HashMap Text Int)
 ninjaPools = lens _ninjaPools
              $ \(MkNinja {..}) x -> MkNinja { _ninjaPools = x, .. }
 
 -- | A map from "special" top-level variables to their values.
+--
+--   @since 0.1.0
 {-# INLINE ninjaSpecials #-}
 ninjaSpecials :: Lens' (Ninja ann) (HashMap Text Text)
 ninjaSpecials = lens _ninjaSpecials
                 $ \(MkNinja {..}) x -> MkNinja { _ninjaSpecials = x, .. }
 
 -- | The usual definition for 'Misc.Annotated'.
+--
+--   @since 0.1.0
 instance Misc.Annotated Ninja where
   annotation' f = lens _ninjaAnn
                   $ \(MkNinja {..}) x ->
@@ -172,6 +194,8 @@ instance Misc.Annotated Ninja where
 -- | Converts to
 --   @{ann: …, rules: …, singles: …, multiples: …, phonys: …, defaults: …,
 --     pools: …, specials: …}@.
+--
+--   @since 0.1.0
 instance (ToJSON ann) => ToJSON (Ninja ann) where
   toJSON (MkNinja {..})
     = [ "ann"       .= _ninjaAnn
@@ -193,6 +217,8 @@ instance (ToJSON ann) => ToJSON (Ninja ann) where
         Aeson.object ["outputs" .= outputs, "build" .= build]
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance (FromJSON ann) => FromJSON (Ninja ann) where
   parseJSON = (Aeson.withObject "Ninja" $ \o -> do
                   _ninjaAnn       <- (o .: "ann")       >>= pure
@@ -221,6 +247,8 @@ instance (FromJSON ann) => FromJSON (Ninja ann) where
                       pure (outputs, build))
 
 -- | Reasonable 'QC.Arbitrary' instance for 'Ninja'.
+--
+--   @since 0.1.0
 instance (QC.Arbitrary ann) => QC.Arbitrary (Ninja ann) where
   arbitrary = MkNinja
               <$> QC.arbitrary
@@ -233,21 +261,31 @@ instance (QC.Arbitrary ann) => QC.Arbitrary (Ninja ann) where
               <*> QC.arbitrary
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Hashable ann) => Hashable (Ninja ann)
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (NFData ann) => NFData (Ninja ann)
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, NinjaConstraint (SC.Serial m) ann
          ) => SC.Serial m (Ninja ann)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, NinjaConstraint (SC.CoSerial m) ann
          ) => SC.CoSerial m (Ninja ann)
 
 -- | The set of constraints required for a given constraint to be automatically
 --   computed for a 'Ninja'.
+--
+--   @since 0.1.0
 type NinjaConstraint (c :: * -> Constraint) (ann :: *)
   = ( AST.BuildConstraint c ann
     , c (HashMap (HashSet Text) (AST.Build ann))

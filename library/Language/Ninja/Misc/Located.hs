@@ -42,6 +42,8 @@
 --
 --   Tokenize text into a list of non-whitespace chunks, each of which is
 --   annotated with its source location.
+--
+--   @since 0.1.0
 module Language.Ninja.Misc.Located
   ( -- * @Located@
     Located, tokenize, tokenizeFile, tokenizeText
@@ -112,6 +114,8 @@ import qualified Language.Ninja.Misc.Path as Ninja
 --------------------------------------------------------------------------------
 
 -- | This datatype represents a value annotated with a source location.
+--
+--   @since 0.1.0
 data Located t
   = MkLocated
     { _locatedPos :: {-# UNPACK #-} !Position
@@ -120,6 +124,8 @@ data Located t
   deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Construct a 'Located' value directly.
+--
+--   @since 0.1.0
 {-# INLINE makeLocated #-}
 makeLocated :: Position -> t -> Located t
 makeLocated = MkLocated
@@ -128,36 +134,50 @@ makeLocated = MkLocated
 --   * Remove all @'\r'@ characters from the @text@.
 --   * Split the @text@ into chunks that are guaranteed not to contain newlines
 --     or whitespace, and which are annotated with their location.
+--
+--   @since 0.1.0
 tokenize :: Maybe Path -> Text -> [Located Text]
 tokenize mpath = removeWhitespace (mpath, 0, 0)
 
 -- | Read the file at the given 'Path' and then run 'tokenize' on the
 --   resulting 'Text'.
+--
+--   @since 0.1.0
 tokenizeFile :: Path -> IO [Located Text]
 tokenizeFile path = tokenize (Just path)
                     <$> T.readFile (T.unpack (path ^. Ninja.pathText))
 
 -- | This function is equivalent to @tokenize Nothing@.
+--
+--   @since 0.1.0
 tokenizeText :: Text -> [Located Text]
 tokenizeText = tokenize Nothing
 
 -- | FIXME: doc
+--
+--   @since 0.1.0
 untokenize :: [Located Text] -> Map Path Text
 untokenize = undefined -- FIXME: implement
 
 -- | The position of this located value.
+--
+--   @since 0.1.0
 {-# INLINE locatedPos #-}
 locatedPos :: Lens' (Located t) Position
 locatedPos = Lens.lens _locatedPos
              $ \(MkLocated {..}) x -> MkLocated { _locatedPos = x, .. }
 
 -- | The value underlying this located value.
+--
+--   @since 0.1.0
 {-# INLINE locatedVal #-}
 locatedVal :: Lens' (Located t) t
 locatedVal = Lens.lens _locatedVal
              $ \(MkLocated {..}) x -> MkLocated { _locatedVal = x, .. }
 
 -- | Converts to @{position: …, value: …}@.
+--
+--   @since 0.1.0
 instance (ToJSON t) => ToJSON (Located t) where
   toJSON (MkLocated {..})
     = [ "pos" .= _locatedPos
@@ -165,6 +185,8 @@ instance (ToJSON t) => ToJSON (Located t) where
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance (FromJSON t) => FromJSON (Located t) where
   parseJSON = (Aeson.withObject "Located" $ \o -> do
                   _locatedPos <- (o .: "pos") >>= pure
@@ -172,22 +194,32 @@ instance (FromJSON t) => FromJSON (Located t) where
                   pure (MkLocated {..}))
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Hashable t) => Hashable (Located t)
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (NFData t) => NFData (Located t)
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, SC.Serial m Text, SC.Serial m t
          ) => SC.Serial m (Located t)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, SC.CoSerial m Text, SC.CoSerial m t
          ) => SC.CoSerial m (Located t)
 
 --------------------------------------------------------------------------------
 
 -- | FIXME: doc
+--
+--   @since 0.1.0
 newtype Spans
   = MkSpans (HashSet Span)
   deriving ( Eq, Show, Semigroup, Monoid
@@ -195,29 +227,41 @@ newtype Spans
            , Hashable, NFData )
 
 -- | FIXME: doc
+--
+--   @since 0.1.0
 {-# INLINE makeSpans #-}
 makeSpans :: [Span] -> Spans
 makeSpans = HS.fromList .> MkSpans
 
 -- | FIXME: doc
+--
+--   @since 0.1.0
 {-# INLINE spansSet #-}
 spansSet :: Lens.Iso' Spans (HashSet Span)
 spansSet = Lens.iso (\(MkSpans s) -> s) MkSpans
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m, SC.Serial m (HashSet Span)) => SC.Serial m Spans
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m, SC.CoSerial m (HashSet Span)) => SC.CoSerial m Spans
 
 --------------------------------------------------------------------------------
 
 -- | Represents a span of source code.
+--
+--   @since 0.1.0
 data Span
   = MkSpan !(Maybe Path) !Offset !Offset
   deriving (Eq, Show, Generic)
 
 -- | Construct a 'Span' from a given start position to a given end position.
+--
+--   @since 0.1.0
 {-# INLINE makeSpan #-}
 makeSpan :: Maybe Path
          -- ^ The file in which this span resides, if any.
@@ -231,28 +275,38 @@ makeSpan mpath start end = case compareOffset start end of
                              _  -> MkSpan mpath start end
 
 -- | FIXME: doc
+--
+--   @since 0.1.0
 {-# INLINE spanPath #-}
 spanPath :: Lens.Lens' Span (Maybe Path)
 spanPath = let helper (MkSpan p s e) = (p, \x -> MkSpan x s e)
            in Lens.lens (helper .> fst) (helper .> snd)
 
 -- | FIXME: doc
+--
+--   @since 0.1.0
 {-# INLINE spanRange #-}
 spanRange :: Lens.Lens' Span (Offset, Offset)
 spanRange = let helper (MkSpan p s e) = ((s, e), \(s', e') -> MkSpan p s' e')
             in Lens.lens (helper .> fst) (helper .> snd)
 
 -- | FIXME: doc
+--
+--   @since 0.1.0
 {-# INLINE spanStart #-}
 spanStart :: Lens.Lens' Span Offset
 spanStart = spanRange . _1
 
 -- | FIXME: doc
+--
+--   @since 0.1.0
 {-# INLINE spanEnd #-}
 spanEnd :: Lens.Lens' Span Offset
 spanEnd = spanRange . _2
 
 -- | Converts to @{file: …, start: …, end: …}@.
+--
+--   @since 0.1.0
 instance ToJSON Span where
   toJSON (MkSpan file start end)
     = [ "file"  .= maybe Aeson.Null toJSON file
@@ -263,6 +317,8 @@ instance ToJSON Span where
       offsetJ (line, col) = Aeson.object ["line" .= line, "col" .= col]
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance FromJSON Span where
   parseJSON = (Aeson.withObject "Span" $ \o -> do
                   file  <- (o .: "file")  >>= pure
@@ -276,20 +332,30 @@ instance FromJSON Span where
                     pure (line, col))
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance Hashable Span
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance NFData Span
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m, SC.Serial m Text) => SC.Serial m Span
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Span
 
 --------------------------------------------------------------------------------
 
--- | This datatype represents position of a cursor
+-- | This datatype represents the position of a cursor in a text file.
+--
+--   @since 0.1.0
 data Position
   = MkPosition
     { _positionFile ::                !(Maybe Path)
@@ -299,17 +365,23 @@ data Position
   deriving (Eq, Show, Generic)
 
 -- | Construct a 'Position' from a (nullable) path and a @(line, column)@ pair.
+--
+--   @since 0.1.0
 {-# INLINE makePosition #-}
 makePosition :: Maybe Path -> Offset -> Position
 makePosition file (line, column) = MkPosition file line column
 
 -- | The path of the file pointed to by this position, if any.
+--
+--   @since 0.1.0
 {-# INLINE positionFile #-}
 positionFile :: Lens' Position (Maybe Path)
 positionFile = Lens.lens _positionFile
                $ \(MkPosition {..}) x -> MkPosition { _positionFile = x, .. }
 
 -- | The offset in the file pointed to by this position.
+--
+--   @since 0.1.0
 {-# INLINE positionOffset #-}
 positionOffset :: Lens' Position Offset
 positionOffset
@@ -318,16 +390,22 @@ positionOffset
         MkPosition { _positionLine = line, _positionCol = col, .. }
 
 -- | The line number in the file pointed to by this position.
+--
+--   @since 0.1.0
 {-# INLINE positionLine #-}
 positionLine :: Lens' Position Line
 positionLine = positionOffset . _1
 
 -- | The column number in the line pointed to by this position.
+--
+--   @since 0.1.0
 {-# INLINE positionCol #-}
 positionCol :: Lens' Position Column
 positionCol = positionOffset . _2
 
 -- | FIXME: doc
+--
+--   @since 0.1.0
 comparePosition :: Position -> Position -> Maybe Ordering
 comparePosition = go
   where
@@ -339,6 +417,8 @@ comparePosition = go
       | otherwise          = Nothing
 
 -- | Converts to @{file: …, line: …, col: …}@.
+--
+--   @since 0.1.0
 instance ToJSON Position where
   toJSON (MkPosition {..})
     = [ "file" .= _positionFile
@@ -347,6 +427,8 @@ instance ToJSON Position where
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance FromJSON Position where
   parseJSON = (Aeson.withObject "Position" $ \o -> do
                   _positionFile <- (o .: "file") >>= pure
@@ -355,23 +437,35 @@ instance FromJSON Position where
                   pure (MkPosition {..}))
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance Hashable Position
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance NFData Position
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m, SC.Serial m Text) => SC.Serial m Position
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Position
 
 --------------------------------------------------------------------------------
 
 -- | A line/column offset into a file.
+--
+--   @since 0.1.0
 type Offset = (Line, Column)
 
 -- | FIXME: doc
+--
+--   @since 0.1.0
 compareOffset :: Offset -> Offset -> Ordering
 compareOffset (lineX, colX) (lineY, colY)
   | (lineX < lineY) = LT
@@ -379,11 +473,15 @@ compareOffset (lineX, colX) (lineY, colY)
   | otherwise       = compare colX colY
 
 -- | FIXME: doc
+--
+--   @since 0.1.0
 {-# INLINE offsetLine #-}
 offsetLine :: Lens.Lens' Offset Line
 offsetLine = _1
 
 -- | FIXME: doc
+--
+--   @since 0.1.0
 {-# INLINE offsetColumn #-}
 offsetColumn :: Lens.Lens' Offset Column
 offsetColumn = _2
@@ -391,9 +489,13 @@ offsetColumn = _2
 --------------------------------------------------------------------------------
 
 -- | A line number.
+--
+--   @since 0.1.0
 type Line = Int
 
 -- | A column number.
+--
+--   @since 0.1.0
 type Column = Int
 
 --------------------------------------------------------------------------------

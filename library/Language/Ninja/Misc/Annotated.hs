@@ -31,6 +31,8 @@
 --   Stability   : experimental
 --
 --   FIXME: doc
+--
+--   @since 0.1.0
 module Language.Ninja.Misc.Annotated
   ( Annotated (..), annotation
   ) where
@@ -40,11 +42,17 @@ import qualified Control.Lens as Lens
 --------------------------------------------------------------------------------
 
 -- | FIXME: doc
+--
+--   @since 0.1.0
 class (Functor ty) => Annotated (ty :: * -> *) where
   -- | FIXME: doc
+  --
+  --   @since 0.1.0
   annotation' :: (ann -> ann') -> Lens.Lens (ty ann) (ty ann') ann ann'
 
 -- | FIXME: doc
+--
+--   @since 0.1.0
 annotation :: (Annotated ty) => Lens.Lens' (ty ann) ann
 annotation = annotation' id
 

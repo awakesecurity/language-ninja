@@ -36,6 +36,8 @@
 --   Stability   : experimental
 --
 --   An interned text type.
+--
+--   @since 0.1.0
 module Language.Ninja.Misc.IText
   ( IText, uninternText, internText, itext
   ) where
@@ -68,6 +70,8 @@ import           Flow                   ((.>), (|>))
 
 -- | An interned (hash-consed) text type.
 --   This is a newtype over 'Interned.InternedText' from the @intern@ package.
+--
+--   @since 0.1.0
 newtype IText
   = MkIText Interned.InternedText
   deriving (Eq, IsString, Generic)
@@ -78,6 +82,8 @@ newtype IText
 --
 --   >>> uninternText ("foobar" :: IText)
 --   "foobar"
+--
+--   @since 0.1.0
 {-# INLINE uninternText #-}
 uninternText :: IText -> Text
 uninternText (MkIText i) = Interned.unintern i
@@ -88,6 +94,8 @@ uninternText (MkIText i) = Interned.unintern i
 --
 --   >>> internText ("foobar" :: Text)
 --   "foobar"
+--
+--   @since 0.1.0
 {-# INLINE internText #-}
 internText :: Text -> IText
 internText = Interned.intern .> MkIText
@@ -101,19 +109,27 @@ internText = Interned.intern .> MkIText
 --
 --   >>> (("foobar" :: IText) ^. from itext) :: Text
 --   "foobar"
+--
+--   @since 0.1.0
 {-# INLINE itext #-}
 itext :: Iso' Text IText
 itext = Control.Lens.iso internText uninternText
 
 -- | The 'Ord' instance in @intern@ compares hashes rather than values.
+--
+--   @since 0.1.0
 instance Ord IText where
   compare itA itB = compare (uninternText itA) (uninternText itB)
 
 -- | Displays an 'IText' such that 'fromString' is inverse to 'show'.
+--
+--   @since 0.1.0
 instance Show IText where
   show (MkIText i) = show i
 
 -- | Inverse of the 'Show' instance.
+--
+--   @since 0.1.0
 instance Read IText where
   readsPrec i = readsPrec i .> map (first (fromString .> MkIText))
 
@@ -121,34 +137,50 @@ instance Read IText where
 --
 --   FIXME: perhaps switch to hashing the identifier, since this is likely
 --   pretty hot code given all the @HashMap Target …@ types all over the place.
+--
+--   @since 0.1.0
 instance Hashable IText where
   hashWithSalt n = uninternText .> hashWithSalt n
 
 -- | Defined by @rnf a = seq a ()@, since 'IText' is a newtype of strict types.
+--
+--   @since 0.1.0
 instance NFData IText where
   rnf a = seq a ()
 
 -- | Converts to JSON string via 'uninternText'.
+--
+--   @since 0.1.0
 instance ToJSON IText where
   toJSON = uninternText .> toJSON
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance FromJSON IText where
   parseJSON = Aeson.withText "IText" (internText .> pure)
 
 -- | Converts to JSON string via 'uninternText'.
+--
+--   @since 0.1.0
 instance ToJSONKey IText where
   toJSONKey = Aeson.toJSONKeyText uninternText
 
 -- | Inverse of the 'ToJSONKey' instance.
+--
+--   @since 0.1.0
 instance FromJSONKey IText where
   fromJSONKey = Aeson.mapFromJSONKeyFunction internText fromJSONKey
 
 -- | Uses the 'Text' instance.
+--
+--   @since 0.1.0
 instance (Monad m, SC.Serial m Text) => SC.Serial m IText where
   series = SC.series |> fmap internText
 
 -- | Uses the 'Text' instance.
+--
+--   @since 0.1.0
 instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m IText where
   coseries = SC.coseries .> fmap (\f int -> f (uninternText int))
 

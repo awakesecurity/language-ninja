@@ -32,6 +32,8 @@
 --   Stability   : experimental
 --
 --   FIXME: doc
+--
+--   @since 0.1.0
 module Language.Ninja.Mock.ReadFile
   ( module Language.Ninja.Mock.ReadFile -- FIXME: specific export list
   ) where
@@ -54,17 +56,25 @@ import           Flow                      ((.>), (|>))
 -- Remember: we have imported Prelude hiding 'readFile'.
 
 -- | FIXME: doc
+--
+--   @since 0.1.0
 class (Monad m) => MonadReadFile m where
   -- | FIXME: doc
+  --
+  --   @since 0.1.0
   readFile :: Path -> m Text
 
 -- | FIXME: doc
+--
+--   @since 0.1.0
 instance MonadReadFile IO where
   readFile = Lens.view pathString .> Text.readFile
 
 -- | FIXME: doc
-instance (MonadTrans t, Monad (t m), MonadReadFile m) =>
-         MonadReadFile (t m) where
+--
+--   @since 0.1.0
+instance ( MonadTrans t, Monad (t m), MonadReadFile m
+         ) => MonadReadFile (t m) where
   readFile = readFile .> lift
 
 --------------------------------------------------------------------------------

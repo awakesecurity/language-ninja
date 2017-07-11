@@ -32,6 +32,8 @@
 --   Stability   : experimental
 --
 --   The Ninja build language intermediate representation after compilation.
+--
+--   @since 0.1.0
 module Language.Ninja.IR
   ( -- * @Ninja@
     IR.Ninja, IR.makeNinja

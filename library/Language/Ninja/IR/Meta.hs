@@ -39,6 +39,8 @@
 --   Stability   : experimental
 --
 --   A datatype for Ninja top-level variables and other metadata.
+--
+--   @since 0.1.0
 module Language.Ninja.IR.Meta
   ( -- * @Meta@
     Meta, makeMeta, metaReqVersion, metaBuildDir
@@ -70,6 +72,8 @@ import           Flow                     ((.>), (|>))
 
 -- | Ninja top-level metadata, as documented
 --   <https://ninja-build.org/manual.html#ref_toplevel here>.
+--
+--   @since 0.1.0
 data Meta
   = MkMeta
     { _metaReqVersion :: !(Maybe Ver.Version)
@@ -78,6 +82,8 @@ data Meta
   deriving (Eq, Ord, Show, Generic)
 
 -- | Construct a default 'Meta' value.
+--
+--   @since 0.1.0
 {-# INLINE makeMeta #-}
 makeMeta :: Meta
 makeMeta = MkMeta
@@ -86,18 +92,24 @@ makeMeta = MkMeta
            }
 
 -- | Corresponds to the @ninja_required_version@ top-level variable.
+--
+--   @since 0.1.0
 {-# INLINE metaReqVersion #-}
 metaReqVersion :: Lens' Meta (Maybe Ver.Version)
 metaReqVersion = Control.Lens.lens _metaReqVersion
                  $ \(MkMeta {..}) x -> MkMeta { _metaReqVersion = x, .. }
 
 -- | Corresponds to the @builddir@ top-level variable.
+--
+--   @since 0.1.0
 {-# INLINE metaBuildDir #-}
 metaBuildDir :: Lens' Meta (Maybe Path)
 metaBuildDir = Control.Lens.lens _metaBuildDir
                $ \(MkMeta {..}) x -> MkMeta { _metaBuildDir = x, .. }
 
 -- | Converts to @{req-version: …, build-dir: …}@.
+--
+--   @since 0.1.0
 instance ToJSON Meta where
   toJSON (MkMeta {..})
     = [ "req-version" .= fmap versionJ _metaReqVersion
@@ -108,6 +120,8 @@ instance ToJSON Meta where
       versionJ = Ver.prettyVer .> toJSON
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance FromJSON Meta where
   parseJSON = (withObject "Meta" $ \o -> do
                   _metaReqVersion <- (o .: "req-version") >>= maybeVersionP
@@ -121,18 +135,26 @@ instance FromJSON Meta where
       versionP = withText "Version" (megaparsecToAeson Ver.version')
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance Hashable Meta
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance NFData Meta
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.Serial m Ver.Version
          , SC.Serial m Text
          ) => SC.Serial m Meta
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.CoSerial m Ver.Version
          , SC.CoSerial m Text
@@ -140,11 +162,9 @@ instance ( Monad m
 
 --------------------------------------------------------------------------------
 
--- HELPER FUNCTIONS
-
--- | This function converts a @megaparsec@ parser to an @aeson@ parser.
---   Mainly, it handles converting the error output from @megaparsec@ to a
---   string that is appropriate for 'fail'.
+-- This function converts a @megaparsec@ parser to an @aeson@ parser.
+-- Mainly, it handles converting the error output from @megaparsec@ to a
+-- string that is appropriate for 'fail'.
 megaparsecToAeson :: Mega.Parsec Mega.Dec Text t
                   -> (Text -> Aeson.Parser t)
 megaparsecToAeson parser text = case Mega.runParser parser "" text of

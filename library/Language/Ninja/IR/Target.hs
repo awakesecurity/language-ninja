@@ -38,6 +38,8 @@
 --   Stability   : experimental
 --
 --   Types relating to Ninja build targets, outputs, and dependencies.
+--
+--   @since 0.1.0
 module Language.Ninja.IR.Target
   ( -- * @Target@
     Target, makeTarget, targetIText, targetText
@@ -80,6 +82,8 @@ import           Flow                      ((.>), (|>))
 --------------------------------------------------------------------------------
 
 -- | This type represents a Ninja target name.
+--
+--   @since 0.1.0
 newtype Target
   = MkTarget
     { _targetIText :: IText
@@ -88,11 +92,15 @@ newtype Target
            , ToJSON, FromJSON, ToJSONKey, FromJSONKey )
 
 -- | Construct a 'Target' from some 'Text'.
+--
+--   @since 0.1.0
 {-# INLINE makeTarget #-}
 makeTarget :: Text -> Target
 makeTarget = view itext .> MkTarget
 
 -- | An isomorphism between a 'Target' and its underlying 'IText'.
+--
+--   @since 0.1.0
 {-# INLINE targetIText #-}
 targetIText :: Iso' Target IText
 targetIText = iso _targetIText MkTarget
@@ -101,17 +109,23 @@ targetIText = iso _targetIText MkTarget
 --   even though the underlying data has type 'IText'.
 --
 --   This is equivalent to @targetIText . from itext@.
+--
+--   @since 0.1.0
 {-# INLINE targetText #-}
 targetText :: Iso' Target Text
 targetText = targetIText . from itext
 
 -- | Uses the underlying 'IText' instance.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.Serial m Text
          ) => SC.Serial m Target where
   series = SC.newtypeCons MkTarget
 
 -- | Uses the underlying 'IText' instance.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.CoSerial m Text
          ) => SC.CoSerial m Target where
@@ -124,6 +138,8 @@ instance ( Monad m
 --
 --   More information is available
 --   <https://ninja-build.org/manual.html#ref_outputs here>.
+--
+--   @since 0.1.0
 data Output
   = MkOutput
     { _outputTarget :: !Target
@@ -132,6 +148,8 @@ data Output
   deriving (Eq, Ord, Show, Read, Generic)
 
 -- | Construct an 'Output'.
+--
+--   @since 0.1.0
 {-# INLINE makeOutput #-}
 makeOutput :: Target
            -- ^ The underlying target.
@@ -141,18 +159,24 @@ makeOutput :: Target
 makeOutput = MkOutput
 
 -- | A lens for the 'Target' of an 'Output'.
+--
+--   @since 0.1.0
 {-# INLINE outputTarget #-}
 outputTarget :: Lens' Output Target
 outputTarget = lens _outputTarget
                $ \(MkOutput {..}) new -> MkOutput { _outputTarget = new, .. }
 
 -- | A lens for the 'OutputType' of an 'Output'.
+--
+--   @since 0.1.0
 {-# INLINE outputType #-}
 outputType :: Lens' Output OutputType
 outputType = lens _outputType
              $ \(MkOutput {..}) new -> MkOutput { _outputType = new, .. }
 
 -- | Converts to @{target: …, type: …}@.
+--
+--   @since 0.1.0
 instance ToJSON Output where
   toJSON (MkOutput {..})
     = [ "target" .= _outputTarget
@@ -160,6 +184,8 @@ instance ToJSON Output where
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance FromJSON Output where
   parseJSON = (Aeson.withObject "Output" $ \o -> do
                   _outputTarget <- (o .: "target") >>= pure
@@ -167,28 +193,44 @@ instance FromJSON Output where
                   pure (MkOutput {..}))
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance Hashable Output
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance NFData Output
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m, SC.Serial m Text) => SC.Serial m Output
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Output
 
 --------------------------------------------------------------------------------
 
 -- | The type of an 'Output': explicit or implicit.
+--
+--   @since 0.1.0
 data OutputType
   = -- | Explicit outputs are listed in the @$out@ variable.
+    --
+    --   @since 0.1.0
     ExplicitOutput
   | -- | Implicit outputs are _not_ listed in the @$out@ variable.
+    --
+    --   @since 0.1.0
     ImplicitOutput
   deriving (Eq, Ord, Show, Read, Generic)
 
 -- | A prism for the 'ExplicitOutput' constructor.
+--
+--   @since 0.1.0
 {-# INLINE _ExplicitOutput #-}
 _ExplicitOutput :: Prism' OutputType ()
 _ExplicitOutput = prism' (const ExplicitOutput)
@@ -196,6 +238,8 @@ _ExplicitOutput = prism' (const ExplicitOutput)
                            _              -> Nothing
 
 -- | A prism for the 'ImplicitOutput' constructor.
+--
+--   @since 0.1.0
 {-# INLINE _ImplicitOutput #-}
 _ImplicitOutput :: Prism' OutputType ()
 _ImplicitOutput = prism' (const ImplicitOutput)
@@ -203,11 +247,15 @@ _ImplicitOutput = prism' (const ImplicitOutput)
                            _              -> Nothing
 
 -- | Converts to @"explicit"@ and @"implicit"@ respectively.
+--
+--   @since 0.1.0
 instance ToJSON OutputType where
   toJSON ExplicitOutput = "explicit"
   toJSON ImplicitOutput = "implicit"
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance FromJSON OutputType where
   parseJSON = (Aeson.withText "OutputType" $ \case
                   "explicit" -> pure ExplicitOutput
@@ -218,15 +266,23 @@ instance FromJSON OutputType where
                                 ] |> mconcat |> T.unpack |> fail)
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance Hashable OutputType
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance NFData OutputType
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m) => SC.Serial m OutputType
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m) => SC.CoSerial m OutputType
 
 --------------------------------------------------------------------------------
@@ -235,6 +291,8 @@ instance (Monad m) => SC.CoSerial m OutputType
 --
 --   More information is available
 --   <https://ninja-build.org/manual.html#ref_dependencies here>.
+--
+--   @since 0.1.0
 data Dependency
   = MkDependency
     { _dependencyTarget :: !Target
@@ -243,6 +301,8 @@ data Dependency
   deriving (Eq, Ord, Show, Read, Generic)
 
 -- | Construct a 'Dependency'.
+--
+--   @since 0.1.0
 {-# INLINE makeDependency #-}
 makeDependency :: Target
                -- ^ The underlying target.
@@ -252,6 +312,8 @@ makeDependency :: Target
 makeDependency = MkDependency
 
 -- | A lens for the 'Target' of a 'Dependency'.
+--
+--   @since 0.1.0
 {-# INLINE dependencyTarget #-}
 dependencyTarget :: Lens' Dependency Target
 dependencyTarget
@@ -259,6 +321,8 @@ dependencyTarget
     $ \(MkDependency {..}) new -> MkDependency { _dependencyTarget = new, .. }
 
 -- | A lens for the 'DependencyType' of a 'Dependency'.
+--
+--   @since 0.1.0
 {-# INLINE dependencyType #-}
 dependencyType :: Lens' Dependency DependencyType
 dependencyType
@@ -266,6 +330,8 @@ dependencyType
     $ \(MkDependency {..}) new -> MkDependency { _dependencyType = new, .. }
 
 -- | Converts to @{target: …, type: …}@.
+--
+--   @since 0.1.0
 instance ToJSON Dependency where
   toJSON (MkDependency {..})
     = [ "target" .= _dependencyTarget
@@ -273,6 +339,8 @@ instance ToJSON Dependency where
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance FromJSON Dependency where
   parseJSON = (Aeson.withObject "Dependency" $ \o -> do
                   _dependencyTarget <- (o .: "target") >>= pure
@@ -280,26 +348,43 @@ instance FromJSON Dependency where
                   pure (MkDependency {..}))
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance Hashable Dependency
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance NFData Dependency
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m, SC.Serial m Text) => SC.Serial m Dependency
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Dependency
 
 --------------------------------------------------------------------------------
 
 -- | The type of a 'Dependency': normal, implicit, or order-only.
+--
+--   @since 0.1.0
 data DependencyType
   = -- | A normal dependency. These are listed in the @$in@ variable and changes
     --   in the relevant target result in a rule execution.
+    --
+    --   @since 0.1.0
     NormalDependency
   | -- | An implicit dependency. These have the same semantics as normal
     --   dependencies, except they do not show up in the @$in@ variable.
+    --
+    --   FIXME: maybe remove ImplicitDependency, since the distinction goes away
+    --   after compilation to IR.
+    --
+    --   @since 0.1.0
     ImplicitDependency
   | -- | An order-only dependency. These are listed in the @$in@ variable, but
     --   are only rebuilt if there is at least one non-order-only dependency
@@ -310,6 +395,8 @@ data DependencyType
   deriving (Eq, Ord, Show, Read, Generic)
 
 -- | A prism for the 'NormalDependency' constructor.
+--
+--   @since 0.1.0
 {-# INLINE _NormalDependency #-}
 _NormalDependency :: Prism' DependencyType ()
 _NormalDependency = prism' (const NormalDependency)
@@ -317,6 +404,8 @@ _NormalDependency = prism' (const NormalDependency)
                             _                -> Nothing
 
 -- | A prism for the 'ImplicitDependency' constructor.
+--
+--   @since 0.1.0
 {-# INLINE _ImplicitDependency #-}
 _ImplicitDependency :: Prism' DependencyType ()
 _ImplicitDependency = prism' (const ImplicitDependency)
@@ -324,6 +413,8 @@ _ImplicitDependency = prism' (const ImplicitDependency)
                               _                  -> Nothing
 
 -- | A prism for the 'OrderOnlyDependency' constructor.
+--
+--   @since 0.1.0
 {-# INLINE _OrderOnlyDependency #-}
 _OrderOnlyDependency :: Prism' DependencyType ()
 _OrderOnlyDependency = prism' (const OrderOnlyDependency)
@@ -331,12 +422,16 @@ _OrderOnlyDependency = prism' (const OrderOnlyDependency)
                                _                   -> Nothing
 
 -- | Converts to @"normal"@, @"implicit"@, and @"order-only"@ respectively.
+--
+--   @since 0.1.0
 instance ToJSON DependencyType where
   toJSON NormalDependency    = "normal"
   toJSON ImplicitDependency  = "implicit"
   toJSON OrderOnlyDependency = "order-only"
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance FromJSON DependencyType where
   parseJSON = (Aeson.withText "DependencyType" $ \case
                   "normal"     -> pure NormalDependency
@@ -348,15 +443,23 @@ instance FromJSON DependencyType where
                                   ] |> mconcat |> T.unpack |> fail)
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance Hashable DependencyType
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance NFData DependencyType
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m) => SC.Serial m DependencyType
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m) => SC.CoSerial m DependencyType
 
 --------------------------------------------------------------------------------

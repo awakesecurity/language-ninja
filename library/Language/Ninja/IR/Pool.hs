@@ -38,6 +38,8 @@
 --   Stability   : experimental
 --
 --   Types relating to Ninja @pool@s.
+--
+--   @since 0.1.0
 module Language.Ninja.IR.Pool
   ( -- * @Pool@
     Pool, makePool, makePoolDefault, makePoolConsole, makePoolCustom
@@ -84,6 +86,8 @@ import           Flow                         ((.>), (|>))
 
 -- | A Ninja @pool@ declaration, as documented
 --   <https://ninja-build.org/manual.html#ref_pool here>.
+--
+--   @since 0.1.0
 data Pool
   = MkPool
     { _poolName  :: !PoolName
@@ -92,6 +96,8 @@ data Pool
   deriving (Eq, Ord, Show, Read, Generic)
 
 -- | Construct a 'Pool', given its name and depth.
+--
+--   @since 0.1.0
 {-# INLINEABLE makePool #-}
 makePool :: PoolName -> PoolDepth -> Maybe Pool
 makePool PoolNameDefault    PoolInfinite  = Just makePoolDefault
@@ -105,16 +111,22 @@ makePool _                  _             = Nothing
 -- FIXME: use MonadThrow instead of Maybe here
 
 -- | The default pool, i.e.: the one whose name is the empty string.
+--
+--   @since 0.1.0
 {-# INLINE makePoolDefault #-}
 makePoolDefault :: Pool
 makePoolDefault = MkPool makePoolNameDefault PoolInfinite
 
 -- | The @console@ pool.
+--
+--   @since 0.1.0
 {-# INLINE makePoolConsole #-}
 makePoolConsole :: Pool
 makePoolConsole = MkPool makePoolNameConsole (PoolDepth 1)
 
 -- | Create a pool with the given name and depth.
+--
+--   @since 0.1.0
 {-# INLINE makePoolCustom #-}
 makePoolCustom :: Text     -- ^ The pool name.
                -> Positive -- ^ The pool depth.
@@ -122,16 +134,22 @@ makePoolCustom :: Text     -- ^ The pool name.
 makePoolCustom name depth = MkPool (makePoolNameCustom name) (PoolDepth depth)
 
 -- | A 'Getter' that gives the name of a pool.
+--
+--   @since 0.1.0
 {-# INLINE poolName #-}
 poolName :: Lens.Getter Pool PoolName
 poolName = Lens.to _poolName
 
 -- | A 'Getter' that gives the depth of a pool.
+--
+--   @since 0.1.0
 {-# INLINE poolDepth #-}
 poolDepth :: Lens.Getter Pool PoolDepth
 poolDepth = Lens.to _poolDepth
 
 -- | Converts to @{name: …, depth: …}@.
+--
+--   @since 0.1.0
 instance ToJSON Pool where
   toJSON (MkPool {..})
     = [ "name"  .= _poolName
@@ -139,6 +157,8 @@ instance ToJSON Pool where
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance FromJSON Pool where
   parseJSON = (Aeson.withObject "Pool" $ \o -> do
                   _poolName  <- (o .: "name")  >>= pure
@@ -146,6 +166,8 @@ instance FromJSON Pool where
                   pure (MkPool {..}))
 
 -- | Uses the underlying instances.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.Serial m Text
          ) => SC.Serial m Pool where
@@ -157,6 +179,8 @@ instance ( Monad m
                in makePoolCustom <$> nameSeries <~> series)
 
 -- | Uses the underlying instances.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.CoSerial m Text
          ) => SC.CoSerial m Pool where
@@ -166,9 +190,13 @@ instance ( Monad m
       convert pool = (Lens.view poolName pool, Lens.view poolDepth pool)
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance Hashable Pool
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance NFData Pool
 
 --------------------------------------------------------------------------------
@@ -177,6 +205,8 @@ instance NFData Pool
 --
 --   More information is available
 --   <https://ninja-build.org/manual.html#ref_pool here>.
+--
+--   @since 0.1.0
 data PoolName
   = PoolNameDefault
   | PoolNameConsole
@@ -185,11 +215,15 @@ data PoolName
 
 -- | Create a 'PoolName' corresponding to the built-in default pool, i.e.: the
 --   pool that is selected if the @pool@ attribute is set to the empty string.
+--
+--   @since 0.1.0
 {-# INLINE makePoolNameDefault #-}
 makePoolNameDefault :: PoolName
 makePoolNameDefault = PoolNameDefault
 
 -- | Create a 'PoolName' corresponding to the built-in @console@ pool.
+--
+--   @since 0.1.0
 {-# INLINE makePoolNameConsole #-}
 makePoolNameConsole :: PoolName
 makePoolNameConsole = PoolNameConsole
@@ -197,6 +231,8 @@ makePoolNameConsole = PoolNameConsole
 -- | Create a 'PoolName' corresponding to a custom pool.
 --   Note: this can fail at runtime if given the empty string or @"console"@,
 --   so you should consider 'parsePoolName' as a safer alternative.
+--
+--   @since 0.1.0
 {-# INLINEABLE makePoolNameCustom #-}
 makePoolNameCustom :: Text -> PoolName
 makePoolNameCustom ""        = error "Invalid pool name: \"\""
@@ -204,18 +240,24 @@ makePoolNameCustom "console" = error "Invalid pool name: \"console\""
 makePoolNameCustom text      = PoolNameCustom text
 
 -- | A one-way prism corresponding to the 'poolNameDefault' constructor.
+--
+--   @since 0.1.0
 {-# INLINE _PoolNameDefault #-}
 _PoolNameDefault :: Lens.Getter PoolName (Maybe ())
 _PoolNameDefault = Lens.to (\case PoolNameDefault -> Just ()
                                   _               -> Nothing)
 
 -- | A one-way prism corresponding to the 'poolNameConsole' constructor.
+--
+--   @since 0.1.0
 {-# INLINE _PoolNameConsole #-}
 _PoolNameConsole :: Lens.Getter PoolName (Maybe ())
 _PoolNameConsole = Lens.to (\case PoolNameConsole -> Just ()
                                   _               -> Nothing)
 
 -- | A one-way prism corresponding to the 'poolNameConsole' constructor.
+--
+--   @since 0.1.0
 {-# INLINE _PoolNameCustom #-}
 _PoolNameCustom :: Lens.Getter PoolName (Maybe Text)
 _PoolNameCustom = Lens.to (\case (PoolNameCustom t) -> Just t
@@ -223,6 +265,8 @@ _PoolNameCustom = Lens.to (\case (PoolNameCustom t) -> Just t
 
 -- | An isomorphism between a 'PoolName' and the corresponding 'Text'.
 --   Equivalent to @'Lens.iso' 'printPoolName' 'parsePoolName'@.
+--
+--   @since 0.1.0
 {-# INLINE poolNameText #-}
 poolNameText :: Lens.Iso' PoolName Text
 poolNameText = Lens.iso printPoolName parsePoolName
@@ -238,6 +282,8 @@ poolNameText = Lens.iso printPoolName parsePoolName
 --
 --   >>> printPoolName (poolNameCustom "foobar")
 --   "foobar"
+--
+--   @since 0.1.0
 {-# INLINEABLE printPoolName #-}
 printPoolName :: PoolName -> Text
 printPoolName PoolNameDefault    = ""
@@ -254,6 +300,8 @@ printPoolName (PoolNameCustom t) = t
 --
 --   >>> parsePoolName "foobar"
 --   PoolNameCustom "foobar"
+--
+--   @since 0.1.0
 {-# INLINEABLE parsePoolName #-}
 parsePoolName :: Text -> PoolName
 parsePoolName ""        = makePoolNameDefault
@@ -261,32 +309,46 @@ parsePoolName "console" = makePoolNameConsole
 parsePoolName t         = makePoolNameCustom t
 
 -- | Converts from string via 'parsePoolName'.
+--
+--   @since 0.1.0
 instance IsString PoolName where
   fromString = T.pack .> parsePoolName
 
 -- | Converts to JSON string via 'printPoolName'.
+--
+--   @since 0.1.0
 instance ToJSON PoolName where
   toJSON = printPoolName .> String
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance FromJSON PoolName where
   parseJSON = Aeson.withText "PoolName" (parsePoolName .> pure)
 
 -- | Converts to JSON string via 'printPoolName'.
+--
+--   @since 0.1.0
 instance ToJSONKey PoolName where
   toJSONKey = Aeson.toJSONKeyText printPoolName
 
 -- | Inverse of the 'ToJSONKey' instance.
+--
+--   @since 0.1.0
 instance FromJSONKey PoolName where
   fromJSONKey = Aeson.mapFromJSONKeyFunction parsePoolName fromJSONKey
 
 -- | Uses the underlying 'Text' instance.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.Serial m Text
          ) => SC.Serial m PoolName where
   series = parsePoolName <$> (pure "" \/ pure "console" \/ SC.series)
 
 -- | Uses the underlying 'Text' instance.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.CoSerial m Text
          ) => SC.CoSerial m PoolName where
@@ -294,9 +356,13 @@ instance ( Monad m
              .> fmap (\f -> printPoolName .> f)
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance Hashable PoolName
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance NFData PoolName
 
 --------------------------------------------------------------------------------
@@ -305,6 +371,8 @@ instance NFData PoolName
 --
 --   More information is available
 --   <https://ninja-build.org/manual.html#ref_pool here>.
+--
+--   @since 0.1.0
 data PoolDepth
   = PoolDepth !Positive
   | PoolInfinite
@@ -312,12 +380,16 @@ data PoolDepth
 
 -- | Construct a finite 'PoolDepth' from an integer, which should be a number
 --   greater than or equal to 1.
+--
+--   @since 0.1.0
 {-# INLINE makePoolDepth #-}
 makePoolDepth :: Positive -> PoolDepth
 makePoolDepth = PoolDepth
 
 -- | Construct an infinite 'PoolDepth'. This constructor is needed for the
 --   default pool (@pool = ""@), which has an infinite depth.
+--
+--   @since 0.1.0
 {-# INLINE makePoolInfinite #-}
 makePoolInfinite :: PoolDepth
 makePoolInfinite = PoolInfinite
@@ -325,6 +397,8 @@ makePoolInfinite = PoolInfinite
 -- | An isomorphism between a 'PoolDepth' and a @'Maybe' 'Positive'@;
 --   the 'Nothing' case maps to 'makePoolInfinite' and the 'Just' case
 --   maps to 'makePoolDepth'.
+--
+--   @since 0.1.0
 {-# INLINE poolDepthPositive #-}
 poolDepthPositive :: Lens.Iso' PoolDepth (Maybe Positive)
 poolDepthPositive = Lens.iso fromPD toPD
@@ -341,31 +415,43 @@ poolDepthPositive = Lens.iso fromPD toPD
 
 -- | Converts 'PoolInfinite' to @"infinite"@ and 'PoolDepth' to the
 --   corresponding JSON number.
+--
+--   @since 0.1.0
 instance ToJSON PoolDepth where
   toJSON (PoolDepth i) = toJSON i
   toJSON PoolInfinite  = "infinite"
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance FromJSON PoolDepth where
   parseJSON (v@(Number _))      = PoolDepth <$> parseJSON v
   parseJSON (String "infinite") = pure PoolInfinite
   parseJSON owise               = Aeson.typeMismatch "PoolDepth" owise
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m) => SC.Serial m PoolDepth where
   series = pure PoolInfinite
            \/ (series |> fmap PoolDepth)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m) => SC.CoSerial m PoolDepth where
   coseries = SC.coseries
              .> fmap (\f -> \case (PoolDepth i) -> f (Just i)
                                   PoolInfinite  -> f Nothing)
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance Hashable PoolDepth
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance NFData PoolDepth
 
 --------------------------------------------------------------------------------

@@ -62,6 +62,8 @@
 --   Stability   : experimental
 --
 --   Lexing is a slow point, the code below is optimised.
+--
+--   @since 0.1.0
 module Language.Ninja.Lexer
   ( -- * Lexing
     lexerFile
@@ -157,26 +159,46 @@ spanned p = do
 --------------------------------------------------------------------------------
 
 -- | Lex each line separately, rather than each lexeme.
+--
+--   @since 0.1.0
 data Lexeme ann
   = -- | @foo = bar@
+    --
+    --   @since 0.1.0
     LexDefine   !ann !(LBind ann)
   | -- | @[indent]foo = bar@
+    --
+    --   @since 0.1.0
     LexBind     !ann !(LBind ann)
   | -- | @include file@
+    --
+    --   @since 0.1.0
     LexInclude  !ann !(LFile ann)
   | -- | @subninja file@
+    --
+    --   @since 0.1.0
     LexSubninja !ann !(LFile ann)
   | -- | @build foo: bar | baz || qux@
+    --
+    --   @since 0.1.0
     LexBuild    !ann !(LBuild ann)
   | -- | @rule name@
+    --
+    --   @since 0.1.0
     LexRule     !ann !(LName ann)
   | -- | @pool name@
+    --
+    --   @since 0.1.0
     LexPool     !ann !(LName ann)
   | -- | @default foo bar@
+    --
+    --   @since 0.1.0
     LexDefault  !ann ![AST.Expr ann]
   deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | The usual definition for 'Misc.Annotated'.
+--
+--   @since 0.1.0
 instance Misc.Annotated Lexeme where
   annotation' f = lens (helper .> fst) (helper .> snd)
     where
@@ -190,6 +212,8 @@ instance Misc.Annotated Lexeme where
       helper (LexDefault  ann v) = (ann, \x -> LexDefault  x (map (fmap f) v))
 
 -- | Converts to @{ann: …, tag: …, value: …}@.
+--
+--   @since 0.1.0
 instance (Aeson.ToJSON ann) => Aeson.ToJSON (Lexeme ann) where
   toJSON = (\case (LexDefine   ann value) -> obj ann "define"   value
                   (LexBind     ann value) -> obj ann "bind"     value
@@ -206,6 +230,8 @@ instance (Aeson.ToJSON ann) => Aeson.ToJSON (Lexeme ann) where
                           ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance (Aeson.FromJSON ann) => Aeson.FromJSON (Lexeme ann) where
   parseJSON = (Aeson.withObject "Lexeme" $ \o -> do
                   ann <- o .: "ann"
@@ -228,21 +254,31 @@ instance (Aeson.FromJSON ann) => Aeson.FromJSON (Lexeme ann) where
                   , "build", "rule", "pool", "default" ]
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Hashable ann) => Hashable (Lexeme ann)
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (NFData ann) => NFData (Lexeme ann)
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, LexemeConstraint (SC.Serial m) ann
          ) => SC.Serial m (Lexeme ann)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, LexemeConstraint (SC.CoSerial m) ann
          ) => SC.CoSerial m (Lexeme ann)
 
 -- | The set of constraints required for a given constraint to be automatically
 --   computed for an 'Lexeme'.
+--
+--   @since 0.1.0
 type LexemeConstraint (c :: * -> Constraint) (ann :: *)
   = ( LBindConstraint  c ann
     , LFileConstraint  c ann
@@ -255,6 +291,8 @@ type LexemeConstraint (c :: * -> Constraint) (ann :: *)
 --------------------------------------------------------------------------------
 
 -- | The name of a Ninja rule or pool.
+--
+--   @since 0.1.0
 data LName ann
   = MkLName
     { _lnameAnn :: !ann
@@ -263,11 +301,15 @@ data LName ann
   deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | The usual definition for 'Misc.Annotated'.
+--
+--   @since 0.1.0
 instance Misc.Annotated LName where
   annotation' f = lens _lnameAnn
                   $ \(MkLName {..}) x -> MkLName { _lnameAnn = x, .. }
 
 -- | Converts to @{ann: …, name: …}@.
+--
+--   @since 0.1.0
 instance (Aeson.ToJSON ann) => Aeson.ToJSON (LName ann) where
   toJSON (MkLName {..})
     = [ "ann"  .= _lnameAnn
@@ -275,6 +317,8 @@ instance (Aeson.ToJSON ann) => Aeson.ToJSON (LName ann) where
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance (Aeson.FromJSON ann) => Aeson.FromJSON (LName ann) where
   parseJSON = (Aeson.withObject "LName" $ \o -> do
                   _lnameAnn <- (o .: "ann")  >>= pure
@@ -282,28 +326,40 @@ instance (Aeson.FromJSON ann) => Aeson.FromJSON (LName ann) where
                   pure (MkLName {..}))
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Hashable ann) => Hashable (LName ann)
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (NFData ann) => NFData (LName ann)
 
 -- | Uses the underlying 'SC.Serial' instances.
+--
+--   @since 0.1.0
 instance ( Monad m, LNameConstraint (SC.Serial m) ann
          ) => SC.Serial m (LName ann) where
   series = SC.series |> fmap (second Text.encodeUtf8 .> uncurry MkLName)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, LNameConstraint (SC.CoSerial m) ann
          ) => SC.CoSerial m (LName ann) where
   coseries = SC.coseries .> fmap (\f -> _lnameBS .> Text.decodeUtf8 .> f)
 
 -- | The set of constraints required for a given constraint to be automatically
 --   computed for an 'LName'.
+--
+--   @since 0.1.0
 type LNameConstraint (c :: * -> Constraint) (ann :: *) = (c Text, c ann)
 
 --------------------------------------------------------------------------------
 
 -- | A reference to a file in an @include@ or @subninja@ declaration.
+--
+--   @since 0.1.0
 newtype LFile ann
   = MkLFile
     { _lfileExpr :: AST.Expr ann
@@ -311,38 +367,54 @@ newtype LFile ann
   deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Converts to @{file: …}@.
+--
+--   @since 0.1.0
 instance (Aeson.ToJSON ann) => Aeson.ToJSON (LFile ann) where
   toJSON (MkLFile {..})
     = [ "file" .= _lfileExpr
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance (Aeson.FromJSON ann) => Aeson.FromJSON (LFile ann) where
   parseJSON = (Aeson.withObject "LFile" $ \o -> do
                   _lfileExpr <- (o .: "file")  >>= pure
                   pure (MkLFile {..}))
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Hashable ann) => Hashable (LFile ann)
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (NFData ann) => NFData (LFile ann)
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, LFileConstraint (SC.Serial m) ann
          ) => SC.Serial m (LFile ann)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, LFileConstraint (SC.CoSerial m) ann
          ) => SC.CoSerial m (LFile ann)
 
 -- | The set of constraints required for a given constraint to be automatically
 --   computed for an 'LFile'.
+--
+--   @since 0.1.0
 type LFileConstraint (c :: * -> Constraint) (ann :: *) = (c Text, c ann)
 
 --------------------------------------------------------------------------------
 
 -- | A Ninja variable binding, top-level or otherwise.
+--
+--   @since 0.1.0
 data LBind ann
   = MkLBind
     { _lbindAnn   :: !ann
@@ -352,6 +424,8 @@ data LBind ann
   deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Converts to @{ann: …, name: …, value: …}@.
+--
+--   @since 0.1.0
 instance (Aeson.ToJSON ann) => Aeson.ToJSON (LBind ann) where
   toJSON (MkLBind {..})
     = [ "ann"   .= _lbindAnn
@@ -360,6 +434,8 @@ instance (Aeson.ToJSON ann) => Aeson.ToJSON (LBind ann) where
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance (Aeson.FromJSON ann) => Aeson.FromJSON (LBind ann) where
   parseJSON = (Aeson.withObject "LBind" $ \o -> do
                   _lbindAnn   <- (o .: "ann")   >>= pure
@@ -368,26 +444,38 @@ instance (Aeson.FromJSON ann) => Aeson.FromJSON (LBind ann) where
                   pure (MkLBind {..}))
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Hashable ann) => Hashable (LBind ann)
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (NFData ann) => NFData (LBind ann)
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, LBindConstraint (SC.Serial m) ann
          ) => SC.Serial m (LBind ann)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, LBindConstraint (SC.CoSerial m) ann
          ) => SC.CoSerial m (LBind ann)
 
 -- | The set of constraints required for a given constraint to be automatically
 --   computed for an 'LBind'.
+--
+--   @since 0.1.0
 type LBindConstraint (c :: * -> Constraint) (ann :: *) = (c Text, c ann)
 
 --------------------------------------------------------------------------------
 
 -- | The data contained within a Ninja @build@ declaration.
+--
+--   @since 0.1.0
 data LBuild ann
   = MkLBuild
     { _lbuildAnn  :: !ann
@@ -398,6 +486,8 @@ data LBuild ann
   deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Constructor for an 'LBuild'.
+--
+--   @since 0.1.0
 makeLBuild :: ann
            -- ^ The build annotation
            -> [AST.Expr ann]
@@ -414,6 +504,8 @@ makeLBuild ann outs rule deps
     in MkLBuild ann (filterExprs outs) rule (filterExprs deps)
 
 -- | The usual definition for 'Misc.Annotated'.
+--
+--   @since 0.1.0
 instance Misc.Annotated LBuild where
   annotation' f = lens _lbuildAnn
                   $ \(MkLBuild {..}) x ->
@@ -424,6 +516,8 @@ instance Misc.Annotated LBuild where
                                , .. }
 
 -- | Converts to @{ann: …, outs: …, rule: …, deps: …}@.
+--
+--   @since 0.1.0
 instance (Aeson.ToJSON ann) => Aeson.ToJSON (LBuild ann) where
   toJSON (MkLBuild {..})
     = [ "ann"  .= _lbuildAnn
@@ -433,6 +527,8 @@ instance (Aeson.ToJSON ann) => Aeson.ToJSON (LBuild ann) where
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance (Aeson.FromJSON ann) => Aeson.FromJSON (LBuild ann) where
   parseJSON = (Aeson.withObject "LBuild" $ \o -> do
                   _lbuildAnn  <- (o .: "ann")  >>= pure
@@ -442,40 +538,58 @@ instance (Aeson.FromJSON ann) => Aeson.FromJSON (LBuild ann) where
                   pure (MkLBuild {..}))
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Hashable ann) => Hashable (LBuild ann)
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (NFData ann) => NFData (LBuild ann)
 
 -- | Uses the underlying 'SC.Serial' instances.
+--
+--   @since 0.1.0
 instance ( Monad m, LBuildConstraint (SC.Serial m) ann
          ) => SC.Serial m (LBuild ann) where
   series = makeLBuild <$> SC.series <~> SC.series <~> SC.series <~> SC.series
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, LBuildConstraint (SC.CoSerial m) ann
          ) => SC.CoSerial m (LBuild ann)
 
 -- | The set of constraints required for a given constraint to be automatically
 --   computed for an 'LBuild'.
+--
+--   @since 0.1.0
 type LBuildConstraint (c :: * -> Constraint) (ann :: *) = (c Text, c ann)
 
 --------------------------------------------------------------------------------
 
 -- | Lex the given file.
+--
+--   @since 0.1.0
 lexerFile :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
           => Misc.Path -> m [Lexeme Ann]
 lexerFile file = Mock.readFile file >>= lexerText' (Just file)
 
 -- | Lex the given 'Text'.
+--
+--   @since 0.1.0
 lexerText :: (MonadError Err.ParseError m) => Text -> m [Lexeme Ann]
 lexerText = lexerText' Nothing
 
 -- | Lex the given 'BSC8.ByteString'.
+--
+--   @since 0.1.0
 lexerBS :: (MonadError Err.ParseError m) => ByteString -> m [Lexeme Ann]
 lexerBS = lexerBS' Nothing
 
 -- | Lex the given 'Text' that comes from the given 'Misc.Path', if provided.
+--
+--   @since 0.1.0
 lexerText' :: (MonadError Err.ParseError m)
            => Maybe Misc.Path -> Text -> m [Lexeme Ann]
 lexerText' mp x = let file = fromMaybe "" (Lens.view Misc.pathString <$> mp)
@@ -484,6 +598,8 @@ lexerText' mp x = let file = fromMaybe "" (Lens.view Misc.pathString <$> mp)
 
 -- | Lex the given 'ByteString' that comes from the given 'Misc.Path', if it is
 --   provided. The 'Misc.Path' is only used for error messages.
+--
+--   @since 0.1.0
 lexerBS' :: (MonadError Err.ParseError m)
          => Maybe Misc.Path -> ByteString -> m [Lexeme Ann]
 lexerBS' mpath = Text.decodeUtf8 .> lexerText' mpath
@@ -491,10 +607,14 @@ lexerBS' mpath = Text.decodeUtf8 .> lexerText' mpath
 --------------------------------------------------------------------------------
 
 -- | This class is kind of like 'DeltaParsing' from @trifecta@.
+--
+--   @since 0.1.0
 class (Monad m) => PositionParsing m where
   getPosition :: m Misc.Position
 
 -- | Instance for 'M.ParsecT' from @megaparsec@.
+--
+--   @since 0.1.0
 instance (Monad m) => PositionParsing (M.ParsecT M.Dec Text m) where
   getPosition = convert <$> M.getPosition
     where
@@ -511,9 +631,13 @@ instance (Monad m) => PositionParsing (M.ParsecT M.Dec Text m) where
 --------------------------------------------------------------------------------
 
 -- | A @megaparsec@ parser.
+--
+--   @since 0.1.0
 type Parser m a = M.ParsecT M.Dec Text m a
 
 -- | The @megaparsec@ parser for a Ninja file.
+--
+--   @since 0.1.0
 lexemesP :: (Monad m) => Parser m [Lexeme Ann]
 lexemesP = do
   maybes <- [ Nothing <$  lineCommentP

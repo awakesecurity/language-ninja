@@ -41,6 +41,8 @@
 --   Stability   : experimental
 --
 --   FIXME: doc
+--
+--   @since 0.1.0
 module Language.Ninja.AST.Rule
   ( Rule, makeRule
   , ruleBind
@@ -76,6 +78,8 @@ import qualified Language.Ninja.Misc       as Misc
 --------------------------------------------------------------------------------
 
 -- | A parsed Ninja @rule@ declaration.
+--
+--   @since 0.1.0
 data Rule ann
   = MkRule
     { _ruleAnn  :: !ann
@@ -84,6 +88,8 @@ data Rule ann
   deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Construct a 'Rule' with all default values
+--
+--   @since 0.1.0
 {-# INLINE makeRule #-}
 makeRule :: (Monoid ann) => Rule ann
 makeRule = MkRule
@@ -92,12 +98,16 @@ makeRule = MkRule
            }
 
 -- | The set of bindings in scope during the execution of this rule.
+--
+--   @since 0.1.0
 {-# INLINE ruleBind #-}
 ruleBind :: Lens' (Rule ann) (HashMap Text (AST.Expr ann))
 ruleBind = lens _ruleBind
            $ \(MkRule {..}) x -> MkRule { _ruleBind = x, .. }
 
 -- | The usual definition for 'Misc.Annotated'.
+--
+--   @since 0.1.0
 instance Misc.Annotated Rule where
   annotation' f = lens _ruleAnn
                   $ \(MkRule {..}) x ->
@@ -106,6 +116,8 @@ instance Misc.Annotated Rule where
                              , .. }
 
 -- | Converts to @{ann: …, bind: …}@.
+--
+--   @since 0.1.0
 instance (ToJSON ann) => ToJSON (Rule ann) where
   toJSON (MkRule {..})
     = [ "ann"  .= _ruleAnn
@@ -113,6 +125,8 @@ instance (ToJSON ann) => ToJSON (Rule ann) where
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance (FromJSON ann) => FromJSON (Rule ann) where
   parseJSON = (Aeson.withObject "Rule" $ \o -> do
                   _ruleAnn  <- (o .: "ann")  >>= pure
@@ -120,25 +134,37 @@ instance (FromJSON ann) => FromJSON (Rule ann) where
                   pure (MkRule {..}))
 
 -- | Reasonable 'QC.Arbitrary' instance for 'Rule'.
+--
+--   @since 0.1.0
 instance (QC.Arbitrary ann) => QC.Arbitrary (Rule ann) where
   arbitrary = MkRule <$> QC.arbitrary <*> QC.arbitrary
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Hashable ann) => Hashable (Rule ann)
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (NFData ann) => NFData (Rule ann)
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, RuleConstraint (SC.Serial m) ann
          ) => SC.Serial m (Rule ann)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, RuleConstraint (SC.CoSerial m) ann
          ) => SC.CoSerial m (Rule ann)
 
 -- | The set of constraints required for a given constraint to be automatically
 --   computed for a 'Rule'.
+--
+--   @since 0.1.0
 type RuleConstraint (c :: * -> Constraint) (ann :: *)
   = ( c (HashMap Text (AST.Expr ann))
     , c ann

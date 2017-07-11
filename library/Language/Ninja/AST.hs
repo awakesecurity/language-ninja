@@ -28,6 +28,8 @@
 --   Stability   : experimental
 --
 --   FIXME: doc
+--
+--   @since 0.1.0
 module Language.Ninja.AST
   ( -- * @Ninja@
     AST.Ninja, AST.makeNinja
@@ -78,12 +80,18 @@ import qualified Language.Ninja.AST.Rule  as AST
 --------------------------------------------------------------------------------
 
 -- | A type alias for 'ByteString'.
+--
+--   @since 0.1.0
 type Str = ByteString
 
 -- | A type alias for 'ByteString', representing a path.
+--
+--   @since 0.1.0
 type FileStr = ByteString
 
 -- | A type alias for 'Text', representing a path.
+--
+--   @since 0.1.0
 type FileText = Text
 
 --------------------------------------------------------------------------------

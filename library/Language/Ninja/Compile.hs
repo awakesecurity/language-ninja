@@ -36,6 +36,8 @@
 --   Stability   : experimental
 --
 --   Compile a parsed Ninja file into an intermediate representation.
+--
+--   @since 0.1.0
 module Language.Ninja.Compile
   ( compile
   ) where
@@ -91,6 +93,8 @@ import qualified Language.Ninja.Parser      as Parser
 -------------------------------------------------------------------------------
 
 -- | Compile an parsed Ninja file into a intermediate representation.
+--
+--   @since 0.1.0
 compile :: forall m ann. (MonadError Err.CompileError m)
         => AST.Ninja ann -> m IR.Ninja
 compile ast = result

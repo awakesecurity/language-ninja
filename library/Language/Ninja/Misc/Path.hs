@@ -36,6 +36,8 @@
 --   Stability   : experimental
 --
 --   A datatype for Unix path strings.
+--
+--   @since 0.1.0
 module Language.Ninja.Misc.Path
   ( Path, makePath, pathIText, pathText, pathString, pathFP
   ) where
@@ -67,6 +69,8 @@ import           Flow                      ((.>))
 --------------------------------------------------------------------------------
 
 -- | This type represents a Unix path string.
+--
+--   @since 0.1.0
 newtype Path
   = MkPath
     { _pathIText :: IText
@@ -75,11 +79,15 @@ newtype Path
            , ToJSON, FromJSON, ToJSONKey, FromJSONKey )
 
 -- | Construct a 'Path' from some 'Text'.
+--
+--   @since 0.1.0
 {-# INLINE makePath #-}
 makePath :: Text -> Path
 makePath = view Ninja.itext .> MkPath
 
 -- | An isomorphism between a 'Path' and its underlying 'IText'.
+--
+--   @since 0.1.0
 {-# INLINE pathIText #-}
 pathIText :: Iso' Path IText
 pathIText = iso _pathIText MkPath
@@ -88,11 +96,15 @@ pathIText = iso _pathIText MkPath
 --   even though the underlying data has type 'IText'.
 --
 --   This is equivalent to @pathIText . from Ninja.itext@.
+--
+--   @since 0.1.0
 {-# INLINE pathText #-}
 pathText :: Iso' Path Text
 pathText = pathIText . from Ninja.itext
 
 -- | An isomorphism that gives access to a 'String'-typed view of a 'Path'.
+--
+--   @since 0.1.0
 {-# INLINE pathString #-}
 pathString :: Iso' Path String
 pathString = pathText . iso Text.unpack Text.pack
@@ -100,17 +112,23 @@ pathString = pathText . iso Text.unpack Text.pack
 -- | An isomorphism between a 'Path' and a 'FP.FilePath' from @system-filepath@.
 --   This uses 'FP.decodeString' and 'FP.encodeString', so all the caveats on
 --   those functions apply here.
+--
+--   @since 0.1.0
 {-# INLINE pathFP #-}
 pathFP :: Iso' Path FP.FilePath
 pathFP = pathString . iso FP.decodeString FP.encodeString
 
 -- | Uses the underlying 'IText' instance.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.Serial m Text
          ) => SC.Serial m Path where
   series = SC.newtypeCons MkPath
 
 -- | Uses the underlying 'IText' instance.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.CoSerial m Text
          ) => SC.CoSerial m Path where

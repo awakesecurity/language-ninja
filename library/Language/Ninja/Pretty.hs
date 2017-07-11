@@ -31,6 +31,8 @@
 --   Stability   : experimental
 --
 --   A rudimentary pretty-printer for 'AST.Ninja'.
+--
+--   @since 0.1.0
 module Language.Ninja.Pretty
   ( -- * Pretty-printers
     prettyNinja
@@ -76,6 +78,8 @@ import           Flow                  ((.>), (|>))
 --------------------------------------------------------------------------------
 
 -- | Pretty-print a 'AST.Ninja'.
+--
+--   @since 0.1.0
 prettyNinja :: AST.Ninja () -> Text
 prettyNinja ninja
   = [ map prettyRule     (HM.toList (ninja ^. AST.ninjaRules))
@@ -87,6 +91,8 @@ prettyNinja ninja
     ] |> mconcat |> mconcat
 
 -- | Pretty-print an 'AST.Expr'
+--
+--   @since 0.1.0
 prettyExpr :: AST.Expr () -> Text
 prettyExpr = go .> mconcat
   where
@@ -95,6 +101,8 @@ prettyExpr = go .> mconcat
     go (AST.Var   _ name) = ["${", name, "}"]
 
 -- | Pretty-print a Ninja @rule@ declaration.
+--
+--   @since 0.1.0
 prettyRule :: (Text, AST.Rule ()) -> Text
 prettyRule (name, rule) = do
   let binds = rule ^. AST.ruleBind
@@ -104,10 +112,14 @@ prettyRule (name, rule) = do
   mconcat ["rule ", name, "\n", binds]
 
 -- | Pretty-print a Ninja @build@ declaration with one output.
+--
+--   @since 0.1.0
 prettySingle :: (FileText, AST.Build ()) -> Text
 prettySingle (output, build) = prettyMultiple (HS.singleton output, build)
 
 -- | Pretty-print a Ninja @build@ declaration with multiple outputs.
+--
+--   @since 0.1.0
 prettyMultiple :: (HashSet FileText, AST.Build ()) -> Text
 prettyMultiple (outputs, build) = do
   let prefixIfThere :: Text -> Text -> Text
@@ -132,18 +144,24 @@ prettyMultiple (outputs, build) = do
     ]
 
 -- | Pretty-print a Ninja phony @build@ declaration.
+--
+--   @since 0.1.0
 prettyPhony :: (Text, HashSet FileText) -> Text
 prettyPhony (name, inputs)
   = [ ["build ", name, ": phony ", T.unwords (HS.toList inputs)]
     ] |> map mconcat |> T.unlines
 
 -- | Pretty-print a Ninja @default@ declaration.
+--
+--   @since 0.1.0
 prettyDefault :: FileText -> Text
 prettyDefault target
   = [ ["default ", target]
     ] |> map mconcat |> T.unlines
 
 -- | Pretty-print a Ninja @pool@ declaration.
+--
+--   @since 0.1.0
 prettyPool :: (Text, Int) -> Text
 prettyPool (name, depth)
   = [ ["pool ", name]
@@ -151,6 +169,8 @@ prettyPool (name, depth)
     ] |> map mconcat |> T.unlines
 
 -- | Pretty-print a Ninja indented binding.
+--
+--   @since 0.1.0
 prettyBind :: (Text, Text) -> Text
 prettyBind (name, value) = mconcat ["    ", name, " = ", value, "\n"]
 

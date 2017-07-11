@@ -53,6 +53,8 @@
 --   Stability   : experimental
 --
 --   A Ninja-style environment, basically a nonempty list of hash tables.
+--
+--   @since 0.1.0
 module Language.Ninja.AST.Env
   ( Key, Maps
   , Env, makeEnv, fromEnv, headEnv, tailEnv
@@ -91,14 +93,20 @@ import           Flow                      ((.>), (|>))
 --------------------------------------------------------------------------------
 
 -- | A constraint alias for @('Eq' k, 'Hashable' k)@.
+--
+--   @since 0.1.0
 type Key k = (Eq k, Hashable k)
 
 -- | A 'NE.NonEmpty' list of 'HashMap's.
+--
+--   @since 0.1.0
 type Maps k v = NE.NonEmpty (HashMap k v)
 
 --------------------------------------------------------------------------------
 
 -- | A Ninja-style environment, basically a nonempty list of hash tables.
+--
+--   @since 0.1.0
 newtype Env k v
   = MkEnv
     { _fromEnv :: Maps k v
@@ -106,47 +114,65 @@ newtype Env k v
   deriving (Eq, Show, Generic)
 
 -- | Construct an empty environment.
+--
+--   @since 0.1.0
 {-# INLINE makeEnv #-}
 makeEnv :: Env k v
 makeEnv = MkEnv (HM.empty :| [])
 
 -- | An isomorphism between an 'Env' and a nonempty list of 'HashMap's.
+--
+--   @since 0.1.0
 {-# INLINE fromEnv #-}
 fromEnv :: Iso' (Env k v) (Maps k v)
 fromEnv = iso _fromEnv MkEnv
 
 -- | Get the first 'HashMap' in the underlying nonempty list.
+--
+--   @since 0.1.0
 {-# INLINEABLE headEnv #-}
 headEnv :: Env k v -> HashMap k v
 headEnv (MkEnv (m :| _)) = m
 
 -- | If the remainder of the underlying nonempty list is nonempty, return
 --   the remainder after 'Env' wrapping. Otherwise, return 'Nothing'.
+--
+--   @since 0.1.0
 {-# INLINEABLE tailEnv #-}
 tailEnv :: Env k v -> Maybe (Env k v)
 tailEnv (MkEnv (_ :| e)) = MkEnv <$> NE.nonEmpty e
 
 -- | Push a new 'Env' onto the stack.
+--
+--   @since 0.1.0
 {-# INLINEABLE scopeEnv #-}
 scopeEnv :: Env k v -> Env k v
 scopeEnv e = MkEnv (NE.cons HM.empty (_fromEnv e))
 
 -- | Add the given key and value to the given 'Env'.
+--
+--   @since 0.1.0
 {-# INLINEABLE addEnv #-}
 addEnv :: (Eq k, Hashable k) => k -> v -> Env k v -> Env k v
 addEnv k v (MkEnv (m :| rest)) = MkEnv (HM.insert k v m :| rest)
 
 -- | Look up the given key in the given 'Env'.
+--
+--   @since 0.1.0
 {-# INLINEABLE askEnv #-}
 askEnv :: (Eq k, Hashable k) => Env k v -> k -> Maybe v
 askEnv env k = HM.lookup k (headEnv env)
                <|> (tailEnv env >>= (`askEnv` k))
 
 -- | Converts to a (nonempty) array of JSON objects.
+--
+--   @since 0.1.0
 instance (ToJSONKey k, ToJSON v) => ToJSON (Env k v) where
   toJSON = _fromEnv .> NE.toList .> toJSON
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance ( Eq k, Hashable k, FromJSONKey k, FromJSON v
          ) => FromJSON (Env k v) where
   parseJSON = parseJSON
@@ -155,6 +181,8 @@ instance ( Eq k, Hashable k, FromJSONKey k, FromJSON v
               .>  fmap MkEnv
 
 -- | Reasonable 'QC.Arbitrary' instance for 'Env'.
+--
+--   @since 0.1.0
 instance ( Eq k, Hashable k, QC.Arbitrary k, QC.Arbitrary v
          ) => QC.Arbitrary (Env k v) where
   arbitrary = QC.arbitrary
@@ -163,12 +191,18 @@ instance ( Eq k, Hashable k, QC.Arbitrary k, QC.Arbitrary v
                        .> (\e -> appEndo e makeEnv))
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Hashable k, Hashable v) => Hashable (Env k v)
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (NFData k, NFData v) => NFData (Env k v)
 
 -- | Uses the underlying 'Maps' instance.
+--
+--   @since 0.1.0
 instance ( Monad m, Key k
          , SC.Serial m (k, v)
          , SC.Serial m (Maps k v)
@@ -176,6 +210,8 @@ instance ( Monad m, Key k
   series = SC.series |> fmap MkEnv
 
 -- | Uses the underlying 'Maps' instance.
+--
+--   @since 0.1.0
 instance ( Monad m, Key k
          , SC.CoSerial m (k, v)
          , SC.CoSerial m (Maps k v)

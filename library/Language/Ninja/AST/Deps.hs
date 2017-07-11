@@ -39,6 +39,8 @@
 --   Stability   : experimental
 --
 --   FIXME: doc
+--
+--   @since 0.1.0
 module Language.Ninja.AST.Deps
   ( -- * @Deps@
     Deps, makeDeps
@@ -69,6 +71,8 @@ import qualified Language.Ninja.Misc       as Misc
 --------------------------------------------------------------------------------
 
 -- | A set of Ninja build dependencies.
+--
+--   @since 0.1.0
 data Deps ann
   = MkDeps
     { _depsAnn       :: !ann
@@ -79,6 +83,8 @@ data Deps ann
   deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Construct a 'Deps' with all default values
+--
+--   @since 0.1.0
 {-# INLINE makeDeps #-}
 makeDeps :: (Monoid ann) => Deps ann
 makeDeps = MkDeps
@@ -89,29 +95,39 @@ makeDeps = MkDeps
             }
 
 -- | A lens into the set of normal dependencies in a 'Deps'.
+--
+--   @since 0.1.0
 {-# INLINE depsNormal #-}
 depsNormal :: Lens' (Deps ann) (HashSet Text)
 depsNormal = lens _depsNormal
              $ \(MkDeps {..}) x -> MkDeps { _depsNormal = x, .. }
 
 -- | A lens into the set of implicit dependencies in a 'Deps'.
+--
+--   @since 0.1.0
 {-# INLINE depsImplicit #-}
 depsImplicit :: Lens' (Deps ann) (HashSet Text)
 depsImplicit = lens _depsImplicit
                $ \(MkDeps {..}) x -> MkDeps { _depsImplicit = x, .. }
 
 -- | A lens into the set of order-only dependencies in a 'Deps'.
+--
+--   @since 0.1.0
 {-# INLINE depsOrderOnly #-}
 depsOrderOnly :: Lens' (Deps ann) (HashSet Text)
 depsOrderOnly = lens _depsOrderOnly
                 $ \(MkDeps {..}) x -> MkDeps { _depsOrderOnly = x, .. }
 
 -- | The usual definition for 'Misc.Annotated'.
+--
+--   @since 0.1.0
 instance Misc.Annotated Deps where
   annotation' _ = lens _depsAnn
                   $ \(MkDeps {..}) x -> MkDeps { _depsAnn = x, .. }
 
 -- | Converts to @{ann: …, normal: …, implicit: …, order-only: …}@.
+--
+--   @since 0.1.0
 instance (ToJSON ann) => ToJSON (Deps ann) where
   toJSON (MkDeps {..})
     = [ "ann"        .= _depsAnn
@@ -121,6 +137,8 @@ instance (ToJSON ann) => ToJSON (Deps ann) where
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance (FromJSON ann) => FromJSON (Deps ann) where
   parseJSON = (Aeson.withObject "Deps" $ \o -> do
                   _depsAnn       <- (o .: "ann")        >>= pure
@@ -130,6 +148,8 @@ instance (FromJSON ann) => FromJSON (Deps ann) where
                   pure (MkDeps {..}))
 
 -- | Reasonable 'QC.Arbitrary' instance for 'Deps'.
+--
+--   @since 0.1.0
 instance (QC.Arbitrary ann) => QC.Arbitrary (Deps ann) where
   arbitrary = MkDeps
               <$> QC.arbitrary
@@ -138,16 +158,24 @@ instance (QC.Arbitrary ann) => QC.Arbitrary (Deps ann) where
               <*> QC.arbitrary
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Hashable ann) => Hashable (Deps ann)
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (NFData ann) => NFData (Deps ann)
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, SC.Serial m (HashSet Text), SC.Serial m ann
          ) => SC.Serial m (Deps ann)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, SC.CoSerial m (HashSet Text), SC.CoSerial m ann
          ) => SC.CoSerial m (Deps ann)
 

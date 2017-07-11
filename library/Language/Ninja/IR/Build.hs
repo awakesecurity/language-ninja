@@ -38,6 +38,8 @@
 --   Stability   : experimental
 --
 --   A datatype for Ninja @build@ declarations.
+--
+--   @since 0.1.0
 module Language.Ninja.IR.Build
   ( -- * @Build@
     Build, makeBuild, buildRule, buildOuts, buildDeps
@@ -71,6 +73,8 @@ import           Flow                     ((|>))
 
 -- | A Ninja @build@ declaration, as documented
 --   <https://ninja-build.org/manual.html#_build_statements here>.
+--
+--   @since 0.1.0
 data Build
   = MkBuild
     { _buildRule :: !Rule
@@ -80,6 +84,8 @@ data Build
   deriving (Eq, Show, Generic)
 
 -- | Construct a default 'Build' from the given 'Rule'
+--
+--   @since 0.1.0
 {-# INLINE makeBuild #-}
 makeBuild :: Rule -> Build
 makeBuild rule = MkBuild
@@ -89,24 +95,32 @@ makeBuild rule = MkBuild
                  }
 
 -- | The rule to execute when building any of the outputs.
+--
+--   @since 0.1.0
 {-# INLINE buildRule #-}
 buildRule :: Lens' Build Rule
 buildRule = lens _buildRule
             $ \(MkBuild {..}) x -> MkBuild { _buildRule = x, .. }
 
 -- | The outputs that are built as a result of rule execution.
+--
+--   @since 0.1.0
 {-# INLINE buildOuts #-}
 buildOuts :: Lens' Build (HashSet Output)
 buildOuts = lens _buildOuts
             $ \(MkBuild {..}) x -> MkBuild { _buildOuts = x, .. }
 
 -- | The dependencies that must be satisfied before this can be built.
+--
+--   @since 0.1.0
 {-# INLINE buildDeps #-}
 buildDeps :: Lens' Build (HashSet Dependency)
 buildDeps = lens _buildDeps
             $ \(MkBuild {..}) x -> MkBuild { _buildDeps = x, .. }
 
 -- | Converts to @{rule: …, outputs: …, dependencies: …}@.
+--
+--   @since 0.1.0
 instance ToJSON Build where
   toJSON (MkBuild {..})
     = [ "rule"         .= _buildRule
@@ -115,6 +129,8 @@ instance ToJSON Build where
       ] |> Aeson.object
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance FromJSON Build where
   parseJSON = (Aeson.withObject "Build" $ \o -> do
                   _buildRule <- (o .: "rule")         >>= pure
@@ -123,19 +139,29 @@ instance FromJSON Build where
                   pure (MkBuild {..}))
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance Hashable Build
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance NFData Build
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m, BuildConstraint (SC.Serial m)) => SC.Serial m Build
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Monad m, BuildConstraint (SC.CoSerial m)) => SC.CoSerial m Build
 
 -- | The set of constraints required for a given constraint to be automatically
 --   computed for a 'Build'.
+--
+--   @since 0.1.0
 type BuildConstraint (c :: * -> Constraint)
   = ( c Text
     , c (HashSet Output)

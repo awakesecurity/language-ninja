@@ -42,6 +42,8 @@
 --   Stability   : experimental
 --
 --   FIXME: doc
+--
+--   @since 0.1.0
 module Language.Ninja.AST.Expr
   ( -- * @Expr@
     Expr (..)
@@ -87,16 +89,26 @@ import qualified Language.Ninja.Misc       as Misc
 --------------------------------------------------------------------------------
 
 -- | An expression containing variable references in the Ninja language.
+--
+--   @since 0.1.0
 data Expr ann
   = -- | Sequencing of expressions.
+    --
+    --   @since 0.1.0
     Exprs !ann ![Expr ann]
   | -- | A literal string.
+    --
+    --   @since 0.1.0
     Lit   !ann !Text
   | -- | A variable reference.
+    --
+    --   @since 0.1.0
     Var   !ann !Text
   deriving (Eq, Show, Generic, Data, Functor, Foldable, Traversable)
 
 -- | A prism for the 'Exprs' constructor.
+--
+--   @since 0.1.0
 {-# INLINE _Exprs #-}
 _Exprs :: Prism' (Expr ann) (ann, [Expr ann])
 _Exprs = prism' (uncurry Exprs)
@@ -104,6 +116,8 @@ _Exprs = prism' (uncurry Exprs)
                  _              -> Nothing
 
 -- | A prism for the 'Lit' constructor.
+--
+--   @since 0.1.0
 {-# INLINE _Lit #-}
 _Lit :: Prism' (Expr ann) (ann, Text)
 _Lit = prism' (uncurry Lit)
@@ -111,6 +125,8 @@ _Lit = prism' (uncurry Lit)
                _              -> Nothing
 
 -- | A prism for the 'Var' constructor.
+--
+--   @since 0.1.0
 {-# INLINE _Var #-}
 _Var :: Prism' (Expr ann) (ann, Text)
 _Var = prism' (uncurry Var)
@@ -118,6 +134,8 @@ _Var = prism' (uncurry Var)
                _              -> Nothing
 
 -- | Evaluate the given 'Expr' in the given context (@'Env' 'Text' 'Text'@).
+--
+--   @since 0.1.0
 askExpr :: AST.Env Text Text -> Expr ann -> Text
 askExpr e (Exprs _ xs) = Text.concat (map (askExpr e) xs)
 askExpr _ (Lit   _ x)  = x
@@ -125,11 +143,15 @@ askExpr e (Var   _ x)  = askVar e x
 
 -- | Look up the given variable in the given context, returning the empty string
 --   if the variable was not found.
+--
+--   @since 0.1.0
 askVar :: AST.Env Text Text -> Text -> Text
 askVar e x = fromMaybe Text.empty (AST.askEnv e x)
 
 -- | Add a binding with the given name ('Text') and value ('PExpr') to the
 --   given context.
+--
+--   @since 0.1.0
 addBind :: Text -> Expr ann -> AST.Env Text Text -> AST.Env Text Text
 addBind k v e = AST.addEnv k (askExpr e v) e
 
@@ -141,12 +163,16 @@ addBind k v e = AST.addEnv k (askExpr e v) e
 --   >>> let binds = [("x", PLit "5"), ("y", PVar "x")]
 --   >>> AST.headEnv (addBinds binds AST.makeEnv)
 --   fromList [("x","5"),("y","")]
+--
+--   @since 0.1.0
 addBinds :: [(Text, Expr ann)] -> AST.Env Text Text -> AST.Env Text Text
 addBinds bs e = map (second (askExpr e) .> uncurry AST.addEnv .> Endo) bs
                 |> mconcat
                 |> (\endo -> appEndo endo e)
 
 -- | FIXME: doc
+--
+--   @since 0.1.0
 normalizeExpr :: (Monoid ann) => Expr ann -> Expr ann
 normalizeExpr = flatten .> removeEmpty .> combineAdj .> listToExpr
   where
@@ -167,9 +193,13 @@ normalizeExpr = flatten .> removeEmpty .> combineAdj .> listToExpr
       (owise                   : rest) -> owise : combineAdj rest)
 
 -- | The usual definition for 'Lens.Plated'.
+--
+--   @since 0.1.0
 instance (Data ann) => Lens.Plated (Expr ann)
 
 -- | The usual definition for 'Misc.Annotated'.
+--
+--   @since 0.1.0
 instance Misc.Annotated Expr where
   annotation' f = lens (helper .> fst) (helper .> snd)
     where
@@ -179,12 +209,16 @@ instance Misc.Annotated Expr where
 
 -- | Converts 'Exprs' to @{ann: …, exprs: […]}@, 'Lit' to @{ann: …, lit: […]}@,
 --   and 'Var' to @{ann: …, var: …}@.
+--
+--   @since 0.1.0
 instance (ToJSON ann) => ToJSON (Expr ann) where
   toJSON (Exprs ann   es) = Aeson.object ["ann" .= ann, "exprs" .= es]
   toJSON (Lit   ann text) = Aeson.object ["ann" .= ann, "lit"   .= text]
   toJSON (Var   ann name) = Aeson.object ["ann" .= ann, "var"   .= name]
 
 -- | Inverse of the 'ToJSON' instance.
+--
+--   @since 0.1.0
 instance (FromJSON ann) => FromJSON (Expr ann) where
   parseJSON = Aeson.withObject "Expr" $ \o -> do
     ann <- o .: "ann"
@@ -194,6 +228,8 @@ instance (FromJSON ann) => FromJSON (Expr ann) where
          ]
 
 -- | Reasonable 'QC.Arbitrary' instance for 'Expr'.
+--
+--   @since 0.1.0
 instance (QC.Arbitrary ann) => QC.Arbitrary (Expr ann) where
   arbitrary = QC.sized go
     where
@@ -218,21 +254,31 @@ instance (QC.Arbitrary ann) => QC.Arbitrary (Expr ann) where
       lossRate  = 2
 
 -- | Default 'Hashable' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (Hashable ann) => Hashable (Expr ann)
 
 -- | Default 'NFData' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance (NFData ann) => NFData (Expr ann)
 
 -- | Default 'SC.Serial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, ExprConstraint (SC.Serial m) ann
          ) => SC.Serial m (Expr ann)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
+--
+--   @since 0.1.0
 instance ( Monad m, ExprConstraint (SC.CoSerial m) ann
          ) => SC.CoSerial m (Expr ann)
 
 -- | The set of constraints required for a given constraint to be automatically
 --   computed for a 'Expr'.
+--
+--   @since 0.1.0
 type ExprConstraint (c :: * -> Constraint) (ann :: *) = (c Text, c ann)
 
 --------------------------------------------------------------------------------

@@ -28,6 +28,8 @@
 --   Stability   : experimental
 --
 --   FIXME: doc
+--
+--   @since 0.1.0
 module Language.Ninja.Mock
   ( module Language.Ninja.Mock.ReadFile -- FIXME: specific export list
   ) where

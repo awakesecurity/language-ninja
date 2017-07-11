@@ -31,6 +31,8 @@
 --
 --   The module re-exports some of the modules under the @Language.Ninja@
 --   namespace.
+--
+--   @since 0.1.0
 module Language.Ninja
   ( module Language.Ninja.Lexer
   , module Language.Ninja.Parser

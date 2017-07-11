@@ -35,6 +35,8 @@
 --   Stability   : experimental
 --
 --   A datatype representing a POSIX @sh@ command line.
+--
+--   @since 0.1.0
 module Language.Ninja.Misc.Command
   ( Command, makeCommand, commandText
   ) where
@@ -56,6 +58,8 @@ import           Flow
 --------------------------------------------------------------------------------
 
 -- | This type represents a POSIX @sh@ command line.
+--
+--   @since 0.1.0
 newtype Command
   = MkCommand
     { _commandText :: Text
@@ -64,22 +68,30 @@ newtype Command
            , ToJSON, FromJSON )
 
 -- | Constructor for a 'Command'.
+--
+--   @since 0.1.0
 {-# INLINE makeCommand #-}
 makeCommand :: Text -> Command
 makeCommand = MkCommand
 
 -- | An isomorphism between a 'Command' and its underlying 'Text'.
+--
+--   @since 0.1.0
 {-# INLINE commandText #-}
 commandText :: Iso' Command Text
 commandText = Control.Lens.iso _commandText MkCommand
 
 -- | Uses the underlying 'Text' instance.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.Serial m Text
          ) => SC.Serial m Command where
   series = SC.newtypeCons MkCommand
 
 -- | Uses the underlying 'Text' instance.
+--
+--   @since 0.1.0
 instance ( Monad m
          , SC.CoSerial m Text
          ) => SC.CoSerial m Command where

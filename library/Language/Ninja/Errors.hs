@@ -34,6 +34,8 @@
 --   The module re-exports the modules under @Language.Ninja.Errors.*@, all of
 --   which are related to error types used in @language-ninja@.
 --   It also defines the 'NinjaError' type.
+--
+--   @since 0.1.0
 module Language.Ninja.Errors
   ( module Language.Ninja.Errors.Compile
   , module Language.Ninja.Errors.Parser
@@ -56,30 +58,46 @@ import           GHC.Generics                  (Generic)
 
 -- | This type subsumes any error that can be thrown during execution of a
 --   function defined in @language-ninja@.
+--
+--   @since 0.1.0
 data NinjaError
   = -- | Generic catch-all error constructor. Avoid using this.
+    --
+    --   @since 0.1.0
     GenericNinjaError !Text
   | -- | Errors encountered during parsing.
+    --
+    --   @since 0.1.0
     NinjaParseError   !ParseError
   | -- | Errors encountered during compilation.
+    --
+    --   @since 0.1.0
     NinjaCompileError !CompileError
   deriving (Eq, Show, Generic)
 
 instance Exception NinjaError
 
 -- | Throw a 'NinjaError'.
+--
+--   @since 0.1.0
 throwNinjaError :: (MonadError NinjaError m) => NinjaError -> m a
 throwNinjaError = throwError
 
 -- | Throw a generic catch-all 'NinjaError'.
+--
+--   @since 0.1.0
 throwGenericNinjaError :: (MonadError NinjaError m) => Text -> m a
 throwGenericNinjaError msg = throwNinjaError (GenericNinjaError msg)
 
 -- | Throw a 'ParseError'.
+--
+--   @since 0.1.0
 throwNinjaParseError :: (MonadError NinjaError m) => ParseError -> m a
 throwNinjaParseError e = throwNinjaError (NinjaParseError e)
 
 -- | Throw a 'CompileError'.
+--
+--   @since 0.1.0
 throwNinjaCompileError :: (MonadError NinjaError m) => CompileError -> m a
 throwNinjaCompileError e = throwNinjaError (NinjaCompileError e)
 
