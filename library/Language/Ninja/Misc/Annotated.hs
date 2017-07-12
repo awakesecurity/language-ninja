@@ -27,7 +27,8 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   A typeclass for AST nodes that are annotated with a polymorphic field,
+--   which provides a canonical lens into that field.
 --
 --   @since 0.1.0
 module Language.Ninja.Misc.Annotated
@@ -38,16 +39,51 @@ import qualified Control.Lens as Lens
 
 --------------------------------------------------------------------------------
 
--- | FIXME: doc
+-- | If you have some type that represents an AST node, it is often useful to
+--   add a polymorphic "annotation field" to it, which is used for things like
+--   source positions.
+--
+--   Specifically, suppose we have the following AST node type:
+--
+--   @data Foo = Foo { _fooBar :: !Bar, _fooBaz :: !Baz } deriving (…)@
+--
+--   Then an annotation field is added by the following process:
+--
+--   1. Add an extra (final) type parameter @ann@ to the type.
+--   2. Add an extra field @_fooAnn :: !ann@.
+--   3. Derive instances of 'Functor', 'Foldable', and 'Traversable'.
+--   4. If the type is recursive, add a 'Lens.Plated' instance.
+--      See "Language.Ninja.AST.Expr" for a complete example of this.
+--   5. Write an 'Annotated' instance with the canonical lens given by the
+--      @_fooAnn@ field. There are plenty of examples around this library.
+--
+--   The end result then looks like:
+--
+--   > data Foo ann
+--   >   = Foo
+--   >     { _fooAnn :: !ann
+--   >     , _fooBar :: !Bar
+--   >     , _fooBaz :: !Baz
+--   >     }
+--   >   deriving (…, Functor, Foldable, Traversable)
+--   >
+--   > instance Annotated Foo where
+--   >   annotation' = …
 --
 --   @since 0.1.0
 class (Functor ty) => Annotated (ty :: * -> *) where
-  -- | FIXME: doc
+  -- | Given a function that is used when 'fmap'ing any subterms, return a lens
+  --   into the "annotation" field.
+  --
+  --   When writing an instance, keep in mind that @'annotation'' id@ should
+  --   just be the typical definition for a lens into the annotation field.
+  --
+  --   prop> annotation' (f . g) == annotation' f . annotation' g
   --
   --   @since 0.1.0
   annotation' :: (ann -> ann') -> Lens.Lens (ty ann) (ty ann') ann ann'
 
--- | FIXME: doc
+-- | This is just shorthand for @'annotation'' id@.
 --
 --   @since 0.1.0
 annotation :: (Annotated ty) => Lens.Lens' (ty ann) ann
