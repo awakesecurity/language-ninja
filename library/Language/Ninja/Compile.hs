@@ -64,7 +64,7 @@ import           Data.Hashable             (Hashable)
 import qualified Data.Versions             as Ver
 
 import qualified Language.Ninja.AST        as AST
-import qualified Language.Ninja.Errors     as Err
+import qualified Language.Ninja.Errors     as Errors
 import qualified Language.Ninja.IR         as IR
 import qualified Language.Ninja.Misc       as Misc
 
@@ -73,7 +73,7 @@ import qualified Language.Ninja.Misc       as Misc
 -- | Compile an parsed Ninja file into a intermediate representation.
 --
 --   @since 0.1.0
-compile :: forall m ann. (MonadError Err.CompileError m)
+compile :: forall m ann. (MonadError Errors.CompileError m)
         => AST.Ninja ann -> m IR.Ninja
 compile ast = result
   where
@@ -100,7 +100,7 @@ compile ast = result
 
       let parseVersion :: Text -> m Ver.Version
           parseVersion = Ver.version
-                         .> either Err.throwVersionParseFailure pure
+                         .> either Errors.throwVersionParseFailure pure
 
       reqversion <- getSpecial "ninja_required_version"
                     |> fmap parseVersion
@@ -160,10 +160,10 @@ compile ast = result
     compilePool :: (Text, Int) -> m IR.Pool
     compilePool pair = case pair of
       ("console", 1) -> pure IR.makePoolConsole
-      ("console", d) -> Err.throwInvalidPoolDepth d
-      ("",        _) -> Err.throwEmptyPoolName
+      ("console", d) -> Errors.throwInvalidPoolDepth d
+      ("",        _) -> Errors.throwEmptyPoolName
       (name,      d) -> do dp <- Misc.makePositive d
-                                 |> maybe (Err.throwInvalidPoolDepth d) pure
+                                 |> maybe (Errors.throwInvalidPoolDepth d) pure
                            pure (IR.makePoolCustom name dp)
 
     compileRule :: (HashSet IR.Output, AST.Build ann) -> m IR.Rule
@@ -171,7 +171,7 @@ compile ast = result
       (name, ruleAST) <- lookupRule buildAST
 
       let orLookupError :: Text -> Maybe a -> m a
-          orLookupError var = maybe (Err.throwRuleLookupFailure var) pure
+          orLookupError var = maybe (Errors.throwRuleLookupFailure var) pure
 
       let env = computeRuleEnv (outputs, buildAST) ruleAST
 
@@ -214,10 +214,10 @@ compile ast = result
     compileSpecialDeps = (\case (Nothing,     _) -> pure Nothing
                                 (Just "gcc",  m) -> goGCC  m
                                 (Just "msvc", m) -> goMSVC m
-                                (Just d,      _) -> Err.throwUnknownDeps d)
+                                (Just d,      _) -> Errors.throwUnknownDeps d)
       where
         goGCC  Nothing  = pure (Just IR.makeSpecialDepsGCC)
-        goGCC  (Just _) = Err.throwUnexpectedMSVCPrefix "gcc"
+        goGCC  (Just _) = Errors.throwUnexpectedMSVCPrefix "gcc"
 
         goMSVC (Just m) = pure (Just (IR.makeSpecialDepsMSVC m))
         goMSVC Nothing  = pure (Just (IR.makeSpecialDepsMSVC defaultPrefix))
@@ -249,7 +249,7 @@ compile ast = result
     lookupRule buildAST = do
       let name = Lens.view AST.buildRule buildAST
       ruleAST <- HM.lookup name rulesAST
-                 |> maybe (Err.throwBuildRuleNotFound name) pure
+                 |> maybe (Errors.throwBuildRuleNotFound name) pure
       pure (name, ruleAST)
 
     computeRuleEnv :: (HashSet IR.Output, AST.Build ann)

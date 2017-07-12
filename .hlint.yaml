@@ -1,0 +1,48 @@
+- modules:
+    - {name: [Data.Set],                    as: Set}
+    - {name: [Data.Map.Strict],             as: Map}
+    - {name: [Data.Map.Lazy],               as: LMap}
+    - {name: [Data.HashSet],                as: HS}
+    - {name: [Data.HashMap.Strict],         as: HM}
+    - {name: [Data.HashMap.Lazy],           as: LHM}
+    - {name: [Data.Text],                   as: Text}
+    - {name: [Data.Text.Lazy],              as: LText}
+    - {name: [Data.ByteString],             as: BS}
+    - {name: [Data.ByteString.Char8],       as: BSC8}
+    - {name: [Data.ByteString.Lazy],        as: LBS}
+    - {name: [Data.ByteString.Lazy.Char8],  as: LBSC8}
+    - {name: [Data.Aeson],                  as: Aeson}
+    - {name: [Data.Aeson.Types],            as: Aeson}
+    - {name: [Control.Lens],                as: Lens}
+
+    - {name: [Language.Ninja.AST],          as: AST}
+    - {name: [Language.Ninja.Compile],      as: Compile}
+    - {name: [Language.Ninja.Errors],       as: Errors}
+    - {name: [Language.Ninja.IR],           as: IR}
+    - {name: [Language.Ninja.Lexer],        as: Lexer}
+    - {name: [Language.Ninja.Misc],         as: Misc}
+    - {name: [Language.Ninja.Mock],         as: Mock}
+    - {name: [Language.Ninja.Parser],       as: Parser}
+    - {name: [Language.Ninja.Pretty],       as: Pretty}
+
+    - {name: [Language.Ninja.AST],          as: Ninja.AST}
+    - {name: [Language.Ninja.Compile],      as: Ninja}
+    - {name: [Language.Ninja.Errors],       as: Ninja.Errors}
+    - {name: [Language.Ninja.IR],           as: Ninja.IR}
+    - {name: [Language.Ninja.Lexer],        as: Ninja}
+    - {name: [Language.Ninja.Misc],         as: Ninja}
+    - {name: [Language.Ninja.Mock],         as: Ninja}
+    - {name: [Language.Ninja.Parser],       as: Ninja}
+    - {name: [Language.Ninja.Pretty],       as: Ninja}
+
+- functions:
+    - {name: unsafePerformIO, within: [Tests.ReferenceLexer.Str0]}
+    
+- warn: {name: Use explicit module export list}
+
+- ignore: {name: Redundant bracket}
+- ignore: {name: Redundant do}
+- ignore: {name: Redundant lambda}
+- ignore: {name: Avoid lambda}
+- ignore: {name: Use ||}
+- ignore: {name: Use uncurry}

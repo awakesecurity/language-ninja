@@ -123,7 +123,7 @@ import qualified Test.SmallCheck.Series    as SC
 import           GHC.Exts                  (Constraint)
 
 import qualified Language.Ninja.AST        as AST
-import qualified Language.Ninja.Errors     as Err
+import qualified Language.Ninja.Errors     as Errors
 import qualified Language.Ninja.Misc       as Misc
 import qualified Language.Ninja.Mock       as Mock
 
@@ -549,36 +549,36 @@ type LBuildConstraint (c :: * -> Constraint) (ann :: *) = (c Text, c ann)
 -- | Lex the given file.
 --
 --   @since 0.1.0
-lexerFile :: (MonadError Err.ParseError m, Mock.MonadReadFile m)
+lexerFile :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
           => Misc.Path -> m [Lexeme Ann]
 lexerFile file = Mock.readFile file >>= lexerText' (Just file)
 
 -- | Lex the given 'Text'.
 --
 --   @since 0.1.0
-lexerText :: (MonadError Err.ParseError m) => Text -> m [Lexeme Ann]
+lexerText :: (MonadError Errors.ParseError m) => Text -> m [Lexeme Ann]
 lexerText = lexerText' Nothing
 
 -- | Lex the given 'BSC8.ByteString'.
 --
 --   @since 0.1.0
-lexerBS :: (MonadError Err.ParseError m) => ByteString -> m [Lexeme Ann]
+lexerBS :: (MonadError Errors.ParseError m) => ByteString -> m [Lexeme Ann]
 lexerBS = lexerBS' Nothing
 
 -- | Lex the given 'Text' that comes from the given 'Misc.Path', if provided.
 --
 --   @since 0.1.0
-lexerText' :: (MonadError Err.ParseError m)
+lexerText' :: (MonadError Errors.ParseError m)
            => Maybe Misc.Path -> Text -> m [Lexeme Ann]
 lexerText' mp x = let file = fromMaybe "" (Lens.view Misc.pathString <$> mp)
                   in M.runParserT lexemesP file x
-                     >>= either Err.throwLexParsecError pure
+                     >>= either Errors.throwLexParsecError pure
 
 -- | Lex the given 'ByteString' that comes from the given 'Misc.Path', if it is
 --   provided. The 'Misc.Path' is only used for error messages.
 --
 --   @since 0.1.0
-lexerBS' :: (MonadError Err.ParseError m)
+lexerBS' :: (MonadError Errors.ParseError m)
          => Maybe Misc.Path -> ByteString -> m [Lexeme Ann]
 lexerBS' mpath = Text.decodeUtf8 .> lexerText' mpath
 

@@ -57,7 +57,7 @@ import           Flow                        ((.>), (|>))
 import qualified GHC
 import qualified Outputable                  as GHC
 
-import qualified Data.Map.Lazy               as Map
+import qualified Data.Map.Lazy               as LMap
 
 import qualified Data.Text                   as Text
 
@@ -188,7 +188,7 @@ deconstruct :: H.InstalledInterface -> [(Ident, H.MDoc Ident)]
 deconstruct iface
   = (catMaybes $ runIdentity $ forM exports
      $ \name -> do let ident = toIdent name
-                   Map.lookup name docmap
+                   LMap.lookup name docmap
                      |> fmap (\doc -> (ident, toIdent <$> doc))
                      |> pure)
     -- maybe (fail ("could not find: " <> printIdent ident)) pure

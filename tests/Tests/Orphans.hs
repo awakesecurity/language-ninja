@@ -112,8 +112,9 @@ instance (Monad m) => SC.Serial m Ver.Version where
   series = foldr1 (\/) (map pure testVersions)
 
 instance (Monad m, SC.CoSerial m Ver.VUnit) => SC.CoSerial m Ver.Version where
-  coseries = SC.coseries
-             .> fmap (\f -> \(Ver.Version {..}) -> f (_vEpoch, _vChunks, _vRel))
+  coseries = SC.coseries .> fmap (\f -> toTuple .> f)
+    where
+      toTuple (Ver.Version {..}) = (_vEpoch, _vChunks, _vRel)
 
 instance (Monad m) => SC.CoSerial m Ver.VUnit where
   coseries = SC.coseries
@@ -182,4 +183,3 @@ testVersions = [ "0.1.0"
     fromRight (Right b) = b
 
 --------------------------------------------------------------------------------
-

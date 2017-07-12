@@ -55,7 +55,7 @@ module Language.Ninja.Tutorial
 
 import qualified Language.Ninja.AST        as AST
 import qualified Language.Ninja.Compile    as Compile
-import qualified Language.Ninja.Errors     as Err
+import qualified Language.Ninja.Errors     as Errors
 import qualified Language.Ninja.IR         as IR
 import qualified Language.Ninja.Lexer      as Lexer
 import qualified Language.Ninja.Misc       as Misc
@@ -93,7 +93,7 @@ import           Data.Versions             (Version)
 -- @
 -- import qualified "Language.Ninja.AST"        as AST
 -- import qualified "Language.Ninja.IR"         as IR
--- import qualified "Language.Ninja.Errors"     as Err
+-- import qualified "Language.Ninja.Errors"     as Errors
 -- import qualified "Language.Ninja.Misc"       as Misc
 -- import qualified "Language.Ninja.Mock"       as Mock
 -- import qualified "Language.Ninja.Lexer"      as Lexer
@@ -239,16 +239,16 @@ import           Data.Versions             (Version)
 -- In the simplest case, this looks like:
 --
 -- @
--- let handleError :: Either Err.'Err.CompileError' a -> IO a
+-- let handleError :: Either Errors.'Errors.CompileError' a -> IO a
 --     handleError = 'either' ('fail' . 'show') 'pure'
 -- ir <- handleError (Compile.'Compile.compile' ast)
 -- @
 --
 -- Since @Compile.'Compile.compile'@ returns in any monad with an instance
--- of @'MonadError' Err.'Err.CompileError'@, it is quite flexible.
+-- of @'MonadError' Errors.'Errors.CompileError'@, it is quite flexible.
 --
 -- For simplicity in this case, however, we use
--- @Either Err.'Err.CompileError' AST.'AST.Ninja'@
+-- @Either Errors.'Errors.CompileError' AST.'AST.Ninja'@
 -- and convert to @IO@ by calling 'fail' when it fails.
 
 --------------------------------------------------------------------------------
