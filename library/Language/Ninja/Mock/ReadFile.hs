@@ -28,11 +28,12 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   A typeclass exposing an interface that allows reading a file from a
+--   filesystem (virtual or otherwise).
 --
 --   @since 0.1.0
 module Language.Ninja.Mock.ReadFile
-  ( module Language.Ninja.Mock.ReadFile -- FIXME: specific export list
+  ( MonadReadFile (..)
   ) where
 
 import           Prelude                   hiding (readFile)
@@ -52,22 +53,29 @@ import           Flow                      ((.>))
 
 -- Remember: we have imported Prelude hiding 'readFile'.
 
--- | FIXME: doc
+-- | This typeclass allows you to write code that reads files from the
+--   filesystem and then later run that code purely against a virtual filesystem
+--   of some description.
 --
 --   @since 0.1.0
 class (Monad m) => MonadReadFile m where
-  -- | FIXME: doc
+  {-# MINIMAL readFile #-}
+
+  -- | Read the file located at the given path and decode it into 'Text'.
+  --
+  --   FIXME: some notion of error handling should be encoded into the type
   --
   --   @since 0.1.0
   readFile :: Path -> m Text
 
--- | FIXME: doc
+-- | The obvious instance for 'IO'.
 --
 --   @since 0.1.0
 instance MonadReadFile IO where
   readFile = Lens.view pathString .> Text.readFile
 
--- | FIXME: doc
+-- | A placeholder (undecidable) instance that allows this constraint to
+--   propagate through monad transformers without needing to 'lift' manually.
 --
 --   @since 0.1.0
 instance ( MonadTrans t, Monad (t m), MonadReadFile m
