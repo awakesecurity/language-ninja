@@ -52,7 +52,7 @@ import           Control.Arrow               ((&&&))
 import           Control.Monad               (forM)
 
 import           Data.Functor.Identity       (runIdentity)
-import           Data.Maybe                  (catMaybes, isJust, mapMaybe)
+import           Data.Maybe                  (catMaybes, isJust)
 import           Data.Monoid                 ((<>))
 
 import           Flow                        ((.>), (|>))
@@ -160,14 +160,14 @@ lintInterfaceFile options cn
       let ifaceName = H.instMod iface
                       |> GHC.moduleName
                       |> GHC.moduleNameString
-      Test.testGroup ifaceName (mapMaybe (checkSince options) xs)
+      Test.testGroup ifaceName (map (checkSince options) xs)
 
-checkSince :: LintHaddockOptions -> (Ident, H.MDoc Ident) -> Maybe Test.TestTree
+checkSince :: LintHaddockOptions -> (Ident, H.MDoc Ident) -> Test.TestTree
 checkSince options (ident, mdoc)
   = if qname `elem` sinceExceptions options
-    then Nothing
-    else Just (Test.testCase name
-               (Test.assertBool message (hasSince mdoc)))
+    then (Test.testCaseInfo name (pure (qname <> " is in exceptions list")))
+    else (Test.testCase name
+          (Test.assertBool message (hasSince mdoc)))
   where
     name = printIdentName ident
     qname = printIdent ident
