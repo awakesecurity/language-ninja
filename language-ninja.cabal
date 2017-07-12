@@ -91,8 +91,6 @@ library
     ghc-options:          -Wall -g -O0
                           -fno-warn-type-defaults
                           -fno-warn-unused-do-bind
-                          -- FIXME: remove all unused imports
-                          -fno-warn-unused-imports
 
 test-suite tests
     type:                 exitcode-stdio-1.0
@@ -142,7 +140,7 @@ test-suite tests
     default-language:     Haskell2010
     other-extensions:     OverloadedStrings
                           -- FIXME: add the rest of the extensions used
-    ghc-options:          -fhpc -threaded -g -Wall -O0
+    ghc-options:          -threaded -g -Wall -O0
 
 executable ninja2nix
     hs-source-dirs:       executables
