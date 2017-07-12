@@ -69,43 +69,34 @@ module Tests.ReferenceLexer
   , LBuild (..)
   ) where
 
-import           Control.Arrow              (first)
-import           Control.Monad.Error.Class  (MonadError (..))
+import           Control.Arrow             (first)
+import           Control.Monad.Error.Class (MonadError (..))
 
-import qualified Data.ByteString.Char8      as BSC8
-import qualified Data.ByteString.Internal   as BS.Internal
-import qualified Data.ByteString.Unsafe     as BS.Unsafe
+import qualified Data.ByteString.Char8     as BSC8
 
-import qualified Data.ByteString.Lazy       as LBS
-import qualified Data.ByteString.Lazy.Char8 as LBSC8
+import           Data.Text                 (Text)
+import qualified Data.Text                 as Text
+import qualified Data.Text.Encoding        as Text
 
-import           Data.Text                  (Text)
-import qualified Data.Text                  as Text
-import qualified Data.Text.Encoding         as Text
+import           Data.Char                 (isAsciiLower, isAsciiUpper, isDigit)
 
-import           Data.Char
-                 (isAsciiLower, isAsciiUpper, isDigit)
+import           Flow                      ((.>), (|>))
 
-import           Flow                       ((.>), (|>))
+import           Language.Ninja.AST        (Str)
 
-import           Data.Aeson                 ((.:), (.=))
-import qualified Data.Aeson                 as Aeson
+import qualified Language.Ninja.AST        as AST
+import qualified Language.Ninja.Errors     as Err
+import qualified Language.Ninja.Misc       as Misc
+import qualified Language.Ninja.Mock       as Mock
 
-import           Language.Ninja.AST         (Str)
+import           Language.Ninja.Lexer      (LBuild (..), makeLBuild)
+import           Language.Ninja.Lexer      (LFile (..))
+import           Language.Ninja.Lexer      (LName (..))
+import           Language.Ninja.Lexer      (LBind (..))
+import           Language.Ninja.Lexer      (Lexeme (..))
 
-import qualified Language.Ninja.AST         as AST
-import qualified Language.Ninja.Errors      as Err
-import qualified Language.Ninja.Misc        as Misc
-import qualified Language.Ninja.Mock        as Mock
-
-import           Language.Ninja.Lexer       (LBuild (..), makeLBuild)
-import           Language.Ninja.Lexer       (LFile (..))
-import           Language.Ninja.Lexer       (LName (..))
-import           Language.Ninja.Lexer       (LBind (..))
-import           Language.Ninja.Lexer       (Lexeme (..))
-
-import           Tests.ReferenceLexer.Str0  (Str0 (..))
-import qualified Tests.ReferenceLexer.Str0  as Str0
+import           Tests.ReferenceLexer.Str0 (Str0 (..))
+import qualified Tests.ReferenceLexer.Str0 as Str0
 
 --------------------------------------------------------------------------------
 

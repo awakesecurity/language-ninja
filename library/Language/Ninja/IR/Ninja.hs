@@ -48,11 +48,7 @@ module Language.Ninja.IR.Ninja
   , NinjaConstraint
   ) where
 
-import           Language.Ninja.IR.Build  (Build)
-import           Language.Ninja.IR.Meta   (Meta)
-import qualified Language.Ninja.IR.Meta   as Ninja
-import           Language.Ninja.IR.Pool   (Pool)
-import           Language.Ninja.IR.Target (Target)
+import qualified Control.Lens             as Lens
 
 import           Data.Text                (Text)
 
@@ -62,8 +58,7 @@ import qualified Data.HashMap.Strict      as HM
 import           Data.HashSet             (HashSet)
 import qualified Data.HashSet             as HS
 
-import           Data.Aeson
-                 (FromJSON, KeyValue (..), ToJSON, (.:))
+import           Data.Aeson               ((.:), (.=))
 import qualified Data.Aeson               as Aeson
 
 import qualified Data.Versions            as Ver
@@ -75,8 +70,11 @@ import qualified Test.SmallCheck.Series   as SC
 
 import           GHC.Exts                 (Constraint)
 
-import qualified Control.Lens
-import           Control.Lens.Lens        (Lens')
+import           Language.Ninja.IR.Build  (Build)
+import           Language.Ninja.IR.Meta   (Meta)
+import qualified Language.Ninja.IR.Meta   as Ninja
+import           Language.Ninja.IR.Pool   (Pool)
+import           Language.Ninja.IR.Target (Target)
 
 import           Flow                     ((|>))
 
@@ -112,16 +110,16 @@ makeNinja = MkNinja
 --
 --   @since 0.1.0
 {-# INLINE ninjaMeta #-}
-ninjaMeta :: Lens' Ninja Meta
-ninjaMeta = Control.Lens.lens _ninjaMeta
+ninjaMeta :: Lens.Lens' Ninja Meta
+ninjaMeta = Lens.lens _ninjaMeta
             $ \(MkNinja {..}) x -> MkNinja { _ninjaMeta = x, .. }
 
 -- | Compiled @build@ declarations.
 --
 --   @since 0.1.0
 {-# INLINE ninjaBuilds #-}
-ninjaBuilds :: Lens' Ninja (HashSet Build)
-ninjaBuilds = Control.Lens.lens _ninjaBuilds
+ninjaBuilds :: Lens.Lens' Ninja (HashSet Build)
+ninjaBuilds = Lens.lens _ninjaBuilds
               $ \(MkNinja {..}) x -> MkNinja { _ninjaBuilds = x, .. }
 
 -- | Phony targets, as documented
@@ -129,8 +127,8 @@ ninjaBuilds = Control.Lens.lens _ninjaBuilds
 --
 --   @since 0.1.0
 {-# INLINE ninjaPhonys #-}
-ninjaPhonys :: Lens' Ninja (HashMap Target (HashSet Target))
-ninjaPhonys = Control.Lens.lens _ninjaPhonys
+ninjaPhonys :: Lens.Lens' Ninja (HashMap Target (HashSet Target))
+ninjaPhonys = Lens.lens _ninjaPhonys
               $ \(MkNinja {..}) x -> MkNinja { _ninjaPhonys = x, .. }
 
 -- | The set of default targets, as documented
@@ -138,22 +136,22 @@ ninjaPhonys = Control.Lens.lens _ninjaPhonys
 --
 --   @since 0.1.0
 {-# INLINE ninjaDefaults #-}
-ninjaDefaults :: Lens' Ninja (HashSet Target)
-ninjaDefaults = Control.Lens.lens _ninjaDefaults
+ninjaDefaults :: Lens.Lens' Ninja (HashSet Target)
+ninjaDefaults = Lens.lens _ninjaDefaults
                 $ \(MkNinja {..}) x -> MkNinja { _ninjaDefaults = x, .. }
 
 -- | The set of pools for this Ninja file.
 --
 --   @since 0.1.0
 {-# INLINE ninjaPools #-}
-ninjaPools :: Lens' Ninja (HashSet Pool)
-ninjaPools = Control.Lens.lens _ninjaPools
+ninjaPools :: Lens.Lens' Ninja (HashSet Pool)
+ninjaPools = Lens.lens _ninjaPools
              $ \(MkNinja {..}) x -> MkNinja { _ninjaPools = x, .. }
 
 -- | Converts to @{meta: …, builds: …, phonys: …, defaults: …, pools: …}@.
 --
 --   @since 0.1.0
-instance ToJSON Ninja where
+instance Aeson.ToJSON Ninja where
   toJSON (MkNinja {..})
     = [ "meta"     .= _ninjaMeta
       , "builds"   .= _ninjaBuilds
@@ -162,10 +160,10 @@ instance ToJSON Ninja where
       , "pools"    .= _ninjaPools
       ] |> Aeson.object
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance FromJSON Ninja where
+instance Aeson.FromJSON Ninja where
   parseJSON = (Aeson.withObject "Ninja" $ \o -> do
                   _ninjaMeta     <- (o .: "meta")     >>= pure
                   _ninjaBuilds   <- (o .: "builds")   >>= pure

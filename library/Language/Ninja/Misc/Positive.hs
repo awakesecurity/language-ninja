@@ -43,19 +43,17 @@ module Language.Ninja.Misc.Positive
 
 import           Control.Applicative    (empty)
 
-import           Data.Text              (Text)
+import qualified Control.Lens.Getter    as Lens
 
-import           Data.Aeson             as Aeson
+import qualified Data.Aeson             as Aeson
 
 import           Control.DeepSeq        (NFData)
 import           Data.Hashable          (Hashable)
 import           GHC.Generics           (Generic)
-import           Test.SmallCheck        as SC
-import           Test.SmallCheck.Series as SC hiding (Positive (..))
 
-import           Control.Lens.Getter
+import qualified Test.SmallCheck.Series as SC
 
-import           Flow
+import           Flow                   ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
@@ -68,7 +66,7 @@ newtype Positive
     }
   deriving ( Eq, Ord, Real, Integral, Enum, Show, Read, Generic
            , Hashable, NFData
-           , ToJSON, FromJSON )
+           , Aeson.ToJSON, Aeson.FromJSON )
 
 -- | This instance uses 'error' to preserve the 'Positive' invariant.
 --
@@ -93,12 +91,12 @@ makePositive :: Int -> Maybe Positive
 makePositive i | i > 0     = Just (MkPositive i)
                | otherwise = Nothing
 
--- | A 'Getter' for the 'Int' underlying a 'Positive'.
+-- | A 'Lens.Getter' for the 'Int' underlying a 'Positive'.
 --
 --   @since 0.1.0
 {-# INLINE fromPositive #-}
-fromPositive :: Getter Positive Int
-fromPositive = to _fromPositive
+fromPositive :: Lens.Getter Positive Int
+fromPositive = Lens.to _fromPositive
 
 -- | Uses the underlying 'Int' instance.
 --
@@ -113,6 +111,6 @@ instance (Monad m) => SC.Serial m Positive where
 --
 --   @since 0.1.0
 instance (Monad m) => SC.CoSerial m Positive where
-  coseries = coseries .> fmap (\f -> _fromPositive .> f)
+  coseries = SC.coseries .> fmap (\f -> _fromPositive .> f)
 
 --------------------------------------------------------------------------------

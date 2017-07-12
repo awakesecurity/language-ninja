@@ -46,7 +46,9 @@
 --   @since 0.1.0
 module Language.Ninja.Misc.Located
   ( -- * @Located@
-    Located, tokenize, tokenizeFile, tokenizeText
+    Located
+  , tokenize, tokenizeFile, tokenizeText
+  , untokenize
   , locatedPos, locatedVal
 
     -- * @Spans@
@@ -70,9 +72,6 @@ module Language.Ninja.Misc.Located
 import           Control.Arrow            (second, (&&&), (***))
 
 import qualified Control.Lens             as Lens
-import           Control.Lens.Getter      ((^.))
-import           Control.Lens.Lens        (Lens')
-import           Control.Lens.Tuple       (_1, _2)
 
 import           Control.Monad.ST         (ST)
 import qualified Control.Monad.ST         as ST
@@ -84,16 +83,12 @@ import qualified Data.Maybe
 import           Data.Semigroup           (Semigroup (..))
 
 import           Data.Text                (Text)
-import qualified Data.Text                as T
-import qualified Data.Text.IO             as T
+import qualified Data.Text                as Text
 
 import           Data.HashSet             (HashSet)
 import qualified Data.HashSet             as HS
 
 import           Data.Map.Strict          (Map)
-import qualified Data.Map.Strict          as Map
-
-import qualified Data.List.NonEmpty       as NE
 
 import           Control.DeepSeq          (NFData)
 import           Data.Hashable            (Hashable)
@@ -101,15 +96,13 @@ import           GHC.Generics             (Generic)
 
 import qualified Test.SmallCheck.Series   as SC
 
-import           Data.Aeson
-                 (FromJSON (..), KeyValue (..), ToJSON (..), (.:))
+import           Data.Aeson               ((.:), (.=))
 import qualified Data.Aeson               as Aeson
-import qualified Data.Aeson.Types         as Aeson
 
 import           Flow                     ((.>), (|>))
 
-import           Language.Ninja.Misc.Path (Path)
-import qualified Language.Ninja.Misc.Path as Ninja
+import qualified Language.Ninja.Misc.Path as Misc
+import qualified Language.Ninja.Mock      as Mock
 
 --------------------------------------------------------------------------------
 
@@ -130,22 +123,23 @@ data Located t
 makeLocated :: Position -> t -> Located t
 makeLocated = MkLocated
 
--- | Given @path :: Maybe Path@ and a @text :: Text@, do the following:
+-- | Given @path :: 'Maybe' 'Misc.Path'@ and a @text :: 'Text'@, do the
+--   following:
+--
 --   * Remove all @'\r'@ characters from the @text@.
 --   * Split the @text@ into chunks that are guaranteed not to contain newlines
 --     or whitespace, and which are annotated with their location.
 --
 --   @since 0.1.0
-tokenize :: Maybe Path -> Text -> [Located Text]
+tokenize :: Maybe Misc.Path -> Text -> [Located Text]
 tokenize mpath = removeWhitespace (mpath, 0, 0)
 
--- | Read the file at the given 'Path' and then run 'tokenize' on the
+-- | Read the file at the given 'Misc.Path' and then run 'tokenize' on the
 --   resulting 'Text'.
 --
 --   @since 0.1.0
-tokenizeFile :: Path -> IO [Located Text]
-tokenizeFile path = tokenize (Just path)
-                    <$> T.readFile (T.unpack (path ^. Ninja.pathText))
+tokenizeFile :: (Mock.MonadReadFile m) => Misc.Path -> m [Located Text]
+tokenizeFile path = tokenize (Just path) <$> Mock.readFile path
 
 -- | This function is equivalent to @tokenize Nothing@.
 --
@@ -155,15 +149,17 @@ tokenizeText = tokenize Nothing
 
 -- | FIXME: doc
 --
+--   FIXME: implement
+--
 --   @since 0.1.0
-untokenize :: [Located Text] -> Map Path Text
-untokenize = undefined -- FIXME: implement
+untokenize :: [Located Text] -> Map Misc.Path Text
+untokenize = error "Language.Ninja.Misc.Located.untokenize is not yet written"
 
 -- | The position of this located value.
 --
 --   @since 0.1.0
 {-# INLINE locatedPos #-}
-locatedPos :: Lens' (Located t) Position
+locatedPos :: Lens.Lens' (Located t) Position
 locatedPos = Lens.lens _locatedPos
              $ \(MkLocated {..}) x -> MkLocated { _locatedPos = x, .. }
 
@@ -171,23 +167,23 @@ locatedPos = Lens.lens _locatedPos
 --
 --   @since 0.1.0
 {-# INLINE locatedVal #-}
-locatedVal :: Lens' (Located t) t
+locatedVal :: Lens.Lens' (Located t) t
 locatedVal = Lens.lens _locatedVal
              $ \(MkLocated {..}) x -> MkLocated { _locatedVal = x, .. }
 
 -- | Converts to @{position: …, value: …}@.
 --
 --   @since 0.1.0
-instance (ToJSON t) => ToJSON (Located t) where
+instance (Aeson.ToJSON t) => Aeson.ToJSON (Located t) where
   toJSON (MkLocated {..})
     = [ "pos" .= _locatedPos
       , "val" .= _locatedVal
       ] |> Aeson.object
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance (FromJSON t) => FromJSON (Located t) where
+instance (Aeson.FromJSON t) => Aeson.FromJSON (Located t) where
   parseJSON = (Aeson.withObject "Located" $ \o -> do
                   _locatedPos <- (o .: "pos") >>= pure
                   _locatedVal <- (o .: "val") >>= pure
@@ -223,7 +219,7 @@ instance ( Monad m, SC.CoSerial m Text, SC.CoSerial m t
 newtype Spans
   = MkSpans (HashSet Span)
   deriving ( Eq, Show, Semigroup, Monoid
-           , Generic, ToJSON, FromJSON
+           , Generic, Aeson.ToJSON, Aeson.FromJSON
            , Hashable, NFData )
 
 -- | FIXME: doc
@@ -256,14 +252,14 @@ instance (Monad m, SC.CoSerial m (HashSet Span)) => SC.CoSerial m Spans
 --
 --   @since 0.1.0
 data Span
-  = MkSpan !(Maybe Path) !Offset !Offset
+  = MkSpan !(Maybe Misc.Path) !Offset !Offset
   deriving (Eq, Show, Generic)
 
 -- | Construct a 'Span' from a given start position to a given end position.
 --
 --   @since 0.1.0
 {-# INLINE makeSpan #-}
-makeSpan :: Maybe Path
+makeSpan :: Maybe Misc.Path
          -- ^ The file in which this span resides, if any.
          -> Offset
          -- ^ The start offset.
@@ -278,7 +274,7 @@ makeSpan mpath start end = case compareOffset start end of
 --
 --   @since 0.1.0
 {-# INLINE spanPath #-}
-spanPath :: Lens.Lens' Span (Maybe Path)
+spanPath :: Lens.Lens' Span (Maybe Misc.Path)
 spanPath = let helper (MkSpan p s e) = (p, \x -> MkSpan x s e)
            in Lens.lens (helper .> fst) (helper .> snd)
 
@@ -295,31 +291,31 @@ spanRange = let helper (MkSpan p s e) = ((s, e), \(s', e') -> MkSpan p s' e')
 --   @since 0.1.0
 {-# INLINE spanStart #-}
 spanStart :: Lens.Lens' Span Offset
-spanStart = spanRange . _1
+spanStart = spanRange . Lens._1
 
 -- | FIXME: doc
 --
 --   @since 0.1.0
 {-# INLINE spanEnd #-}
 spanEnd :: Lens.Lens' Span Offset
-spanEnd = spanRange . _2
+spanEnd = spanRange . Lens._2
 
 -- | Converts to @{file: …, start: …, end: …}@.
 --
 --   @since 0.1.0
-instance ToJSON Span where
+instance Aeson.ToJSON Span where
   toJSON (MkSpan file start end)
-    = [ "file"  .= maybe Aeson.Null toJSON file
+    = [ "file"  .= maybe Aeson.Null Aeson.toJSON file
       , "start" .= offsetJ start
       , "end"   .= offsetJ end
       ] |> Aeson.object
     where
       offsetJ (line, col) = Aeson.object ["line" .= line, "col" .= col]
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance FromJSON Span where
+instance Aeson.FromJSON Span where
   parseJSON = (Aeson.withObject "Span" $ \o -> do
                   file  <- (o .: "file")  >>= pure
                   start <- (o .: "start") >>= offsetP
@@ -358,7 +354,7 @@ instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Span
 --   @since 0.1.0
 data Position
   = MkPosition
-    { _positionFile ::                !(Maybe Path)
+    { _positionFile ::                !(Maybe Misc.Path)
     , _positionLine :: {-# UNPACK #-} !Line
     , _positionCol  :: {-# UNPACK #-} !Column
     }
@@ -368,14 +364,14 @@ data Position
 --
 --   @since 0.1.0
 {-# INLINE makePosition #-}
-makePosition :: Maybe Path -> Offset -> Position
+makePosition :: Maybe Misc.Path -> Offset -> Position
 makePosition file (line, column) = MkPosition file line column
 
 -- | The path of the file pointed to by this position, if any.
 --
 --   @since 0.1.0
 {-# INLINE positionFile #-}
-positionFile :: Lens' Position (Maybe Path)
+positionFile :: Lens.Lens' Position (Maybe Misc.Path)
 positionFile = Lens.lens _positionFile
                $ \(MkPosition {..}) x -> MkPosition { _positionFile = x, .. }
 
@@ -383,7 +379,7 @@ positionFile = Lens.lens _positionFile
 --
 --   @since 0.1.0
 {-# INLINE positionOffset #-}
-positionOffset :: Lens' Position Offset
+positionOffset :: Lens.Lens' Position Offset
 positionOffset
   = Lens.lens (_positionLine &&& _positionCol)
     $ \(MkPosition {..}) (line, col) ->
@@ -393,15 +389,15 @@ positionOffset
 --
 --   @since 0.1.0
 {-# INLINE positionLine #-}
-positionLine :: Lens' Position Line
-positionLine = positionOffset . _1
+positionLine :: Lens.Lens' Position Line
+positionLine = positionOffset . Lens._1
 
 -- | The column number in the line pointed to by this position.
 --
 --   @since 0.1.0
 {-# INLINE positionCol #-}
-positionCol :: Lens' Position Column
-positionCol = positionOffset . _2
+positionCol :: Lens.Lens' Position Column
+positionCol = positionOffset . Lens._2
 
 -- | FIXME: doc
 --
@@ -419,17 +415,17 @@ comparePosition = go
 -- | Converts to @{file: …, line: …, col: …}@.
 --
 --   @since 0.1.0
-instance ToJSON Position where
+instance Aeson.ToJSON Position where
   toJSON (MkPosition {..})
     = [ "file" .= _positionFile
       , "line" .= _positionLine
       , "col"  .= _positionCol
       ] |> Aeson.object
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance FromJSON Position where
+instance Aeson.FromJSON Position where
   parseJSON = (Aeson.withObject "Position" $ \o -> do
                   _positionFile <- (o .: "file") >>= pure
                   _positionLine <- (o .: "line") >>= pure
@@ -477,14 +473,14 @@ compareOffset (lineX, colX) (lineY, colY)
 --   @since 0.1.0
 {-# INLINE offsetLine #-}
 offsetLine :: Lens.Lens' Offset Line
-offsetLine = _1
+offsetLine = Lens._1
 
 -- | FIXME: doc
 --
 --   @since 0.1.0
 {-# INLINE offsetColumn #-}
 offsetColumn :: Lens.Lens' Offset Column
-offsetColumn = _2
+offsetColumn = Lens._2
 
 --------------------------------------------------------------------------------
 
@@ -530,18 +526,18 @@ chunksAddChar :: Char -> Chunks -> Chunks
 chunksAddChar '\n'             = chunksCons (ChunkLine 1)
 chunksAddChar '\r'             = id
 chunksAddChar c    | isSpace c = chunksCons (ChunkSpace 1)
-chunksAddChar c                = chunksCons (ChunkText (T.singleton c))
+chunksAddChar c                = chunksCons (ChunkText (Text.singleton c))
 
 --------------------------------------------------------------------------------
 
-removeWhitespace :: (Maybe Path, Line, Column) -> Text -> [Located Text]
+removeWhitespace :: (Maybe Misc.Path, Line, Column) -> Text -> [Located Text]
 removeWhitespace (file, initLine, initCol) =
   go .> Data.Maybe.catMaybes .> map makeLoc
   where
     go :: Text -> [Maybe (Line, Column, Text)]
     go text = ST.runST $ do
       ref <- ST.newSTRef (initLine, initCol)
-      T.foldr chunksAddChar chunksNil text
+      Text.foldr chunksAddChar chunksNil text
         |> fromChunks
         |> mapM (applyChunk ref)
 
@@ -553,7 +549,7 @@ removeWhitespace (file, initLine, initCol) =
       ChunkSpace n -> do ST.modifySTRef' ref (second (+ n))
                          pure Nothing
       ChunkText  t -> do (line, column) <- ST.readSTRef ref
-                         ST.modifySTRef' ref (second (+ T.length t))
+                         ST.modifySTRef' ref (second (+ Text.length t))
                          pure (Just (line, column, t))
 
     {-# INLINE makeLoc #-}

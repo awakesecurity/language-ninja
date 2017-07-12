@@ -42,53 +42,36 @@ module Language.Ninja.Compile
   ( compile
   ) where
 
-import           Control.Applicative        ((<|>))
-import           Control.Arrow              (first)
+import           Control.Applicative       ((<|>))
+import           Control.Arrow             (first)
 
-import           Control.Lens.Getter        (view, (^.))
-import           Control.Lens.Setter        (set, (.~))
+import qualified Control.Lens              as Lens
 
-import           Control.Exception          (Exception)
-import           Control.Monad.Error.Class  (MonadError (..))
+import           Control.Monad.Error.Class (MonadError (..))
 
-import           Data.Char                  (isSpace)
-import           Data.Functor               (void)
-import           Data.Maybe                 (fromMaybe, isJust)
-import           Data.Monoid                (Endo (..), (<>))
+import           Data.Char                 (isSpace)
+import           Data.Maybe                (fromMaybe, isJust)
+import           Data.Monoid               (Endo (..), (<>))
 
-import qualified Data.Aeson                 as Aeson
-import qualified Data.Aeson.Encode.Pretty   as Aeson
-import qualified Data.Aeson.Types           as Aeson
+import           Data.Text                 (Text)
+import qualified Data.Text                 as Text
 
-import           Data.ByteString            (ByteString)
-import qualified Data.ByteString            as BS
-import qualified Data.ByteString.Char8      as BSC8
+import           Data.HashMap.Strict       (HashMap)
+import qualified Data.HashMap.Strict       as HM
 
-import qualified Data.ByteString.Lazy       as LBS
-import qualified Data.ByteString.Lazy.Char8 as LBSC8
+import           Data.HashSet              (HashSet)
+import qualified Data.HashSet              as HS
 
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import qualified Data.Text.Encoding         as T
+import           Flow                      ((.>), (|>))
 
-import           Data.HashMap.Strict        (HashMap)
-import qualified Data.HashMap.Strict        as HM
+import           Data.Hashable             (Hashable)
 
-import           Data.HashSet               (HashSet)
-import qualified Data.HashSet               as HS
+import qualified Data.Versions             as Ver
 
-import           Flow                       ((.>), (|>))
-
-import           Data.Hashable              (Hashable)
-import           GHC.Generics               (Generic)
-
-import qualified Data.Versions              as Ver
-
-import qualified Language.Ninja.AST         as AST
-import qualified Language.Ninja.Errors      as Err
-import qualified Language.Ninja.IR          as IR
-import qualified Language.Ninja.Misc        as Misc
-import qualified Language.Ninja.Parser      as Parser
+import qualified Language.Ninja.AST        as AST
+import qualified Language.Ninja.Errors     as Err
+import qualified Language.Ninja.IR         as IR
+import qualified Language.Ninja.Misc       as Misc
 
 -------------------------------------------------------------------------------
 
@@ -108,17 +91,17 @@ compile ast = result
       pools    <- poolsM
 
       IR.makeNinja
-        |> IR.ninjaMeta     .~ meta
-        |> IR.ninjaBuilds   .~ builds
-        |> IR.ninjaPhonys   .~ phonys
-        |> IR.ninjaDefaults .~ defaults
-        |> IR.ninjaPools    .~ pools
+        |> Lens.set IR.ninjaMeta     meta
+        |> Lens.set IR.ninjaBuilds   builds
+        |> Lens.set IR.ninjaPhonys   phonys
+        |> Lens.set IR.ninjaDefaults defaults
+        |> Lens.set IR.ninjaPools    pools
         |> pure
 
     metaM :: m IR.Meta
     metaM = do
       let getSpecial :: Text -> Maybe Text
-          getSpecial name = HM.lookup name (ast ^. AST.ninjaSpecials)
+          getSpecial name = HM.lookup name (Lens.view AST.ninjaSpecials ast)
 
       let parseVersion :: Text -> m Ver.Version
           parseVersion = Ver.version
@@ -132,29 +115,29 @@ compile ast = result
                     |> pure
 
       IR.makeMeta
-        |> IR.metaReqVersion .~ reqversion
-        |> IR.metaBuildDir   .~ builddir
+        |> Lens.set IR.metaReqVersion reqversion
+        |> Lens.set IR.metaBuildDir   builddir
         |> pure
 
     buildsM :: m (HashSet IR.Build)
-    buildsM = (pmultiples <> onHM (first HS.singleton) psingles)
+    buildsM = (multiplesAST <> onHM (first HS.singleton) singlesAST)
               |> HM.toList |> mapM compileBuild |> fmap HS.fromList
 
     phonysM :: m (HashMap IR.Target (HashSet IR.Target))
-    phonysM = HM.toList pphonys |> mapM compilePhony |> fmap HM.fromList
+    phonysM = HM.toList phonysAST |> mapM compilePhony |> fmap HM.fromList
 
     defaultsM :: m (HashSet IR.Target)
-    defaultsM = HS.toList pdefaults |> mapM compileDefault |> fmap HS.fromList
+    defaultsM = HS.toList defaultsAST |> mapM compileDefault |> fmap HS.fromList
 
     poolsM :: m (HashSet IR.Pool)
-    poolsM = HM.toList ppools |> mapM compilePool |> fmap HS.fromList
+    poolsM = HM.toList poolsAST |> mapM compilePool |> fmap HS.fromList
 
     compileBuild :: (HashSet Text, AST.Build ann) -> m IR.Build
     compileBuild (outputs, buildAST) = do
-      let depsAST       = buildAST ^. AST.buildDeps
-      let normalDeps    = HS.toList (depsAST ^. AST.depsNormal)
-      let implicitDeps  = HS.toList (depsAST ^. AST.depsImplicit)
-      let orderOnlyDeps = HS.toList (depsAST ^. AST.depsOrderOnly)
+      let depsAST       = Lens.view AST.buildDeps buildAST
+      let normalDeps    = HS.toList (Lens.view AST.depsNormal    depsAST)
+      let implicitDeps  = HS.toList (Lens.view AST.depsImplicit  depsAST)
+      let orderOnlyDeps = HS.toList (Lens.view AST.depsOrderOnly depsAST)
 
       outs <- HS.toList outputs |> mapM compileOutput |> fmap HS.fromList
       rule <- compileRule (outs, buildAST)
@@ -165,8 +148,8 @@ compile ast = result
                  <*> mapM (compileDep IR.OrderOnlyDependency) orderOnlyDeps
 
       IR.makeBuild rule
-        |> IR.buildOuts .~ outs
-        |> IR.buildDeps .~ deps
+        |> Lens.set IR.buildOuts outs
+        |> Lens.set IR.buildDeps deps
         |> pure
 
     compilePhony :: (Text, HashSet Text)
@@ -190,12 +173,12 @@ compile ast = result
 
     compileRule :: (HashSet IR.Output, AST.Build ann) -> m IR.Rule
     compileRule (outputs, buildAST) = do
-      (name, prule) <- lookupRule buildAST
+      (name, ruleAST) <- lookupRule buildAST
 
       let orLookupError :: Text -> Maybe a -> m a
           orLookupError var = maybe (Err.throwRuleLookupFailure var) pure
 
-      let env = computeRuleEnv (outputs, buildAST) prule
+      let env = computeRuleEnv (outputs, buildAST) ruleAST
 
       let lookupBind :: Text -> m (Maybe Text)
           lookupBind = AST.askEnv env .> pure
@@ -205,7 +188,7 @@ compile ast = result
 
       command      <- lookupBind_ "command" >>= compileCommand
       description  <- lookupBind "description"
-      pool         <- let buildBind = buildAST ^. AST.buildBind
+      pool         <- let buildBind = Lens.view AST.buildBind buildAST
                       in (HM.lookup "pool" buildBind <|> AST.askEnv env "pool")
                          |> fromMaybe ""
                          |> IR.parsePoolName
@@ -223,13 +206,13 @@ compile ast = result
                          >>= fmap compileResponseFile .> sequenceA
 
       IR.makeRule name command
-        |> IR.ruleDescription  .~ description
-        |> IR.rulePool         .~ pool
-        |> IR.ruleDepfile      .~ depfile
-        |> IR.ruleSpecialDeps  .~ specialDeps
-        |> IR.ruleGenerator    .~ generator
-        |> IR.ruleRestat       .~ restat
-        |> IR.ruleResponseFile .~ responseFile
+        |> Lens.set IR.ruleDescription  description
+        |> Lens.set IR.rulePool         pool
+        |> Lens.set IR.ruleDepfile      depfile
+        |> Lens.set IR.ruleSpecialDeps  specialDeps
+        |> Lens.set IR.ruleGenerator    generator
+        |> Lens.set IR.ruleRestat       restat
+        |> Lens.set IR.ruleResponseFile responseFile
         |> pure
 
     compileSpecialDeps :: (Maybe Text, Maybe Text) -> m (Maybe IR.SpecialDeps)
@@ -269,54 +252,56 @@ compile ast = result
 
     lookupRule :: AST.Build ann -> m (Text, AST.Rule ann)
     lookupRule buildAST = do
-      let name = buildAST ^. AST.buildRule
-      prule <- HM.lookup name prules
-               |> maybe (Err.throwBuildRuleNotFound name) pure
-      pure (name, prule)
+      let name = Lens.view AST.buildRule buildAST
+      ruleAST <- HM.lookup name rulesAST
+                 |> maybe (Err.throwBuildRuleNotFound name) pure
+      pure (name, ruleAST)
 
     computeRuleEnv :: (HashSet IR.Output, AST.Build ann)
                    -> AST.Rule ann
                    -> AST.Env Text Text
-    computeRuleEnv (outs, buildAST) prule = do
-      let isExplicitOut out = (out ^. IR.outputType) == IR.ExplicitOutput
+    computeRuleEnv (outs, buildAST) ruleAST = do
+      let depsAST = Lens.view AST.buildDeps buildAST
+
+      let isExplicitOut out = (Lens.view IR.outputType out) == IR.ExplicitOutput
 
       let explicitOuts = HS.toList outs
                          |> filter isExplicitOut
-                         |> map (view (IR.outputTarget . IR.targetText))
+                         |> map (Lens.view (IR.outputTarget . IR.targetText))
 
-      let explicitDeps = [ buildAST ^. AST.buildDeps . AST.depsNormal
-                         , buildAST ^. AST.buildDeps . AST.depsOrderOnly
+      let explicitDeps = [ Lens.view AST.depsNormal    depsAST
+                         , Lens.view AST.depsOrderOnly depsAST
                          ] |> mconcat |> HS.toList
 
       let composeList :: [a -> a] -> (a -> a)
           composeList = map Endo .> mconcat .> appEndo
 
       let quote :: Text -> Text
-          quote x | T.any isSpace x = mconcat ["\"", x, "\""]
-          quote x                   = x
+          quote x | Text.any isSpace x = mconcat ["\"", x, "\""]
+          quote x                      = x
 
-      let bindings = buildAST ^. AST.buildBind
+      let bindings = Lens.view AST.buildBind buildAST
 
       -- the order of adding new environment variables matters
-      AST.scopeEnv (buildAST ^. AST.buildEnv)
-        |> AST.addEnv "out"        (T.unwords (map quote explicitOuts))
-        |> AST.addEnv "in"         (T.unwords (map quote explicitDeps))
-        |> AST.addEnv "in_newline" (T.unlines explicitDeps)
+      AST.scopeEnv (Lens.view AST.buildEnv buildAST)
+        |> AST.addEnv "out"        (Text.unwords (map quote explicitOuts))
+        |> AST.addEnv "in"         (Text.unwords (map quote explicitDeps))
+        |> AST.addEnv "in_newline" (Text.unlines explicitDeps)
         |> composeList (map (uncurry AST.addEnv) (HM.toList bindings))
-        |> AST.addBinds (HM.toList (prule ^. AST.ruleBind))
+        |> AST.addBinds (HM.toList (Lens.view AST.ruleBind ruleAST))
 
-    prules     :: HashMap Text (AST.Rule ann)
-    psingles   :: HashMap Text (AST.Build ann)
-    pmultiples :: HashMap (HashSet Text) (AST.Build ann)
-    pphonys    :: HashMap Text (HashSet Text)
-    pdefaults  :: HashSet Text
-    ppools     :: HashMap Text Int
-    prules     = ast ^. AST.ninjaRules
-    psingles   = ast ^. AST.ninjaSingles
-    pmultiples = ast ^. AST.ninjaMultiples
-    pphonys    = ast ^. AST.ninjaPhonys
-    pdefaults  = ast ^. AST.ninjaDefaults
-    ppools     = ast ^. AST.ninjaPools
+    rulesAST     :: HashMap Text (AST.Rule ann)
+    singlesAST   :: HashMap Text (AST.Build ann)
+    multiplesAST :: HashMap (HashSet Text) (AST.Build ann)
+    phonysAST    :: HashMap Text (HashSet Text)
+    defaultsAST  :: HashSet Text
+    poolsAST     :: HashMap Text Int
+    rulesAST     = Lens.view AST.ninjaRules     ast
+    singlesAST   = Lens.view AST.ninjaSingles   ast
+    multiplesAST = Lens.view AST.ninjaMultiples ast
+    phonysAST    = Lens.view AST.ninjaPhonys    ast
+    defaultsAST  = Lens.view AST.ninjaDefaults  ast
+    poolsAST     = Lens.view AST.ninjaPools     ast
 
     onHM :: (Eq k', Hashable k')
          => ((k, v) -> (k', v')) -> HashMap k v -> HashMap k' v'

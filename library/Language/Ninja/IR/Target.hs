@@ -55,27 +55,23 @@ module Language.Ninja.IR.Target
   , _NormalDependency, _ImplicitDependency, _OrderOnlyDependency
   ) where
 
-import           Language.Ninja.Misc.IText
+import qualified Control.Lens              as Lens
 
 import           Data.Text                 (Text)
-import qualified Data.Text                 as T
+import qualified Data.Text                 as Text
 
-import           Data.Aeson
-                 (FromJSON (..), FromJSONKey, KeyValue (..), ToJSON (..),
-                 ToJSONKey, (.:))
+import           Data.Aeson                ((.:), (.=))
 import qualified Data.Aeson                as Aeson
 
 import           Control.DeepSeq           (NFData)
 import           Data.Hashable             (Hashable)
 import           Data.String               (IsString (..))
 import           GHC.Generics              (Generic)
+
 import           Test.SmallCheck.Series    ((>>-))
 import qualified Test.SmallCheck.Series    as SC
 
-import           Control.Lens.Getter       (view)
-import           Control.Lens.Iso          (Iso', from, iso)
-import           Control.Lens.Lens         (Lens', lens)
-import           Control.Lens.Prism        (Prism', prism')
+import           Language.Ninja.Misc.IText
 
 import           Flow                      ((.>), (|>))
 
@@ -89,21 +85,21 @@ newtype Target
     { _targetIText :: IText
     }
   deriving ( Eq, Ord, Show, Read, IsString, Generic, Hashable, NFData
-           , ToJSON, FromJSON, ToJSONKey, FromJSONKey )
+           , Aeson.ToJSON, Aeson.FromJSON, Aeson.ToJSONKey, Aeson.FromJSONKey )
 
 -- | Construct a 'Target' from some 'Text'.
 --
 --   @since 0.1.0
 {-# INLINE makeTarget #-}
 makeTarget :: Text -> Target
-makeTarget = view itext .> MkTarget
+makeTarget = Lens.view itext .> MkTarget
 
 -- | An isomorphism between a 'Target' and its underlying 'IText'.
 --
 --   @since 0.1.0
 {-# INLINE targetIText #-}
-targetIText :: Iso' Target IText
-targetIText = iso _targetIText MkTarget
+targetIText :: Lens.Iso' Target IText
+targetIText = Lens.iso _targetIText MkTarget
 
 -- | An isomorphism that gives access to a 'Text'-typed view of a 'Target',
 --   even though the underlying data has type 'IText'.
@@ -112,23 +108,19 @@ targetIText = iso _targetIText MkTarget
 --
 --   @since 0.1.0
 {-# INLINE targetText #-}
-targetText :: Iso' Target Text
-targetText = targetIText . from itext
+targetText :: Lens.Iso' Target Text
+targetText = targetIText . Lens.from itext
 
 -- | Uses the underlying 'IText' instance.
 --
 --   @since 0.1.0
-instance ( Monad m
-         , SC.Serial m Text
-         ) => SC.Serial m Target where
+instance (Monad m, SC.Serial m Text) => SC.Serial m Target where
   series = SC.newtypeCons MkTarget
 
 -- | Uses the underlying 'IText' instance.
 --
 --   @since 0.1.0
-instance ( Monad m
-         , SC.CoSerial m Text
-         ) => SC.CoSerial m Target where
+instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Target where
   coseries rs = SC.newtypeAlts rs
                 >>- \f -> pure (_targetIText .> f)
 
@@ -162,31 +154,31 @@ makeOutput = MkOutput
 --
 --   @since 0.1.0
 {-# INLINE outputTarget #-}
-outputTarget :: Lens' Output Target
-outputTarget = lens _outputTarget
+outputTarget :: Lens.Lens' Output Target
+outputTarget = Lens.lens _outputTarget
                $ \(MkOutput {..}) new -> MkOutput { _outputTarget = new, .. }
 
 -- | A lens for the 'OutputType' of an 'Output'.
 --
 --   @since 0.1.0
 {-# INLINE outputType #-}
-outputType :: Lens' Output OutputType
-outputType = lens _outputType
+outputType :: Lens.Lens' Output OutputType
+outputType = Lens.lens _outputType
              $ \(MkOutput {..}) new -> MkOutput { _outputType = new, .. }
 
 -- | Converts to @{target: …, type: …}@.
 --
 --   @since 0.1.0
-instance ToJSON Output where
+instance Aeson.ToJSON Output where
   toJSON (MkOutput {..})
     = [ "target" .= _outputTarget
       , "type"   .= _outputType
       ] |> Aeson.object
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance FromJSON Output where
+instance Aeson.FromJSON Output where
   parseJSON = (Aeson.withObject "Output" $ \o -> do
                   _outputTarget <- (o .: "target") >>= pure
                   _outputType   <- (o .: "type")   >>= pure
@@ -232,38 +224,38 @@ data OutputType
 --
 --   @since 0.1.0
 {-# INLINE _ExplicitOutput #-}
-_ExplicitOutput :: Prism' OutputType ()
-_ExplicitOutput = prism' (const ExplicitOutput)
-                   $ \case ExplicitOutput -> Just ()
-                           _              -> Nothing
+_ExplicitOutput :: Lens.Prism' OutputType ()
+_ExplicitOutput = Lens.prism' (const ExplicitOutput)
+                  $ \case ExplicitOutput -> Just ()
+                          _              -> Nothing
 
 -- | A prism for the 'ImplicitOutput' constructor.
 --
 --   @since 0.1.0
 {-# INLINE _ImplicitOutput #-}
-_ImplicitOutput :: Prism' OutputType ()
-_ImplicitOutput = prism' (const ImplicitOutput)
-                   $ \case ImplicitOutput -> Just ()
-                           _              -> Nothing
+_ImplicitOutput :: Lens.Prism' OutputType ()
+_ImplicitOutput = Lens.prism' (const ImplicitOutput)
+                  $ \case ImplicitOutput -> Just ()
+                          _              -> Nothing
 
 -- | Converts to @"explicit"@ and @"implicit"@ respectively.
 --
 --   @since 0.1.0
-instance ToJSON OutputType where
+instance Aeson.ToJSON OutputType where
   toJSON ExplicitOutput = "explicit"
   toJSON ImplicitOutput = "implicit"
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance FromJSON OutputType where
+instance Aeson.FromJSON OutputType where
   parseJSON = (Aeson.withText "OutputType" $ \case
                   "explicit" -> pure ExplicitOutput
                   "implicit" -> pure ImplicitOutput
                   owise      -> [ "Invalid output type "
                                 , "\"", owise, "\"; should be one of "
                                 , "[\"explict\", \"implicit\"]"
-                                ] |> mconcat |> T.unpack |> fail)
+                                ] |> mconcat |> Text.unpack |> fail)
 
 -- | Default 'Hashable' instance via 'Generic'.
 --
@@ -315,33 +307,33 @@ makeDependency = MkDependency
 --
 --   @since 0.1.0
 {-# INLINE dependencyTarget #-}
-dependencyTarget :: Lens' Dependency Target
+dependencyTarget :: Lens.Lens' Dependency Target
 dependencyTarget
-  = lens _dependencyTarget
+  = Lens.lens _dependencyTarget
     $ \(MkDependency {..}) new -> MkDependency { _dependencyTarget = new, .. }
 
 -- | A lens for the 'DependencyType' of a 'Dependency'.
 --
 --   @since 0.1.0
 {-# INLINE dependencyType #-}
-dependencyType :: Lens' Dependency DependencyType
+dependencyType :: Lens.Lens' Dependency DependencyType
 dependencyType
-  = lens _dependencyType
+  = Lens.lens _dependencyType
     $ \(MkDependency {..}) new -> MkDependency { _dependencyType = new, .. }
 
 -- | Converts to @{target: …, type: …}@.
 --
 --   @since 0.1.0
-instance ToJSON Dependency where
+instance Aeson.ToJSON Dependency where
   toJSON (MkDependency {..})
     = [ "target" .= _dependencyTarget
       , "type"   .= _dependencyType
       ] |> Aeson.object
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance FromJSON Dependency where
+instance Aeson.FromJSON Dependency where
   parseJSON = (Aeson.withObject "Dependency" $ \o -> do
                   _dependencyTarget <- (o .: "target") >>= pure
                   _dependencyType   <- (o .: "type")   >>= pure
@@ -400,8 +392,8 @@ data DependencyType
 --
 --   @since 0.1.0
 {-# INLINE _NormalDependency #-}
-_NormalDependency :: Prism' DependencyType ()
-_NormalDependency = prism' (const NormalDependency)
+_NormalDependency :: Lens.Prism' DependencyType ()
+_NormalDependency = Lens.prism' (const NormalDependency)
                     $ \case NormalDependency -> Just ()
                             _                -> Nothing
 
@@ -409,8 +401,8 @@ _NormalDependency = prism' (const NormalDependency)
 --
 --   @since 0.1.0
 {-# INLINE _ImplicitDependency #-}
-_ImplicitDependency :: Prism' DependencyType ()
-_ImplicitDependency = prism' (const ImplicitDependency)
+_ImplicitDependency :: Lens.Prism' DependencyType ()
+_ImplicitDependency = Lens.prism' (const ImplicitDependency)
                       $ \case ImplicitDependency -> Just ()
                               _                  -> Nothing
 
@@ -418,23 +410,23 @@ _ImplicitDependency = prism' (const ImplicitDependency)
 --
 --   @since 0.1.0
 {-# INLINE _OrderOnlyDependency #-}
-_OrderOnlyDependency :: Prism' DependencyType ()
-_OrderOnlyDependency = prism' (const OrderOnlyDependency)
+_OrderOnlyDependency :: Lens.Prism' DependencyType ()
+_OrderOnlyDependency = Lens.prism' (const OrderOnlyDependency)
                        $ \case OrderOnlyDependency -> Just ()
                                _                   -> Nothing
 
 -- | Converts to @"normal"@, @"implicit"@, and @"order-only"@ respectively.
 --
 --   @since 0.1.0
-instance ToJSON DependencyType where
+instance Aeson.ToJSON DependencyType where
   toJSON NormalDependency    = "normal"
   toJSON ImplicitDependency  = "implicit"
   toJSON OrderOnlyDependency = "order-only"
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance FromJSON DependencyType where
+instance Aeson.FromJSON DependencyType where
   parseJSON = (Aeson.withText "DependencyType" $ \case
                   "normal"     -> pure NormalDependency
                   "implicit"   -> pure ImplicitDependency
@@ -442,7 +434,7 @@ instance FromJSON DependencyType where
                   owise        -> [ "Invalid dependency type "
                                   , "\"", owise, "\"; should be one of "
                                   , "[\"normal\", \"implicit\", \"order-only\"]"
-                                  ] |> mconcat |> T.unpack |> fail)
+                                  ] |> mconcat |> Text.unpack |> fail)
 
 -- | Default 'Hashable' instance via 'Generic'.
 --

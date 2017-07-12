@@ -50,8 +50,6 @@ import qualified Data.Text                 as Text
 
 import qualified Filesystem.Path.CurrentOS as FP
 
-import           Data.Aeson
-                 (FromJSON, FromJSONKey, ToJSON, ToJSONKey)
 import qualified Data.Aeson                as Aeson
 
 import           Control.DeepSeq           (NFData)
@@ -61,8 +59,7 @@ import           GHC.Generics              (Generic)
 import           Test.SmallCheck.Series    ((>>-))
 import qualified Test.SmallCheck.Series    as SC
 
-import           Control.Lens.Getter       (view)
-import           Control.Lens.Iso          (Iso', from, iso)
+import qualified Control.Lens              as Lens
 
 import           Flow                      ((.>))
 
@@ -76,21 +73,21 @@ newtype Path
     { _pathIText :: IText
     }
   deriving ( Eq, Ord, Show, Read, IsString, Generic, Hashable, NFData
-           , ToJSON, FromJSON, ToJSONKey, FromJSONKey )
+           , Aeson.ToJSON, Aeson.FromJSON, Aeson.ToJSONKey, Aeson.FromJSONKey )
 
 -- | Construct a 'Path' from some 'Text'.
 --
 --   @since 0.1.0
 {-# INLINE makePath #-}
 makePath :: Text -> Path
-makePath = view Ninja.itext .> MkPath
+makePath = Lens.view Ninja.itext .> MkPath
 
 -- | An isomorphism between a 'Path' and its underlying 'IText'.
 --
 --   @since 0.1.0
 {-# INLINE pathIText #-}
-pathIText :: Iso' Path IText
-pathIText = iso _pathIText MkPath
+pathIText :: Lens.Iso' Path IText
+pathIText = Lens.iso _pathIText MkPath
 
 -- | An isomorphism that gives access to a 'Text'-typed view of a 'Path',
 --   even though the underlying data has type 'IText'.
@@ -99,15 +96,15 @@ pathIText = iso _pathIText MkPath
 --
 --   @since 0.1.0
 {-# INLINE pathText #-}
-pathText :: Iso' Path Text
-pathText = pathIText . from Ninja.itext
+pathText :: Lens.Iso' Path Text
+pathText = pathIText . Lens.from Ninja.itext
 
 -- | An isomorphism that gives access to a 'String'-typed view of a 'Path'.
 --
 --   @since 0.1.0
 {-# INLINE pathString #-}
-pathString :: Iso' Path String
-pathString = pathText . iso Text.unpack Text.pack
+pathString :: Lens.Iso' Path String
+pathString = pathText . Lens.iso Text.unpack Text.pack
 
 -- | An isomorphism between a 'Path' and a 'FP.FilePath' from @system-filepath@.
 --   This uses 'FP.decodeString' and 'FP.encodeString', so all the caveats on
@@ -115,23 +112,19 @@ pathString = pathText . iso Text.unpack Text.pack
 --
 --   @since 0.1.0
 {-# INLINE pathFP #-}
-pathFP :: Iso' Path FP.FilePath
-pathFP = pathString . iso FP.decodeString FP.encodeString
+pathFP :: Lens.Iso' Path FP.FilePath
+pathFP = pathString . Lens.iso FP.decodeString FP.encodeString
 
 -- | Uses the underlying 'IText' instance.
 --
 --   @since 0.1.0
-instance ( Monad m
-         , SC.Serial m Text
-         ) => SC.Serial m Path where
+instance (Monad m, SC.Serial m Text) => SC.Serial m Path where
   series = SC.newtypeCons MkPath
 
 -- | Uses the underlying 'IText' instance.
 --
 --   @since 0.1.0
-instance ( Monad m
-         , SC.CoSerial m Text
-         ) => SC.CoSerial m Path where
+instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Path where
   coseries rs = SC.newtypeAlts rs
                 >>- \f -> pure (_pathIText .> f)
 

@@ -46,11 +46,11 @@ module Language.Ninja.IR.Meta
     Meta, makeMeta, metaReqVersion, metaBuildDir
   ) where
 
-import           Data.Aeson               as Aeson
+import           Data.Aeson               ((.:), (.=))
+import qualified Data.Aeson               as Aeson
 import qualified Data.Aeson.Types         as Aeson
 
 import           Data.Text                (Text)
-import qualified Data.Text                as T
 
 import           Control.DeepSeq          (NFData)
 import           Data.Hashable            (Hashable)
@@ -63,8 +63,7 @@ import qualified Text.Megaparsec          as Mega
 
 import           Language.Ninja.Misc.Path (Path)
 
-import qualified Control.Lens
-import           Control.Lens.Lens        (Lens')
+import qualified Control.Lens             as Lens
 
 import           Flow                     ((.>), (|>))
 
@@ -95,44 +94,44 @@ makeMeta = MkMeta
 --
 --   @since 0.1.0
 {-# INLINE metaReqVersion #-}
-metaReqVersion :: Lens' Meta (Maybe Ver.Version)
-metaReqVersion = Control.Lens.lens _metaReqVersion
+metaReqVersion :: Lens.Lens' Meta (Maybe Ver.Version)
+metaReqVersion = Lens.lens _metaReqVersion
                  $ \(MkMeta {..}) x -> MkMeta { _metaReqVersion = x, .. }
 
 -- | Corresponds to the @builddir@ top-level variable.
 --
 --   @since 0.1.0
 {-# INLINE metaBuildDir #-}
-metaBuildDir :: Lens' Meta (Maybe Path)
-metaBuildDir = Control.Lens.lens _metaBuildDir
+metaBuildDir :: Lens.Lens' Meta (Maybe Path)
+metaBuildDir = Lens.lens _metaBuildDir
                $ \(MkMeta {..}) x -> MkMeta { _metaBuildDir = x, .. }
 
 -- | Converts to @{req-version: …, build-dir: …}@.
 --
 --   @since 0.1.0
-instance ToJSON Meta where
+instance Aeson.ToJSON Meta where
   toJSON (MkMeta {..})
     = [ "req-version" .= fmap versionJ _metaReqVersion
       , "build-dir"   .= _metaBuildDir
-      ] |> object
+      ] |> Aeson.object
     where
-      versionJ :: Ver.Version -> Value
-      versionJ = Ver.prettyVer .> toJSON
+      versionJ :: Ver.Version -> Aeson.Value
+      versionJ = Ver.prettyVer .> Aeson.toJSON
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance FromJSON Meta where
-  parseJSON = (withObject "Meta" $ \o -> do
+instance Aeson.FromJSON Meta where
+  parseJSON = (Aeson.withObject "Meta" $ \o -> do
                   _metaReqVersion <- (o .: "req-version") >>= maybeVersionP
                   _metaBuildDir   <- (o .: "build-dir")   >>= pure
                   pure (MkMeta {..}))
     where
-      maybeVersionP :: Maybe Value -> Aeson.Parser (Maybe Ver.Version)
+      maybeVersionP :: Maybe Aeson.Value -> Aeson.Parser (Maybe Ver.Version)
       maybeVersionP = fmap versionP .> sequenceA
 
-      versionP :: Value -> Aeson.Parser Ver.Version
-      versionP = withText "Version" (megaparsecToAeson Ver.version')
+      versionP :: Aeson.Value -> Aeson.Parser Ver.Version
+      versionP = Aeson.withText "Version" (megaparsecToAeson Ver.version')
 
 -- | Default 'Hashable' instance via 'Generic'.
 --

@@ -17,6 +17,8 @@
 --     See the License for the specific language governing permissions and
 --     limitations under the License.
 
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE LambdaCase            #-}
@@ -44,8 +46,8 @@ import           Data.Hashable             (Hashable)
 import qualified Data.HashMap.Strict       as HM
 import qualified Data.HashSet              as HS
 import qualified Data.List.NonEmpty        as NE
-import qualified Data.Text                 as T
-import qualified Data.Versions             as V
+import qualified Data.Text                 as Text
+import qualified Data.Versions             as Ver
 import qualified Filesystem.Path.CurrentOS as FP
 
 import           Test.SmallCheck.Series    ((<~>), (>>-), (\/))
@@ -88,13 +90,13 @@ instance (Monad m, SC.CoSerial m a) => SC.CoSerial m (NE.NonEmpty a) where
 
 --------------------------------------------------------------------------------
 
-instance (Monad m) => SC.Serial m T.Text where
+instance (Monad m) => SC.Serial m Text.Text where
   series = foldr1 (\/) (map pure testText)
 
-instance (Monad m) => SC.CoSerial m T.Text where
+instance (Monad m) => SC.CoSerial m Text.Text where
   coseries rs = SC.alts0 rs >>- \y -> SC.alts2 rs >>- \f -> do
-    pure (T.uncons .> (\case Nothing        -> y
-                             (Just (b, bs)) -> f (T.singleton b) bs))
+    pure (Text.uncons .> (\case Nothing        -> y
+                                (Just (b, bs)) -> f (Text.singleton b) bs))
 
 --------------------------------------------------------------------------------
 
@@ -102,31 +104,31 @@ instance (Monad m) => SC.Serial m FP.FilePath where
   series = foldr1 (\/) (map pure testFP)
 
 instance (Monad m) => SC.CoSerial m FP.FilePath where
-  coseries = SC.coseries .> (fmap (\f -> FP.encodeString .> T.pack .> f))
+  coseries = SC.coseries .> (fmap (\f -> FP.encodeString .> Text.pack .> f))
 
 --------------------------------------------------------------------------------
 
-instance (Monad m) => SC.Serial m V.Version where
+instance (Monad m) => SC.Serial m Ver.Version where
   series = foldr1 (\/) (map pure testVersions)
 
-instance (Monad m, SC.CoSerial m V.VUnit) => SC.CoSerial m V.Version where
+instance (Monad m, SC.CoSerial m Ver.VUnit) => SC.CoSerial m Ver.Version where
   coseries = SC.coseries
-             .> fmap (\f -> \(V.Version {..}) -> f (_vEpoch, _vChunks, _vRel))
+             .> fmap (\f -> \(Ver.Version {..}) -> f (_vEpoch, _vChunks, _vRel))
 
-instance (Monad m) => SC.CoSerial m V.VUnit where
+instance (Monad m) => SC.CoSerial m Ver.VUnit where
   coseries = SC.coseries
-             .> fmap (\f -> \case (V.Digits i) -> f (Right i)
-                                  (V.Str    s) -> f (Left  s))
+             .> fmap (\f -> \case (Ver.Digits i) -> f (Right i)
+                                  (Ver.Str    s) -> f (Left  s))
 
 --------------------------------------------------------------------------------
 
-testText :: [T.Text]
+testText :: [Text.Text]
 testText = ["", "foo", "42", " "]
 
 testFP :: [FP.FilePath]
 testFP = ["/foo/bar", ".", "..", "foo", "foo/", "/foo/", "/foo//bar"]
 
-testVersions :: [V.Version]
+testVersions :: [Ver.Version]
 testVersions = [ "0.1.0"
                , "0.2"
                , "0.2.0"
@@ -173,7 +175,7 @@ testVersions = [ "0.1.0"
                , "44.0.2403.157-1"
                , "7.1p1-1"
                , "8.u51-1"
-               ] |> map (V.version .> fromRight)
+               ] |> map (Ver.version .> fromRight)
   where
     fromRight :: (Show a, Show b) => Either a b -> b
     fromRight (Left  a) = error ("fromRight: " ++ show a)

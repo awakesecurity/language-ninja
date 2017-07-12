@@ -64,7 +64,7 @@ module Language.Ninja.AST.Env
 import           Control.Applicative       ((<|>))
 import           Control.Monad             ((>=>))
 
-import           Control.Lens.Iso          (Iso', iso)
+import qualified Control.Lens              as Lens
 
 import           Data.Monoid               (Endo (..))
 
@@ -83,10 +83,7 @@ import           Test.QuickCheck.Instances ()
 
 import qualified Test.SmallCheck.Series    as SC
 
-import           Data.Aeson
-                 (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
 import qualified Data.Aeson                as Aeson
-import qualified Data.Aeson.Types          as Aeson
 
 import           Flow                      ((.>), (|>))
 
@@ -124,8 +121,8 @@ makeEnv = MkEnv (HM.empty :| [])
 --
 --   @since 0.1.0
 {-# INLINE fromEnv #-}
-fromEnv :: Iso' (Env k v) (Maps k v)
-fromEnv = iso _fromEnv MkEnv
+fromEnv :: Lens.Iso' (Env k v) (Maps k v)
+fromEnv = Lens.iso _fromEnv MkEnv
 
 -- | Get the first 'HashMap' in the underlying nonempty list.
 --
@@ -167,15 +164,15 @@ askEnv env k = HM.lookup k (headEnv env)
 -- | Converts to a (nonempty) array of JSON objects.
 --
 --   @since 0.1.0
-instance (ToJSONKey k, ToJSON v) => ToJSON (Env k v) where
-  toJSON = _fromEnv .> NE.toList .> toJSON
+instance (Aeson.ToJSONKey k, Aeson.ToJSON v) => Aeson.ToJSON (Env k v) where
+  toJSON = _fromEnv .> NE.toList .> Aeson.toJSON
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance ( Eq k, Hashable k, FromJSONKey k, FromJSON v
-         ) => FromJSON (Env k v) where
-  parseJSON = parseJSON
+instance ( Eq k, Hashable k, Aeson.FromJSONKey k, Aeson.FromJSON v
+         ) => Aeson.FromJSON (Env k v) where
+  parseJSON = Aeson.parseJSON
               >=> NE.nonEmpty
               .>  maybe (fail "Env list was empty!") pure
               .>  fmap MkEnv

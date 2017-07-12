@@ -55,8 +55,6 @@ module Language.Ninja.AST.Expr
 import           Control.Arrow             (second)
 
 import qualified Control.Lens              as Lens
-import           Control.Lens.Lens         (lens)
-import           Control.Lens.Prism        (Prism', prism')
 
 import           Data.Foldable             (asum)
 import           Data.Maybe                (fromMaybe)
@@ -79,9 +77,8 @@ import qualified Test.SmallCheck.Series    as SC
 
 import           GHC.Exts                  (Constraint)
 
-import           Data.Aeson                (FromJSON, ToJSON, (.:), (.=))
+import           Data.Aeson                ((.:), (.=))
 import qualified Data.Aeson                as Aeson
-import qualified Data.Aeson.Types          as Aeson
 
 import qualified Language.Ninja.AST.Env    as AST
 import qualified Language.Ninja.Misc       as Misc
@@ -110,8 +107,8 @@ data Expr ann
 --
 --   @since 0.1.0
 {-# INLINE _Exprs #-}
-_Exprs :: Prism' (Expr ann) (ann, [Expr ann])
-_Exprs = prism' (uncurry Exprs)
+_Exprs :: Lens.Prism' (Expr ann) (ann, [Expr ann])
+_Exprs = Lens.prism' (uncurry Exprs)
          $ \case (Exprs ann es) -> Just (ann, es)
                  _              -> Nothing
 
@@ -119,8 +116,8 @@ _Exprs = prism' (uncurry Exprs)
 --
 --   @since 0.1.0
 {-# INLINE _Lit #-}
-_Lit :: Prism' (Expr ann) (ann, Text)
-_Lit = prism' (uncurry Lit)
+_Lit :: Lens.Prism' (Expr ann) (ann, Text)
+_Lit = Lens.prism' (uncurry Lit)
        $ \case (Lit ann text) -> Just (ann, text)
                _              -> Nothing
 
@@ -128,8 +125,8 @@ _Lit = prism' (uncurry Lit)
 --
 --   @since 0.1.0
 {-# INLINE _Var #-}
-_Var :: Prism' (Expr ann) (ann, Text)
-_Var = prism' (uncurry Var)
+_Var :: Lens.Prism' (Expr ann) (ann, Text)
+_Var = Lens.prism' (uncurry Var)
        $ \case (Var ann name) -> Just (ann, name)
                _              -> Nothing
 
@@ -201,7 +198,7 @@ instance (Data ann) => Lens.Plated (Expr ann)
 --
 --   @since 0.1.0
 instance Misc.Annotated Expr where
-  annotation' f = lens (helper .> fst) (helper .> snd)
+  annotation' f = Lens.lens (helper .> fst) (helper .> snd)
     where
       helper (Exprs ann   es) = (ann, \x -> Exprs x (map (fmap f) es))
       helper (Lit   ann text) = (ann, \x -> Lit   x text)
@@ -211,15 +208,15 @@ instance Misc.Annotated Expr where
 --   and 'Var' to @{ann: …, var: …}@.
 --
 --   @since 0.1.0
-instance (ToJSON ann) => ToJSON (Expr ann) where
+instance (Aeson.ToJSON ann) => Aeson.ToJSON (Expr ann) where
   toJSON (Exprs ann   es) = Aeson.object ["ann" .= ann, "exprs" .= es]
   toJSON (Lit   ann text) = Aeson.object ["ann" .= ann, "lit"   .= text]
   toJSON (Var   ann name) = Aeson.object ["ann" .= ann, "var"   .= name]
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance (FromJSON ann) => FromJSON (Expr ann) where
+instance (Aeson.FromJSON ann) => Aeson.FromJSON (Expr ann) where
   parseJSON = Aeson.withObject "Expr" $ \o -> do
     ann <- o .: "ann"
     asum [ Exprs ann <$> (o .: "exprs")

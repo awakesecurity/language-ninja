@@ -37,10 +37,12 @@ module NinjaToNix.Pretty
   , PP.putDoc
   ) where
 
-import           Data.Maybe
+import           Data.Maybe                                (fromMaybe)
 import           Data.Semigroup                            ((<>))
 
-import           Control.Lens.Getter
+import           Control.Monad                             (join)
+
+import qualified Control.Lens                              as Lens
 
 import           Data.Text                                 (Text)
 
@@ -61,8 +63,6 @@ import qualified Data.Text.Prettyprint.Doc.Render.Terminal as PP
 
 import qualified Language.Ninja.IR                         as IR
 import qualified Language.Ninja.Misc.Command               as IR
-
-import qualified System.IO
 
 import           Data.List                                 (sort, sortOn)
 
@@ -105,7 +105,9 @@ prettySBuild (out, MkSBuild maybeCommand deps) = PP.nest 4
               maybeCommand
 
 prettyCommand :: IR.Command -> PDoc
-prettyCommand = view IR.commandText .> PP.pretty .> PP.annotate commandStyle
+prettyCommand = Lens.view IR.commandText
+                .> PP.pretty
+                .> PP.annotate commandStyle
 
 prettyDependency :: IR.Target -> PDoc
 prettyDependency = prettyTarget .> PP.annotate dependencyStyle
@@ -114,7 +116,7 @@ prettyOutput :: IR.Target -> PDoc
 prettyOutput = prettyTarget .> PP.annotate outputStyle
 
 prettyTarget :: IR.Target -> PDoc
-prettyTarget = view IR.targetText .> PP.pretty .> PP.annotate targetStyle
+prettyTarget = Lens.view IR.targetText .> PP.pretty .> PP.annotate targetStyle
 
 prettyKeyword :: Text -> PDoc
 prettyKeyword = PP.pretty .> PP.annotate keywordStyle
@@ -144,7 +146,7 @@ snTopoSort (MkSNinja builds defaults) = (hsToList defaults, ordered)
     ordered = HM.toList targets
               |> sortOn fst
               |> map snd
-              |> map (view IR.targetText)
+              |> map (Lens.view IR.targetText)
               |> topologicalSort graph
               |> map IR.makeTarget
               |> mapM resultNode
@@ -152,8 +154,9 @@ snTopoSort (MkSNinja builds defaults) = (hsToList defaults, ordered)
 
     resultNode :: IR.Target -> Maybe (IR.Target, SBuild)
     resultNode tgt = do
-      let cmd  = (_sbuildCommand <$> HM.lookup tgt builds) >>= id
-      let deps = (_sbuildDeps    <$> HM.lookup tgt builds) |> fromMaybe HS.empty
+      let maybeBuild = HM.lookup tgt builds
+      let cmd  = maybeBuild |> fmap _sbuildCommand |> join
+      let deps = maybeBuild |> fmap _sbuildDeps    |> fromMaybe HS.empty
       pure (tgt, MkSBuild cmd deps)
 
     graph :: Graph

@@ -49,9 +49,9 @@ module Language.Ninja.AST.Rule
   , RuleConstraint
   ) where
 
-import           Control.Lens.Lens         (Lens', lens)
+import qualified Control.Lens              as Lens
 
-import           Flow                      ((.>), (|>))
+import           Flow                      ((|>))
 
 import           Data.HashMap.Strict       (HashMap)
 import qualified Data.HashMap.Strict       as HM
@@ -69,7 +69,7 @@ import qualified Test.SmallCheck.Series    as SC
 
 import           GHC.Exts                  (Constraint)
 
-import           Data.Aeson                (FromJSON, ToJSON, (.:), (.=))
+import           Data.Aeson                ((.:), (.=))
 import qualified Data.Aeson                as Aeson
 
 import qualified Language.Ninja.AST.Expr   as AST
@@ -101,15 +101,15 @@ makeRule = MkRule
 --
 --   @since 0.1.0
 {-# INLINE ruleBind #-}
-ruleBind :: Lens' (Rule ann) (HashMap Text (AST.Expr ann))
-ruleBind = lens _ruleBind
+ruleBind :: Lens.Lens' (Rule ann) (HashMap Text (AST.Expr ann))
+ruleBind = Lens.lens _ruleBind
            $ \(MkRule {..}) x -> MkRule { _ruleBind = x, .. }
 
 -- | The usual definition for 'Misc.Annotated'.
 --
 --   @since 0.1.0
 instance Misc.Annotated Rule where
-  annotation' f = lens _ruleAnn
+  annotation' f = Lens.lens _ruleAnn
                   $ \(MkRule {..}) x ->
                       MkRule { _ruleAnn = x
                              , _ruleBind = HM.map (fmap f) _ruleBind
@@ -118,16 +118,16 @@ instance Misc.Annotated Rule where
 -- | Converts to @{ann: …, bind: …}@.
 --
 --   @since 0.1.0
-instance (ToJSON ann) => ToJSON (Rule ann) where
+instance (Aeson.ToJSON ann) => Aeson.ToJSON (Rule ann) where
   toJSON (MkRule {..})
     = [ "ann"  .= _ruleAnn
       , "bind" .= _ruleBind
       ] |> Aeson.object
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance (FromJSON ann) => FromJSON (Rule ann) where
+instance (Aeson.FromJSON ann) => Aeson.FromJSON (Rule ann) where
   parseJSON = (Aeson.withObject "Rule" $ \o -> do
                   _ruleAnn  <- (o .: "ann")  >>= pure
                   _ruleBind <- (o .: "bind") >>= pure

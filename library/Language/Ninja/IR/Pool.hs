@@ -20,15 +20,14 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE UndecidableInstances       #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 -- |
 --   Module      : Language.Ninja.IR.Pool
@@ -60,17 +59,12 @@ import           Control.Applicative          (empty)
 
 import qualified Control.Lens                 as Lens
 
-import           Data.Aeson
-                 (FromJSON (..), FromJSONKey (..), KeyValue (..), ToJSON (..),
-                 ToJSONKey (..), Value (..), (.:))
+import           Data.Aeson                   ((.:), (.=))
 import qualified Data.Aeson                   as Aeson
 import qualified Data.Aeson.Types             as Aeson
 
 import           Data.Text                    (Text)
-import qualified Data.Text                    as T
-
-import           Data.Aeson                   as Aeson
-import qualified Data.Aeson.Types             as Aeson
+import qualified Data.Text                    as Text
 
 import           Control.DeepSeq              (NFData)
 import           Data.Hashable                (Hashable)
@@ -150,16 +144,16 @@ poolDepth = Lens.to _poolDepth
 -- | Converts to @{name: …, depth: …}@.
 --
 --   @since 0.1.0
-instance ToJSON Pool where
+instance Aeson.ToJSON Pool where
   toJSON (MkPool {..})
     = [ "name"  .= _poolName
       , "depth" .= _poolDepth
       ] |> Aeson.object
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance FromJSON Pool where
+instance Aeson.FromJSON Pool where
   parseJSON = (Aeson.withObject "Pool" $ \o -> do
                   _poolName  <- (o .: "name")  >>= pure
                   _poolDepth <- (o .: "depth") >>= pure
@@ -168,9 +162,7 @@ instance FromJSON Pool where
 -- | Uses the underlying instances.
 --
 --   @since 0.1.0
-instance ( Monad m
-         , SC.Serial m Text
-         ) => SC.Serial m Pool where
+instance (Monad m, SC.Serial m Text) => SC.Serial m Pool where
   series = pure makePoolDefault
            \/ pure makePoolConsole
            \/ (let nameSeries = series >>= (\case ""        -> empty
@@ -181,9 +173,7 @@ instance ( Monad m
 -- | Uses the underlying instances.
 --
 --   @since 0.1.0
-instance ( Monad m
-         , SC.CoSerial m Text
-         ) => SC.CoSerial m Pool where
+instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Pool where
   coseries = coseries .> fmap (\f -> convert .> f)
     where
       convert :: Pool -> (PoolName, PoolDepth)
@@ -312,46 +302,42 @@ parsePoolName t         = makePoolNameCustom t
 --
 --   @since 0.1.0
 instance IsString PoolName where
-  fromString = T.pack .> parsePoolName
+  fromString = Text.pack .> parsePoolName
 
 -- | Converts to JSON string via 'printPoolName'.
 --
 --   @since 0.1.0
-instance ToJSON PoolName where
-  toJSON = printPoolName .> String
+instance Aeson.ToJSON PoolName where
+  toJSON = printPoolName .> Aeson.String
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance FromJSON PoolName where
+instance Aeson.FromJSON PoolName where
   parseJSON = Aeson.withText "PoolName" (parsePoolName .> pure)
 
 -- | Converts to JSON string via 'printPoolName'.
 --
 --   @since 0.1.0
-instance ToJSONKey PoolName where
+instance Aeson.ToJSONKey PoolName where
   toJSONKey = Aeson.toJSONKeyText printPoolName
 
--- | Inverse of the 'ToJSONKey' instance.
+-- | Inverse of the 'Aeson.ToJSONKey' instance.
 --
 --   @since 0.1.0
-instance FromJSONKey PoolName where
-  fromJSONKey = Aeson.mapFromJSONKeyFunction parsePoolName fromJSONKey
+instance Aeson.FromJSONKey PoolName where
+  fromJSONKey = Aeson.mapFromJSONKeyFunction parsePoolName Aeson.fromJSONKey
 
 -- | Uses the underlying 'Text' instance.
 --
 --   @since 0.1.0
-instance ( Monad m
-         , SC.Serial m Text
-         ) => SC.Serial m PoolName where
+instance (Monad m, SC.Serial m Text) => SC.Serial m PoolName where
   series = parsePoolName <$> (pure "" \/ pure "console" \/ SC.series)
 
 -- | Uses the underlying 'Text' instance.
 --
 --   @since 0.1.0
-instance ( Monad m
-         , SC.CoSerial m Text
-         ) => SC.CoSerial m PoolName where
+instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m PoolName where
   coseries = SC.coseries
              .> fmap (\f -> printPoolName .> f)
 
@@ -417,17 +403,17 @@ poolDepthPositive = Lens.iso fromPD toPD
 --   corresponding JSON number.
 --
 --   @since 0.1.0
-instance ToJSON PoolDepth where
-  toJSON (PoolDepth i) = toJSON i
+instance Aeson.ToJSON PoolDepth where
+  toJSON (PoolDepth i) = Aeson.toJSON i
   toJSON PoolInfinite  = "infinite"
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance FromJSON PoolDepth where
-  parseJSON (v@(Number _))      = PoolDepth <$> parseJSON v
-  parseJSON (String "infinite") = pure PoolInfinite
-  parseJSON owise               = Aeson.typeMismatch "PoolDepth" owise
+instance Aeson.FromJSON PoolDepth where
+  parseJSON (v@(Aeson.Number _))      = PoolDepth <$> Aeson.parseJSON v
+  parseJSON (Aeson.String "infinite") = pure PoolInfinite
+  parseJSON owise                     = Aeson.typeMismatch "PoolDepth" owise
 
 -- | Default 'SC.Serial' instance via 'Generic'.
 --

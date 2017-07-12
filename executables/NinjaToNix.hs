@@ -42,32 +42,20 @@ module Main
   ( module Main -- FIXME: specific export list
   ) where
 
-import           Control.Lens                as Lens hiding
-                 ((.=), (.>), (<.), (<|), (|>))
+import qualified Control.Lens                as Lens
 
-import           Control.Arrow
-import           Control.Monad
-import           Data.Either
-import           Data.List                   (sort)
-import           Data.Maybe
-import           Data.Monoid
+import           Control.Monad               (when)
+import           Data.Functor                (void)
+import           Data.Monoid                 ((<>))
 
-import           Control.Exception
-import           Control.Monad.Error.Class
-import           Control.Monad.Except
-import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Class
+import           Control.Exception           (throwIO)
+import           Control.Monad.Error.Class   (MonadError)
+import           Control.Monad.IO.Class      (MonadIO (..))
+import           Control.Monad.Trans.Except  (runExceptT)
 
 import           Data.Text                   (Text)
 import qualified Data.Text                   as Text
-import qualified Data.Text.Encoding          as Text
-import qualified Data.Text.IO                as Text
 
-import           Data.ByteString             (ByteString)
-import qualified Data.ByteString             as BS
-import qualified Data.ByteString.Char8       as BSC8
-
-import qualified Data.ByteString.Lazy        as LBS
 import qualified Data.ByteString.Lazy.Char8  as LBSC8
 
 import           Data.HashMap.Strict         (HashMap)
@@ -76,10 +64,8 @@ import qualified Data.HashMap.Strict         as HM
 import           Data.HashSet                (HashSet)
 import qualified Data.HashSet                as HS
 
-import           Data.Hashable               (Hashable)
-
 import           Language.Ninja.IR.Target    (Target, makeTarget)
-import           Language.Ninja.Misc.Command (Command, makeCommand)
+import           Language.Ninja.Misc.Command (Command)
 
 import qualified Language.Ninja.AST          as AST
 import qualified Language.Ninja.Compile      as Compile
@@ -87,16 +73,15 @@ import qualified Language.Ninja.IR           as IR
 import qualified Language.Ninja.Misc         as Misc
 import qualified Language.Ninja.Parser       as Parser
 
-import           Data.Aeson                  as Aeson
-import           Data.Aeson.Encode.Pretty    as Aeson
+import           Data.Aeson                  ((.=))
+import qualified Data.Aeson                  as Aeson
+import qualified Data.Aeson.Encode.Pretty    as Aeson
 
 import           System.Environment          (getArgs)
 
 import           Flow
 
-import           NinjaToNix.Misc.Hash
 import           NinjaToNix.Misc.Supply
-import           NinjaToNix.Pretty
 import           NinjaToNix.Types
 
 --------------------------------------------------------------------------------
@@ -106,7 +91,7 @@ parseIO fp = liftIO $ do
   let path = Misc.makePath (Text.pack fp)
   runExceptT (Parser.parseFile path)
     >>= either throwIO pure
-    >>= fmap (const ()) .> pure
+    >>= void .> pure
 
 compileToIR :: AST.Ninja () -> IO IR.Ninja
 compileToIR ast = either throwIO pure (Compile.compile ast)
@@ -139,11 +124,11 @@ simplify' ninjaIR = MkSNinja <$> simpleBuilds <*> simpleDefaults
     phonys   :: HashMap IR.Target (HashSet IR.Target)
     defaults :: HashSet IR.Target
     pools    :: HashSet IR.Pool
-    meta     = ninjaIR ^. IR.ninjaMeta
-    builds   = ninjaIR ^. IR.ninjaBuilds
-    phonys   = ninjaIR ^. IR.ninjaPhonys
-    defaults = ninjaIR ^. IR.ninjaDefaults
-    pools    = ninjaIR ^. IR.ninjaPools
+    meta     = Lens.view IR.ninjaMeta     ninjaIR
+    builds   = Lens.view IR.ninjaBuilds   ninjaIR
+    phonys   = Lens.view IR.ninjaPhonys   ninjaIR
+    defaults = Lens.view IR.ninjaDefaults ninjaIR
+    pools    = Lens.view IR.ninjaPools    ninjaIR
 
     -- Then, we construct the fields of the result.
 
@@ -177,14 +162,14 @@ simplify' ninjaIR = MkSNinja <$> simpleBuilds <*> simpleDefaults
 
     convertBuild :: IR.Build
                  -> SimplifyT m (HashMap Target SBuild)
-    convertBuild b = do
-      cmd  <- (b ^. IR.buildRule)
+    convertBuild buildIR = do
+      cmd  <- Lens.view IR.buildRule buildIR
               |> convertRule
-      outs <- (b ^. IR.buildOuts)
-              |> HS.map (view IR.outputTarget)
+      outs <- Lens.view IR.buildOuts buildIR
+              |> HS.map (Lens.view IR.outputTarget)
               |> pure
-      deps <- (b ^. IR.buildDeps)
-              |> HS.map (view IR.dependencyTarget)
+      deps <- Lens.view IR.buildDeps buildIR
+              |> HS.map (Lens.view IR.dependencyTarget)
               |> pure
       let sb = MkSBuild (Just cmd) deps
       case HS.toList outs of
@@ -235,23 +220,26 @@ simplify' ninjaIR = MkSNinja <$> simpleBuilds <*> simpleDefaults
     -- command once that is verified.
 
     convertRule :: IR.Rule -> SimplifyT m Command
-    convertRule r = do
-      whenJust (r ^. IR.ruleDepfile)      throwUnhandledDepfile
-      whenJust (r ^. IR.ruleSpecialDeps)  throwUnhandledSpecialDeps
-      when     (r ^. IR.ruleGenerator)    throwUnhandledGenerator
-      when     (r ^. IR.ruleRestat)       throwUnhandledRestat
-      whenJust (r ^. IR.ruleResponseFile) throwUnhandledResponseFile
-      pure (r ^. IR.ruleCommand)
+    convertRule ruleIR = do
+      whenJust (Lens.view IR.ruleDepfile      ruleIR) throwUnhandledDepfile
+      whenJust (Lens.view IR.ruleSpecialDeps  ruleIR) throwUnhandledSpecialDeps
+      when     (Lens.view IR.ruleGenerator    ruleIR) throwUnhandledGenerator
+      when     (Lens.view IR.ruleRestat       ruleIR) throwUnhandledRestat
+      whenJust (Lens.view IR.ruleResponseFile ruleIR) throwUnhandledResponseFile
+      pure (Lens.view IR.ruleCommand ruleIR)
 
 --------------------------------------------------------------------------------
 
-sninjaToJSON :: SNinja -> Value
-sninjaToJSON (sn@(MkSNinja {..})) = [ "graph" .= builds, "defaults" .= defaults
-                                    ] |> object
+sninjaToJSON :: SNinja -> Aeson.Value
+sninjaToJSON (sn@(MkSNinja {..})) = [ "graph" .= graph, "defaults" .= defaults
+                                    ] |> Aeson.object
   where
-    builds, defaults :: Value
-    builds   = toJSON (HM.mapWithKey pairJ (HM.map Just _snBuilds <> leafs))
-    defaults = toJSON _snDefaults
+    graph, defaults :: Aeson.Value
+    graph    = Aeson.toJSON (HM.mapWithKey pairJ builds)
+    defaults = Aeson.toJSON _snDefaults
+
+    builds :: HashMap Target (Maybe SBuild)
+    builds = HM.map Just _snBuilds <> leafs
 
     leafs :: HashMap Target (Maybe SBuild)
     leafs = leafTargets sn
@@ -259,21 +247,21 @@ sninjaToJSON (sn@(MkSNinja {..})) = [ "graph" .= builds, "defaults" .= defaults
             |> map (\t -> (t, Nothing))
             |> HM.fromList
 
-    pairJ :: Target -> Maybe SBuild -> Value
+    pairJ :: Target -> Maybe SBuild -> Aeson.Value
     pairJ _      (Just (MkSBuild (Just c) deps)) = buildJ c deps
     pairJ _      (Just (MkSBuild Nothing  deps)) = phonyJ deps
     pairJ target Nothing                         = leafJ target
 
-    buildJ :: Command -> HashSet Target -> Value
+    buildJ :: Command -> HashSet Target -> Aeson.Value
     buildJ c deps = tyObject "build" ["dependencies" .= deps, "command" .= c]
 
-    phonyJ :: HashSet Target -> Value
+    phonyJ :: HashSet Target -> Aeson.Value
     phonyJ deps = tyObject "phony" ["dependencies" .= deps]
 
-    leafJ :: Target -> Value
+    leafJ :: Target -> Aeson.Value
     leafJ target = tyObject "leaf" ["path" .= target]
 
-    tyObject t rest = object (("type" .= (t :: Text)) : rest)
+    tyObject t rest = Aeson.object (("type" .= (t :: Text)) : rest)
 
 --------------------------------------------------------------------------------
 
@@ -284,6 +272,6 @@ main = do
   ir     <- compileToIR parsed
   sninja <- simplifyIO ir
   value  <- pure (sninjaToJSON sninja)
-  LBSC8.putStrLn (encodePretty value)
+  LBSC8.putStrLn (Aeson.encodePretty value)
 
 --------------------------------------------------------------------------------

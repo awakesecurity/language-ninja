@@ -53,16 +53,12 @@ module Language.Ninja.IR.Rule
   , ResponseFile, makeResponseFile, responseFilePath, responseFileContent
   ) where
 
-import           Data.Maybe
-
-import           Flow                        ((.>), (|>))
+import qualified Control.Lens                as Lens
 
 import           Data.Text                   (Text)
-import qualified Data.Text                   as T
+import qualified Data.Text                   as Text
 
-import           Data.Aeson
-                 (FromJSON (..), KeyValue (..), ToJSON (..), Value (..), (.:),
-                 (.:?))
+import           Data.Aeson                  ((.:), (.=))
 import qualified Data.Aeson                  as Aeson
 
 import           Control.DeepSeq             (NFData)
@@ -70,12 +66,11 @@ import           Data.Hashable               (Hashable (..))
 import           GHC.Generics                (Generic)
 import qualified Test.SmallCheck.Series      as SC
 
-import           Control.Lens.Lens           (Lens', lens)
-import           Control.Lens.Prism          (Prism', prism)
-
 import           Language.Ninja.IR.Pool      (PoolName, makePoolNameDefault)
 import           Language.Ninja.Misc.Command (Command)
 import           Language.Ninja.Misc.Path    (Path)
+
+import           Flow                        ((|>))
 
 --------------------------------------------------------------------------------
 
@@ -125,16 +120,16 @@ makeRule name cmd
 --
 --   @since 0.1.0
 {-# INLINE ruleName #-}
-ruleName :: Lens' Rule Text
-ruleName = lens _ruleName
+ruleName :: Lens.Lens' Rule Text
+ruleName = Lens.lens _ruleName
            $ \(MkRule {..}) x -> MkRule { _ruleName = x, .. }
 
 -- | The command that this rule will run.
 --
 --   @since 0.1.0
 {-# INLINE ruleCommand #-}
-ruleCommand :: Lens' Rule Command
-ruleCommand = lens _ruleCommand
+ruleCommand :: Lens.Lens' Rule Command
+ruleCommand = Lens.lens _ruleCommand
               $ \(MkRule {..}) x -> MkRule { _ruleCommand = x, .. }
 
 -- | A short description of the command, used to pretty-print the command
@@ -144,16 +139,16 @@ ruleCommand = lens _ruleCommand
 --
 --   @since 0.1.0
 {-# INLINE ruleDescription #-}
-ruleDescription :: Lens' Rule (Maybe Text)
-ruleDescription = lens _ruleDescription
+ruleDescription :: Lens.Lens' Rule (Maybe Text)
+ruleDescription = Lens.lens _ruleDescription
                   $ \(MkRule {..}) x -> MkRule { _ruleDescription = x, .. }
 
 -- | The process pool in which this rule will be executed.
 --
 --   @since 0.1.0
 {-# INLINE rulePool #-}
-rulePool :: Lens' Rule PoolName
-rulePool = lens _rulePool
+rulePool :: Lens.Lens' Rule PoolName
+rulePool = Lens.lens _rulePool
            $ \(MkRule {..}) x -> MkRule { _rulePool = x, .. }
 
 -- | If set, this should be a path to an optional Makefile that contains
@@ -163,8 +158,8 @@ rulePool = lens _rulePool
 --
 --   @since 0.1.0
 {-# INLINE ruleDepfile #-}
-ruleDepfile :: Lens' Rule (Maybe Path)
-ruleDepfile = lens _ruleDepfile
+ruleDepfile :: Lens.Lens' Rule (Maybe Path)
+ruleDepfile = Lens.lens _ruleDepfile
               $ \(MkRule {..}) x -> MkRule { _ruleDepfile = x, .. }
 
 -- | If set, enables special dependency processing used in C/C++ header
@@ -173,8 +168,8 @@ ruleDepfile = lens _ruleDepfile
 --
 --   @since 0.1.0
 {-# INLINE ruleSpecialDeps #-}
-ruleSpecialDeps :: Lens' Rule (Maybe SpecialDeps)
-ruleSpecialDeps = lens _ruleSpecialDeps
+ruleSpecialDeps :: Lens.Lens' Rule (Maybe SpecialDeps)
+ruleSpecialDeps = Lens.lens _ruleSpecialDeps
                   $ \(MkRule {..}) x -> MkRule { _ruleSpecialDeps = x, .. }
 
 -- | If this is true, specifies that this rule is used to re-invoke the
@@ -184,8 +179,8 @@ ruleSpecialDeps = lens _ruleSpecialDeps
 --
 --   @since 0.1.0
 {-# INLINE ruleGenerator #-}
-ruleGenerator :: Lens' Rule Bool
-ruleGenerator = lens _ruleGenerator
+ruleGenerator :: Lens.Lens' Rule Bool
+ruleGenerator = Lens.lens _ruleGenerator
                 $ \(MkRule {..}) x -> MkRule { _ruleGenerator = x, .. }
 
 -- | If true, causes Ninja to re-stat the command's outputs after
@@ -196,8 +191,8 @@ ruleGenerator = lens _ruleGenerator
 --
 --   @since 0.1.0
 {-# INLINE ruleRestat #-}
-ruleRestat :: Lens' Rule Bool
-ruleRestat = lens _ruleRestat
+ruleRestat :: Lens.Lens' Rule Bool
+ruleRestat = Lens.lens _ruleRestat
              $ \(MkRule {..}) x -> MkRule { _ruleRestat = x, .. }
 
 -- | If present, Ninja will use a response file for the given command,
@@ -209,8 +204,8 @@ ruleRestat = lens _ruleRestat
 --
 --   @since 0.1.0
 {-# INLINE ruleResponseFile #-}
-ruleResponseFile :: Lens' Rule (Maybe ResponseFile)
-ruleResponseFile = lens _ruleResponseFile
+ruleResponseFile :: Lens.Lens' Rule (Maybe ResponseFile)
+ruleResponseFile = Lens.lens _ruleResponseFile
                    $ \(MkRule {..}) x -> MkRule { _ruleResponseFile = x, .. }
 
 -- | Converts to
@@ -218,7 +213,7 @@ ruleResponseFile = lens _ruleResponseFile
 --     deps: …, generator: …, restat: …, rsp: …}@.
 --
 --   @since 0.1.0
-instance ToJSON Rule where
+instance Aeson.ToJSON Rule where
   toJSON (MkRule {..})
     = [ "name"      .= _ruleName
       , "command"   .= _ruleCommand
@@ -231,10 +226,10 @@ instance ToJSON Rule where
       , "rsp"       .= _ruleResponseFile
       ] |> Aeson.object
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance FromJSON Rule where
+instance Aeson.FromJSON Rule where
   parseJSON = (Aeson.withObject "Rule" $ \o -> do
                   _ruleName         <- (o .: "name")      >>= pure
                   _ruleCommand      <- (o .: "command")   >>= pure
@@ -308,8 +303,8 @@ makeSpecialDepsMSVC = SpecialDepsMSVC
 --
 --   @since 0.1.0
 {-# INLINE _SpecialDepsGCC #-}
-_SpecialDepsGCC :: Prism' SpecialDeps ()
-_SpecialDepsGCC = prism (const makeSpecialDepsGCC)
+_SpecialDepsGCC :: Lens.Prism' SpecialDeps ()
+_SpecialDepsGCC = Lens.prism (const makeSpecialDepsGCC)
                   $ \case SpecialDepsGCC -> Right ()
                           owise          -> Left owise
 
@@ -317,35 +312,35 @@ _SpecialDepsGCC = prism (const makeSpecialDepsGCC)
 --
 --   @since 0.1.0
 {-# INLINE _SpecialDepsMSVC #-}
-_SpecialDepsMSVC :: Prism' SpecialDeps Text
-_SpecialDepsMSVC = prism makeSpecialDepsMSVC
+_SpecialDepsMSVC :: Lens.Prism' SpecialDeps Text
+_SpecialDepsMSVC = Lens.prism makeSpecialDepsMSVC
                    $ \case (SpecialDepsMSVC prefix) -> Right prefix
                            owise                    -> Left owise
 
 -- | Converts to @{deps: "gcc"}@ or @{deps: "msvc", prefix: …}@.
 --
 --   @since 0.1.0
-instance ToJSON SpecialDeps where
+instance Aeson.ToJSON SpecialDeps where
   toJSON = go
     where
       go SpecialDepsGCC      = Aeson.object ["deps" .= gcc]
       go (SpecialDepsMSVC p) = Aeson.object ["deps" .= msvc, "prefix" .= p]
 
-      gcc, msvc :: Value
+      gcc, msvc :: Aeson.Value
       (gcc, msvc) = ("gcc", "msvc")
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance FromJSON SpecialDeps where
+instance Aeson.FromJSON SpecialDeps where
   parseJSON = Aeson.withObject "SpecialDeps" $ \o -> do
     deps <- o .: "deps"
-    case T.pack deps of
+    case Text.pack deps of
       "gcc"  -> pure SpecialDepsGCC
       "msvc" -> SpecialDepsMSVC <$> (o .: "prefix")
       owise  -> [ "Invalid deps type ", "\"", owise, "\"; "
                 , "should be one of [\"gcc\", \"msvc\"]."
-                ] |> mconcat |> T.unpack |> fail
+                ] |> mconcat |> Text.unpack |> fail
 
 -- | Default 'Hashable' instance via 'Generic'.
 --
@@ -399,8 +394,8 @@ makeResponseFile = MkResponseFile
 --
 --   @since 0.1.0
 {-# INLINE responseFilePath #-}
-responseFilePath :: Lens' ResponseFile Path
-responseFilePath = lens _responseFilePath
+responseFilePath :: Lens.Lens' ResponseFile Path
+responseFilePath = Lens.lens _responseFilePath
                    $ \(MkResponseFile {..}) x ->
                        MkResponseFile { _responseFilePath = x, .. }
 
@@ -408,28 +403,26 @@ responseFilePath = lens _responseFilePath
 --
 --   @since 0.1.0
 {-# INLINE responseFileContent #-}
-responseFileContent :: Lens' ResponseFile Text
-responseFileContent = lens _responseFileContent
+responseFileContent :: Lens.Lens' ResponseFile Text
+responseFileContent = Lens.lens _responseFileContent
                       $ \(MkResponseFile {..}) x ->
                           MkResponseFile { _responseFileContent = x, .. }
 
 -- | Converts to @{path: …, content: …}@.
 --
 --   @since 0.1.0
-instance ToJSON ResponseFile where
+instance Aeson.ToJSON ResponseFile where
   toJSON (MkResponseFile {..})
     = [ "path"    .= _responseFilePath
       , "content" .= _responseFileContent
       ] |> Aeson.object
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance FromJSON ResponseFile where
-  parseJSON = Aeson.withObject "ResponseFile" $ \o -> do
-    MkResponseFile
-      <$> (o .: "path")
-      <*> (o .: "content")
+instance Aeson.FromJSON ResponseFile where
+  parseJSON = Aeson.withObject "ResponseFile"
+              $ \o -> MkResponseFile <$> (o .: "path") <*> (o .: "content")
 
 -- | Default 'Hashable' instance via 'Generic'.
 --

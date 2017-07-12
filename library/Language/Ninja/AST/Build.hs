@@ -51,7 +51,6 @@ module Language.Ninja.AST.Build
   ) where
 
 import qualified Control.Lens              as Lens
-import           Control.Lens.Lens         (Lens', lens)
 
 import           Flow                      ((.>), (|>))
 
@@ -70,7 +69,7 @@ import qualified Test.SmallCheck.Series    as SC
 
 import           GHC.Exts                  (Constraint)
 
-import           Data.Aeson                (FromJSON, ToJSON, (.:), (.=))
+import           Data.Aeson                ((.:), (.=))
 import qualified Data.Aeson                as Aeson
 
 import qualified Language.Ninja.AST.Deps   as AST
@@ -114,39 +113,39 @@ makeBuild rule env = MkBuild
 --
 --   @since 0.1.0
 {-# INLINE buildRule #-}
-buildRule :: Lens' (Build ann) Text
-buildRule = lens _buildRule
+buildRule :: Lens.Lens' (Build ann) Text
+buildRule = Lens.lens _buildRule
             $ \(MkBuild {..}) x -> MkBuild { _buildRule = x, .. }
 
 -- | A lens into the environment associated with a 'Build'.
 --
 --   @since 0.1.0
 {-# INLINE buildEnv #-}
-buildEnv :: Lens' (Build ann) (AST.Env Text Text)
-buildEnv = lens _buildEnv
+buildEnv :: Lens.Lens' (Build ann) (AST.Env Text Text)
+buildEnv = Lens.lens _buildEnv
            $ \(MkBuild {..}) x -> MkBuild { _buildEnv = x, .. }
 
 -- | A lens into the dependencies associated with a 'Build'.
 --
 --   @since 0.1.0
 {-# INLINE buildDeps #-}
-buildDeps :: Lens' (Build ann) (AST.Deps ann)
-buildDeps = lens _buildDeps
+buildDeps :: Lens.Lens' (Build ann) (AST.Deps ann)
+buildDeps = Lens.lens _buildDeps
             $ \(MkBuild {..}) x -> MkBuild { _buildDeps = x, .. }
 
 -- | A lens into the bindings associated with a 'Build'.
 --
 --   @since 0.1.0
 {-# INLINE buildBind #-}
-buildBind :: Lens' (Build ann) (HashMap Text Text)
-buildBind = lens _buildBind
+buildBind :: Lens.Lens' (Build ann) (HashMap Text Text)
+buildBind = Lens.lens _buildBind
             $ \(MkBuild {..}) x -> MkBuild { _buildBind = x, .. }
 
 -- | The usual definition for 'Misc.Annotated'.
 --
 --   @since 0.1.0
 instance Misc.Annotated Build where
-  annotation' f = lens (helper .> fst) (helper .> snd)
+  annotation' f = Lens.lens (helper .> fst) (helper .> snd)
     where
       helper (MkBuild {..})
         = ( _buildAnn
@@ -155,7 +154,7 @@ instance Misc.Annotated Build where
 -- | Converts to @{ann: …, rule: …, env: …, deps: …, bind: …}@.
 --
 --   @since 0.1.0
-instance (ToJSON ann) => ToJSON (Build ann) where
+instance (Aeson.ToJSON ann) => Aeson.ToJSON (Build ann) where
   toJSON (MkBuild {..})
     = [ "ann"  .= _buildAnn
       , "rule" .= _buildRule
@@ -164,10 +163,10 @@ instance (ToJSON ann) => ToJSON (Build ann) where
       , "bind" .= _buildBind
       ] |> Aeson.object
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance (FromJSON ann) => FromJSON (Build ann) where
+instance (Aeson.FromJSON ann) => Aeson.FromJSON (Build ann) where
   parseJSON = (Aeson.withObject "Build" $ \o -> do
                   _buildAnn  <- (o .: "ann")  >>= pure
                   _buildRule <- (o .: "rule") >>= pure

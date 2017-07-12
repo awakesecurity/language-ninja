@@ -82,7 +82,7 @@ import           Data.Text                 (Text)
 
 import qualified Data.Versions             as Ver
 
-import           Flow                      ((.>), (|>))
+import           Flow                      ((.>))
 
 --------------------------------------------------------------------------------
 

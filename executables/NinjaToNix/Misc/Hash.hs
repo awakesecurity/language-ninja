@@ -20,9 +20,7 @@
 {-# OPTIONS_GHC #-}
 {-# OPTIONS_HADDOCK #-}
 
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PackageImports    #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE PackageImports #-}
 
 -- |
 --   Module      : NinjaToNix.Misc.Hash
@@ -39,13 +37,14 @@ module NinjaToNix.Misc.Hash
 
 import           "cryptonite" Crypto.Hash     as Exported
 
-import qualified Data.ByteString as BS
+import           Data.ByteString (ByteString)
 
-import qualified Data.Text       as T
+import           Data.Text       (Text)
+import qualified Data.Text       as Text
 
-digestSHA256 :: BS.ByteString -> Digest SHA256
+digestSHA256 :: ByteString -> Digest SHA256
 digestSHA256 = hash
 
 -- | FIXME: doc
-sha256 :: BS.ByteString -> T.Text
-sha256 = T.pack . show . digestSHA256
+sha256 :: ByteString -> Text
+sha256 = Text.pack . show . digestSHA256

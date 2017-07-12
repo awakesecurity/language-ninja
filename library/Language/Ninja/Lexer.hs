@@ -51,7 +51,6 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE UndecidableInstances       #-}
 
 -- |
@@ -84,59 +83,46 @@ module Language.Ninja.Lexer
   , PositionParsing (..)
   ) where
 
-import           Control.Applicative        (Alternative (..))
-import           Control.Arrow              (second)
-import qualified Control.Exception
-import           Control.Monad              (unless, void, when, (>=>))
-import           Control.Monad.Error.Class  (MonadError (..))
+import           Control.Applicative       (Alternative (..))
+import           Control.Arrow             (second)
+import           Control.Monad             (unless, void, when)
+import           Control.Monad.Error.Class (MonadError (..))
 
-import           Control.Lens               (lens, (^.))
-import qualified Control.Lens               as Lens
+import qualified Control.Lens              as Lens
 
-import           Data.ByteString            (ByteString)
-import qualified Data.ByteString            as BS
+import           Data.ByteString           (ByteString)
 
-import qualified Data.ByteString.Lazy       as LBS
-import qualified Data.ByteString.Lazy.Char8 as LBSC8
+import           Data.Text                 (Text)
+import qualified Data.Text                 as Text
+import qualified Data.Text.Encoding        as Text
 
-import           Data.HashSet               (HashSet)
-import qualified Data.HashSet               as HS
+import           Data.Char                 (isSpace)
+import           Data.Foldable             (asum)
+import           Data.Functor              ((<$))
+import           Data.Maybe                (catMaybes, fromMaybe)
 
-import           Data.Text                  (Text)
-import qualified Data.Text                  as Text
-import qualified Data.Text.Encoding         as Text
+import           Flow                      ((.>), (|>))
 
-import           Data.List.NonEmpty         (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty         as NE
+import qualified Text.Megaparsec           as M
+import qualified Text.Megaparsec.Lexer     as M.Lexer
 
-import           Data.Char                  (isSpace)
-import           Data.Foldable              (asum, maximumBy, minimumBy)
-import           Data.Functor               (($>), (<$))
-import           Data.Maybe                 (catMaybes, fromJust, fromMaybe)
+import           Data.Aeson                ((.:), (.=))
+import qualified Data.Aeson                as Aeson
 
-import           Flow                       ((.>), (|>))
+import           Control.DeepSeq           (NFData)
+import           Data.Hashable             (Hashable)
+import           Data.Monoid               (Monoid (..))
+import           GHC.Generics              (Generic)
 
-import qualified Text.Megaparsec            as M
-import qualified Text.Megaparsec.Lexer      as M.Lexer
+import           Test.SmallCheck.Series    ((<~>))
+import qualified Test.SmallCheck.Series    as SC
 
-import           Data.Aeson                 ((.:), (.=))
-import qualified Data.Aeson                 as Aeson
+import           GHC.Exts                  (Constraint)
 
-import           Control.DeepSeq            (NFData)
-import           Data.Hashable              (Hashable)
-import           Data.Monoid                (Monoid (..))
-import           Data.Semigroup             (Semigroup (..))
-import           GHC.Generics               (Generic)
-
-import           Test.SmallCheck.Series     ((<~>))
-import qualified Test.SmallCheck.Series     as SC
-
-import           GHC.Exts                   (Constraint)
-
-import qualified Language.Ninja.AST         as AST
-import qualified Language.Ninja.Errors      as Err
-import qualified Language.Ninja.Misc        as Misc
-import qualified Language.Ninja.Mock        as Mock
+import qualified Language.Ninja.AST        as AST
+import qualified Language.Ninja.Errors     as Err
+import qualified Language.Ninja.Misc       as Misc
+import qualified Language.Ninja.Mock       as Mock
 
 --------------------------------------------------------------------------------
 
@@ -149,11 +135,12 @@ spanned p = do
   start  <- getPosition
   result <- p
   end    <- getPosition
-  let (sfile, efile) = (start ^. Misc.positionFile, end ^. Misc.positionFile)
+  let getPosFile = Lens.view Misc.positionFile
+  let (sfile, efile) = (getPosFile start, getPosFile end)
   when (sfile /= efile) $ fail "spanned: somehow went over multiple files!"
   let file = sfile
-  let offS = start ^. Misc.positionOffset
-  let offE = end   ^. Misc.positionOffset
+  let offS = Lens.view Misc.positionOffset start
+  let offE = Lens.view Misc.positionOffset end
   pure (Misc.makeSpans [Misc.makeSpan file offS offE], result)
 
 --------------------------------------------------------------------------------
@@ -200,7 +187,7 @@ data Lexeme ann
 --
 --   @since 0.1.0
 instance Misc.Annotated Lexeme where
-  annotation' f = lens (helper .> fst) (helper .> snd)
+  annotation' f = Lens.lens (helper .> fst) (helper .> snd)
     where
       helper (LexDefine   ann v) = (ann, \x -> LexDefine   x (f <$> v))
       helper (LexBind     ann v) = (ann, \x -> LexBind     x (f <$> v))
@@ -229,7 +216,7 @@ instance (Aeson.ToJSON ann) => Aeson.ToJSON (Lexeme ann) where
       obj ann tag value = [ "ann" .= ann, "tag" .= tag, "value" .= value
                           ] |> Aeson.object
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
 instance (Aeson.FromJSON ann) => Aeson.FromJSON (Lexeme ann) where
@@ -304,7 +291,7 @@ data LName ann
 --
 --   @since 0.1.0
 instance Misc.Annotated LName where
-  annotation' f = lens _lnameAnn
+  annotation' _ = Lens.lens _lnameAnn
                   $ \(MkLName {..}) x -> MkLName { _lnameAnn = x, .. }
 
 -- | Converts to @{ann: …, name: …}@.
@@ -316,7 +303,7 @@ instance (Aeson.ToJSON ann) => Aeson.ToJSON (LName ann) where
       , "name" .= Text.decodeUtf8 _lnameBS
       ] |> Aeson.object
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
 instance (Aeson.FromJSON ann) => Aeson.FromJSON (LName ann) where
@@ -374,7 +361,7 @@ instance (Aeson.ToJSON ann) => Aeson.ToJSON (LFile ann) where
     = [ "file" .= _lfileExpr
       ] |> Aeson.object
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
 instance (Aeson.FromJSON ann) => Aeson.FromJSON (LFile ann) where
@@ -433,7 +420,7 @@ instance (Aeson.ToJSON ann) => Aeson.ToJSON (LBind ann) where
       , "value" .= _lbindValue
       ] |> Aeson.object
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
 instance (Aeson.FromJSON ann) => Aeson.FromJSON (LBind ann) where
@@ -507,7 +494,7 @@ makeLBuild ann outs rule deps
 --
 --   @since 0.1.0
 instance Misc.Annotated LBuild where
-  annotation' f = lens _lbuildAnn
+  annotation' f = Lens.lens _lbuildAnn
                   $ \(MkLBuild {..}) x ->
                       MkLBuild { _lbuildAnn = x
                                , _lbuildOuts = map (fmap f) _lbuildOuts
@@ -526,7 +513,7 @@ instance (Aeson.ToJSON ann) => Aeson.ToJSON (LBuild ann) where
       , "deps" .= _lbuildDeps
       ] |> Aeson.object
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
 instance (Aeson.FromJSON ann) => Aeson.FromJSON (LBuild ann) where
@@ -620,7 +607,7 @@ instance (Monad m) => PositionParsing (M.ParsecT M.Dec Text m) where
     where
       convert :: M.SourcePos -> Misc.Position
       convert (M.SourcePos fp line column)
-        = let path = fp ^. Lens.from Misc.pathString
+        = let path = Lens.view (Lens.from Misc.pathString) fp
           in Misc.makePosition (Just path) (toLine line, toColumn column)
 
       toLine   :: M.Pos -> Misc.Line

@@ -46,8 +46,9 @@ module Language.Ninja.IR.Build
   , BuildConstraint
   ) where
 
-import           Data.Aeson
-                 (FromJSON, KeyValue (..), ToJSON, (.:))
+import qualified Control.Lens             as Lens
+
+import           Data.Aeson               ((.:), (.=))
 import qualified Data.Aeson               as Aeson
 
 import           Data.Text                (Text)
@@ -64,8 +65,6 @@ import           GHC.Exts                 (Constraint)
 
 import           Language.Ninja.IR.Rule   (Rule)
 import           Language.Ninja.IR.Target (Dependency, Output)
-
-import           Control.Lens.Lens        (Lens', lens)
 
 import           Flow                     ((|>))
 
@@ -98,40 +97,40 @@ makeBuild rule = MkBuild
 --
 --   @since 0.1.0
 {-# INLINE buildRule #-}
-buildRule :: Lens' Build Rule
-buildRule = lens _buildRule
+buildRule :: Lens.Lens' Build Rule
+buildRule = Lens.lens _buildRule
             $ \(MkBuild {..}) x -> MkBuild { _buildRule = x, .. }
 
 -- | The outputs that are built as a result of rule execution.
 --
 --   @since 0.1.0
 {-# INLINE buildOuts #-}
-buildOuts :: Lens' Build (HashSet Output)
-buildOuts = lens _buildOuts
+buildOuts :: Lens.Lens' Build (HashSet Output)
+buildOuts = Lens.lens _buildOuts
             $ \(MkBuild {..}) x -> MkBuild { _buildOuts = x, .. }
 
 -- | The dependencies that must be satisfied before this can be built.
 --
 --   @since 0.1.0
 {-# INLINE buildDeps #-}
-buildDeps :: Lens' Build (HashSet Dependency)
-buildDeps = lens _buildDeps
+buildDeps :: Lens.Lens' Build (HashSet Dependency)
+buildDeps = Lens.lens _buildDeps
             $ \(MkBuild {..}) x -> MkBuild { _buildDeps = x, .. }
 
 -- | Converts to @{rule: …, outputs: …, dependencies: …}@.
 --
 --   @since 0.1.0
-instance ToJSON Build where
+instance Aeson.ToJSON Build where
   toJSON (MkBuild {..})
     = [ "rule"         .= _buildRule
       , "outputs"      .= _buildOuts
       , "dependencies" .= _buildDeps
       ] |> Aeson.object
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance FromJSON Build where
+instance Aeson.FromJSON Build where
   parseJSON = (Aeson.withObject "Build" $ \o -> do
                   _buildRule <- (o .: "rule")         >>= pure
                   _buildOuts <- (o .: "outputs")      >>= pure

@@ -47,7 +47,7 @@ module Language.Ninja.AST.Deps
   , depsNormal, depsImplicit, depsOrderOnly
   ) where
 
-import           Control.Lens.Lens         (Lens', lens)
+import qualified Control.Lens              as Lens
 
 import           Flow                      ((|>))
 
@@ -63,7 +63,7 @@ import           Test.QuickCheck.Instances ()
 
 import qualified Test.SmallCheck.Series    as SC
 
-import           Data.Aeson                (FromJSON, ToJSON, (.:), (.=))
+import           Data.Aeson                ((.:), (.=))
 import qualified Data.Aeson                as Aeson
 
 import qualified Language.Ninja.Misc       as Misc
@@ -98,37 +98,37 @@ makeDeps = MkDeps
 --
 --   @since 0.1.0
 {-# INLINE depsNormal #-}
-depsNormal :: Lens' (Deps ann) (HashSet Text)
-depsNormal = lens _depsNormal
+depsNormal :: Lens.Lens' (Deps ann) (HashSet Text)
+depsNormal = Lens.lens _depsNormal
              $ \(MkDeps {..}) x -> MkDeps { _depsNormal = x, .. }
 
 -- | A lens into the set of implicit dependencies in a 'Deps'.
 --
 --   @since 0.1.0
 {-# INLINE depsImplicit #-}
-depsImplicit :: Lens' (Deps ann) (HashSet Text)
-depsImplicit = lens _depsImplicit
+depsImplicit :: Lens.Lens' (Deps ann) (HashSet Text)
+depsImplicit = Lens.lens _depsImplicit
                $ \(MkDeps {..}) x -> MkDeps { _depsImplicit = x, .. }
 
 -- | A lens into the set of order-only dependencies in a 'Deps'.
 --
 --   @since 0.1.0
 {-# INLINE depsOrderOnly #-}
-depsOrderOnly :: Lens' (Deps ann) (HashSet Text)
-depsOrderOnly = lens _depsOrderOnly
+depsOrderOnly :: Lens.Lens' (Deps ann) (HashSet Text)
+depsOrderOnly = Lens.lens _depsOrderOnly
                 $ \(MkDeps {..}) x -> MkDeps { _depsOrderOnly = x, .. }
 
 -- | The usual definition for 'Misc.Annotated'.
 --
 --   @since 0.1.0
 instance Misc.Annotated Deps where
-  annotation' _ = lens _depsAnn
+  annotation' _ = Lens.lens _depsAnn
                   $ \(MkDeps {..}) x -> MkDeps { _depsAnn = x, .. }
 
 -- | Converts to @{ann: …, normal: …, implicit: …, order-only: …}@.
 --
 --   @since 0.1.0
-instance (ToJSON ann) => ToJSON (Deps ann) where
+instance (Aeson.ToJSON ann) => Aeson.ToJSON (Deps ann) where
   toJSON (MkDeps {..})
     = [ "ann"        .= _depsAnn
       , "normal"     .= _depsNormal
@@ -136,10 +136,10 @@ instance (ToJSON ann) => ToJSON (Deps ann) where
       , "order-only" .= _depsOrderOnly
       ] |> Aeson.object
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance (FromJSON ann) => FromJSON (Deps ann) where
+instance (Aeson.FromJSON ann) => Aeson.FromJSON (Deps ann) where
   parseJSON = (Aeson.withObject "Deps" $ \o -> do
                   _depsAnn       <- (o .: "ann")        >>= pure
                   _depsNormal    <- (o .: "normal")     >>= pure

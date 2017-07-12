@@ -47,9 +47,9 @@ import qualified Control.Lens              as Lens
 import           Data.Text                 (Text)
 import qualified Data.Text.IO              as Text
 
-import           Language.Ninja.Misc.Path  (Path, makePath, pathString)
+import           Language.Ninja.Misc.Path  (Path, pathString)
 
-import           Flow                      ((.>), (|>))
+import           Flow                      ((.>))
 
 --------------------------------------------------------------------------------
 

@@ -47,43 +47,32 @@ module Tests.Lint
   , ComponentName, SinceException
   ) where
 
-import           Control.Applicative
-import           Control.Arrow
-import           Control.Monad
+import           Control.Applicative         (empty)
+import           Control.Arrow               ((&&&))
+import           Control.Monad               (forM)
 
-import           Data.Either
-import           Data.Functor.Identity
-import           Data.Maybe
-import           Data.Monoid
+import           Data.Functor.Identity       (runIdentity)
+import           Data.Maybe                  (catMaybes, isJust, mapMaybe)
+import           Data.Monoid                 ((<>))
 
-import           Flow
+import           Flow                        ((.>), (|>))
 
-import qualified DynFlags                           as GHC
-import qualified GHC                                as GHC
-import qualified Module                             as GHC
-import qualified Name                               as GHC
-import qualified Outputable                         as GHC
+import qualified GHC
+import qualified Outputable                  as GHC
 
-import           Data.Map.Lazy                      (Map)
-import qualified Data.Map.Lazy                      as Map
+import qualified Data.Map.Lazy               as Map
 
-import qualified Data.Text                          as Text
+import qualified Data.Text                   as Text
 
-import qualified Documentation.Haddock              as H
-import qualified Documentation.Haddock.Types        as H
+import qualified Documentation.Haddock       as H
+import qualified Documentation.Haddock.Types as H
 
-import qualified Documentation.Haddock.Doc          as H.Doc
-import qualified Documentation.Haddock.Parser       as H.Parser
-import qualified Documentation.Haddock.Parser.Monad as H.Parser
+-- import qualified Documentation.Haddock.Doc          as H.Doc
+-- import qualified Documentation.Haddock.Parser       as H.Parser
+-- import qualified Documentation.Haddock.Parser.Monad as H.Parser
 
-import qualified Test.Tasty                         as Test
-import qualified Test.Tasty.HUnit                   as Test
-import qualified Test.Tasty.Ingredients             as Test
-import qualified Test.Tasty.Options                 as Test
-
-import qualified Distribution.Verbosity             as Verbosity
-
-import qualified Distribution.Simple.Configure      as Cabal
+import qualified Test.Tasty                  as Test
+import qualified Test.Tasty.HUnit            as Test
 
 import qualified Turtle
 
@@ -92,7 +81,7 @@ import qualified Turtle
 -- | FIXME: doc
 lintHaddock :: LintHaddockOptions -> IO Test.TestTree
 lintHaddock options = do
-  H.withGhc [] GHC.getSessionDynFlags
+  _ <- H.withGhc [] GHC.getSessionDynFlags
   buildHaddock
   mapM (lintInterfaceFile options) (componentNames options)
     |> fmap (Test.testGroup "Haddock linting")

@@ -47,21 +47,17 @@ module NinjaToNix.Misc.Supply
   , SupplyT, runSupplyT, execSupplyT, splitSupplyT
   ) where
 
-import           Control.Applicative              (liftA2)
+import           Control.Applicative              (Alternative, liftA2)
 import           Control.Arrow                    ((***))
+import           Control.Monad                    (MonadPlus)
+import           Control.Monad.Fail               (MonadFail)
+import           Control.Monad.Fix                (MonadFix)
 
-import           Control.Monad.Identity           (Identity)
-import           Control.Monad.Signatures         (Catch)
-import           Control.Monad.Trans.State.Strict (StateT (..), evalStateT)
+import           Control.Monad.Trans.State.Strict (StateT (..))
 import qualified Control.Monad.Trans.State.Strict as StateT
 
-import           Control.Applicative              (Alternative (..))
-import           Control.Monad                    (MonadPlus (..))
 import           Control.Monad.Error.Class        (MonadError (..))
-import           Control.Monad.Fail               (MonadFail (..))
-import           Control.Monad.Fix                (MonadFix (..))
 import           Control.Monad.IO.Class           (MonadIO (..))
-import           Control.Monad.Reader.Class       (MonadReader (..))
 import           Control.Monad.State.Class        (MonadState (..))
 import           Control.Monad.Trans.Class        (MonadTrans (..))
 
@@ -90,8 +86,8 @@ class (Monad m) => MonadSupply u m | m -> u where
 --   for that type.
 data USupply u
   = MkUSupply
-    { usupplyConversion ::                !(Int -> u)
-    , usupplyUnderlying :: {-# UNPACK #-} !CS.Supply
+    { _usupplyConversion ::                !(Int -> u)
+    , _usupplyUnderlying :: {-# UNPACK #-} !CS.Supply
     }
   deriving (Functor)
 
@@ -130,7 +126,7 @@ newtype SupplyT u m a
 
 -- | Given a starting 'USupply', run the given 'SupplyT'.
 runSupplyT :: (Monad m) => SupplyT u m a -> USupply u -> m a
-runSupplyT (SupplyT m) = evalStateT m
+runSupplyT (SupplyT m) = StateT.evalStateT m
 
 -- | Given a function @f@ from @'Int' -> u@, run the given 'SupplyT' by creating
 --   a 'USupply' from @f@ (which requires IO) and then

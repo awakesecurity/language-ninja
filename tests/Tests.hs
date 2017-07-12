@@ -39,31 +39,18 @@
 --   FIXME: doc
 module Main (main) where
 
-import           Data.Either
-import           Data.Maybe
-import           Data.Monoid
+import           Data.Maybe                 (catMaybes)
+import           Data.Monoid                ((<>))
 
 import qualified Data.Typeable              as Ty
 
-import           Data.ByteString            (ByteString)
-import qualified Data.ByteString            as BS
-
-import qualified Data.ByteString.Lazy       as LBS
-import qualified Data.ByteString.Lazy.Char8 as LBSC8
-
 import           Data.Text                  (Text)
-import qualified Data.Text                  as Text
-import qualified Data.Text.Encoding         as Text
-import qualified Data.Text.IO               as Text
 
-import           Control.Exception
-import           Control.Monad
-import           Control.Monad.Error.Class
+import           Control.Exception          (displayException)
+import           Control.Monad              (forM, unless, void)
 import           Control.Monad.Identity     (Identity)
-import           Control.Monad.Trans.Class
-import           Control.Monad.Trans.Except
+import           Control.Monad.Trans.Except (runExceptT)
 
-import           Control.Lens               ((^.))
 import qualified Control.Lens               as Lens
 
 import qualified Language.Ninja.AST.Env     as AST (Maps)
@@ -76,19 +63,20 @@ import qualified Language.Ninja.Misc        as Misc
 import qualified Language.Ninja.Parser      as Parser
 import qualified Language.Ninja.Pretty      as Pretty
 
-import qualified Test.Tasty                 as T
-import qualified Test.Tasty.Golden          as T
-import qualified Test.Tasty.HUnit           as T
-import qualified Test.Tasty.Ingredients     as T
-import qualified Test.Tasty.Options         as T
-import qualified Test.Tasty.Runners.Html    as T
+import           Test.Tasty                 (TestName, TestTree)
 
-import qualified Test.Tasty.QuickCheck      as T.QC
-import qualified Test.Tasty.SmallCheck      as T.SC
+import qualified Test.Tasty                 as Test
+import qualified Test.Tasty.HUnit           as Test
+import qualified Test.Tasty.Ingredients     as Test
+import qualified Test.Tasty.Options         as Test
+import qualified Test.Tasty.Runners.Html    as Test
 
-import qualified Test.Tasty.Lens.Iso        as T.Iso
-import qualified Test.Tasty.Lens.Lens       as T.Lens
-import qualified Test.Tasty.Lens.Prism      as T.Prism
+import qualified Test.Tasty.QuickCheck      as Test.QC
+import qualified Test.Tasty.SmallCheck      as Test.SC
+
+import qualified Test.Tasty.Lens.Iso        as Test.Iso
+import qualified Test.Tasty.Lens.Lens       as Test.Lens
+import qualified Test.Tasty.Lens.Prism      as Test.Prism
 
 import           Test.QuickCheck            ((===))
 import qualified Test.QuickCheck            as QC
@@ -96,32 +84,17 @@ import           Test.QuickCheck.Instances  ()
 
 import qualified Test.SmallCheck.Series     as SC
 
-import qualified Data.Versions              as Ver
-
 import           Filesystem.Path.CurrentOS  ((</>))
 import qualified Filesystem.Path.CurrentOS  as FP
 
 import qualified Data.Aeson                 as Aeson
-import qualified Data.Aeson.Diff            as Aeson
-import qualified Data.Aeson.Encode.Pretty   as Aeson
 import qualified Data.Aeson.Types           as Aeson
-
-import           Data.Hashable              (Hashable)
-
-import           Data.HashMap.Strict        (HashMap)
-import qualified Data.HashMap.Strict        as HM
-
-import           Data.HashSet               (HashSet)
-import qualified Data.HashSet               as HS
-
-import qualified Data.List.NonEmpty         as NE
 
 import qualified Turtle
 
 import           Flow
 
 import           Tests.Lint
-import           Tests.Mock
 import           Tests.Orphans              ()
 import qualified Tests.ReferenceLexer       as RefLex
 
@@ -151,49 +124,50 @@ aesonSC' :: (Eq x, Show x)
          => SC.Series IO x
          -> (x -> Aeson.Value)
          -> (Aeson.Value -> Aeson.Parser x)
-         -> T.TestTree
+         -> TestTree
 aesonSC' s toJ fromJ
-  = T.SC.testProperty "parseJSON . toJSON ≡ₛ pure"
-    (T.SC.over s (\x -> Aeson.parseEither fromJ (toJ x) == Right x))
+  = Test.SC.testProperty "parseJSON . toJSON ≡ₛ pure"
+    (Test.SC.over s (\x -> Aeson.parseEither fromJ (toJ x) == Right x))
 
 aesonSC :: forall x.
            ( Eq x, Show x, SC.Serial IO x, Aeson.ToJSON x, Aeson.FromJSON x
-           ) => Ty.Proxy x -> T.TestTree
+           ) => Ty.Proxy x -> TestTree
 aesonSC _ = aesonSC' @x SC.series Aeson.toJSON Aeson.parseJSON
 
 aesonQC' :: (Eq x, Show x)
          => (QC.Gen x, x -> [x])
          -> (x -> Aeson.Value)
          -> (Aeson.Value -> Aeson.Parser x)
-         -> T.TestTree
+         -> TestTree
 aesonQC' (gen, shrink) toJ fromJ
-  = T.QC.testProperty "parseJSON . toJSON ≡ₐ pure"
-    (T.QC.forAllShrink gen shrink
+  = Test.QC.testProperty "parseJSON . toJSON ≡ₐ pure"
+    (Test.QC.forAllShrink gen shrink
      (\x -> Aeson.parseEither fromJ (toJ x) === Right x))
 
 aesonQC :: forall x.
            ( Eq x, Show x, QC.Arbitrary x, Aeson.ToJSON x, Aeson.FromJSON x
-           ) => Ty.Proxy x -> T.TestTree
+           ) => Ty.Proxy x -> TestTree
 aesonQC _ = aesonQC' @x (QC.arbitrary, QC.shrink) Aeson.toJSON Aeson.parseJSON
 
 parseTestNinja :: String -> IO (AST.Ninja ())
 parseTestNinja name = do
   old <- Turtle.pwd
   Turtle.cd (FP.decodeString dataPrefix)
-  let file = (FP.decodeString (name <> ".ninja")) ^. Lens.from Misc.pathFP
-  result <- Parser.parseFileIO file >>= fmap (const ()) .> pure
+  let file = Lens.view (Lens.from Misc.pathString) (name <> ".ninja")
+  result <- Parser.parseFileIO file >>= void .> pure
   Turtle.cd old
   pure result
 
 lexerEquivalentTest :: String -> IO ()
 lexerEquivalentTest name = do
-  let file = (dataPrefix <> name <> ".ninja") ^. Lens.from Misc.pathString
+  let file = dataPrefix <> name <> ".ninja"
+             |> Lens.view (Lens.from Misc.pathString)
   let oldLexer = RefLex.lexerFile
-  let newLexer = Lexer.lexerFile .> fmap (map (fmap (const ())))
+  let newLexer = Lexer.lexerFile .> fmap (map void)
   expected <- runExceptT (oldLexer file)
   actual   <- runExceptT (newLexer file)
   unless (expected == actual) $ do
-    T.assertEqual "prefix" expected actual
+    Test.assertEqual "prefix" expected actual
 
 roundtripTest :: AST.Ninja () -> IO ()
 roundtripTest ninja = do
@@ -203,8 +177,8 @@ roundtripTest ninja = do
     let prettyInput = Pretty.prettyNinja ninja
     let tmpfile = tmpdir </> "generated.ninja"
     Turtle.writeTextFile tmpfile prettyInput
-    output <- Parser.parseFileIO (tmpfile ^. Lens.from Misc.pathFP)
-              >>= fmap (const ()) .> pure
+    output <- Parser.parseFileIO (Lens.view (Lens.from Misc.pathFP) tmpfile)
+              >>= void .> pure
     let prettyOutput = Pretty.prettyNinja output
     pure (prettyInput, prettyOutput)
 
@@ -215,26 +189,26 @@ roundtripTest ninja = do
     -- LBSC8.putStrLn (Aeson.encodePretty expectedJ)
     -- LBSC8.putStrLn (Aeson.encodePretty actualJ)
     -- Aeson.encode actualJ `H.shouldBe` Aeson.encode expectedJ
-    T.assertEqual "prefix" expected actual
+    Test.assertEqual "prefix" expected actual
 
 compileTest :: AST.Ninja () -> IO ()
 compileTest ninja = void $ do
   either (displayException .> fail) pure (Compile.compile ninja)
 
-ninjaTests :: String -> AST.Ninja () -> T.TestTree
+ninjaTests :: String -> AST.Ninja () -> TestTree
 ninjaTests name ninja
-  = T.testGroup (name <> ".ninja")
-    [ T.testCase "compare lexer against reference implementation" $ do
+  = Test.testGroup (name <> ".ninja")
+    [ Test.testCase "compare lexer against reference implementation" $ do
         lexerEquivalentTest name
-    , T.testCase "roundtrip through parser and pretty-printer" $ do
+    , Test.testCase "roundtrip through parser and pretty-printer" $ do
         roundtripTest ninja
-    , T.testCase "compile to Ninja" $ do
+    , Test.testCase "compile to Ninja" $ do
         compileTest ninja
     ]
 
-aesonTests :: T.TestTree
+aesonTests :: TestTree
 aesonTests
-  = T.testGroup "aeson"
+  = Test.testGroup "aeson"
     [ testModule "Language.Ninja.Lexer"
       [ testAesonSC 2   (Ty.Proxy @(Lexer.Lexeme Bool))
       , testAesonSC 4   (Ty.Proxy @(Lexer.LName  Bool))
@@ -306,43 +280,43 @@ aesonTests
     testAesonSC :: forall x.
                    ( Eq x, Show x, Ty.Typeable x, SC.Serial IO x
                    , Aeson.ToJSON x, Aeson.FromJSON x
-                   ) => Int -> Ty.Proxy x -> Maybe T.TestTree
+                   ) => Int -> Ty.Proxy x -> Maybe TestTree
     testAesonSC d p = withDepth d
                       (testType p
-                       [T.testGroup "ToJSON/FromJSON Laws" [aesonSC p]])
+                       [Test.testGroup "ToJSON/FromJSON Laws" [aesonSC p]])
 
     testAesonQC :: forall x.
                    ( Eq x, Show x, Ty.Typeable x, QC.Arbitrary x
                    , Aeson.ToJSON x, Aeson.FromJSON x
-                   ) => Ty.Proxy x -> Maybe T.TestTree
+                   ) => Ty.Proxy x -> Maybe TestTree
     testAesonQC p = Just (testType p
-                          [T.testGroup "ToJSON/FromJSON Laws" [aesonQC p]])
+                          [Test.testGroup "ToJSON/FromJSON Laws" [aesonQC p]])
 
-    withDepth :: Int -> (T.TestTree -> Maybe T.TestTree)
+    withDepth :: Int -> (TestTree -> Maybe TestTree)
     withDepth 0     = const Nothing
-    withDepth depth = T.localOption (T.SC.SmallCheckDepth depth) .> Just
+    withDepth depth = Test.localOption (Test.SC.SmallCheckDepth depth) .> Just
 
-    testModule :: T.TestName -> [Maybe T.TestTree] -> T.TestTree
-    testModule name subtrees = T.testGroup name (catMaybes subtrees)
+    testModule :: TestName -> [Maybe TestTree] -> TestTree
+    testModule name subtrees = Test.testGroup name (catMaybes subtrees)
 
     testType :: forall x. (Ty.Typeable x)
-             => Ty.Proxy x -> [T.TestTree] -> T.TestTree
-    testType p subtrees = T.localOption typeTimeout
-                          $ T.testGroup (printProxy p) subtrees
+             => Ty.Proxy x -> [TestTree] -> TestTree
+    testType p subtrees = Test.localOption typeTimeout
+                          $ Test.testGroup (printProxy p) subtrees
 
     printProxy :: forall x. (Ty.Typeable x) => Ty.Proxy x -> String
     printProxy p = Ty.showsTypeRep (Ty.typeRep p) ""
 
     def :: Int
-    def = (T.defaultValue :: T.SC.SmallCheckDepth)
+    def = (Test.defaultValue :: Test.SC.SmallCheckDepth)
           |> toInteger |> fromIntegral
 
-    typeTimeout :: T.Timeout
-    typeTimeout = T.mkTimeout 20000000 -- 20 seconds
+    typeTimeout :: Test.Timeout
+    typeTimeout = Test.mkTimeout 20000000 -- 20 seconds
 
-opticsTests :: T.TestTree
+opticsTests :: TestTree
 opticsTests
-  = T.testGroup "optics"
+  = Test.testGroup "optics"
     [ testModule "Language.Ninja.IR.Build"
       [ testType "Build" [] -- FIXME: combinatorial explosion
         -- [ testLens 1 "buildRule" IR.buildRule
@@ -499,42 +473,42 @@ opticsTests
     testIso   :: ( Eq s, Eq a, Show s, Show a
                  , SC.Serial Identity s, SC.Serial IO s, SC.CoSerial IO s
                  , SC.Serial Identity a, SC.Serial IO a, SC.CoSerial IO a
-                 ) => Int -> T.TestName -> Lens.Iso' s a -> T.TestTree
+                 ) => Int -> TestName -> Lens.Iso' s a -> TestTree
     testLens  :: ( Eq s, Eq a, Show s, Show a
                  , SC.Serial IO s, SC.Serial IO a
                  , SC.Serial Identity a, SC.CoSerial IO a
-                 ) => Int -> T.TestName -> Lens.Lens' s a -> T.TestTree
+                 ) => Int -> TestName -> Lens.Lens' s a -> TestTree
     testPrism :: ( Eq s, Eq a, Show s, Show a
                  , SC.Serial IO s, SC.Serial IO a
                  , SC.Serial Identity a, SC.CoSerial IO a
-                 ) => Int -> T.TestName -> Lens.Prism' s a -> T.TestTree
-    testIso   d name i = withDepth d $ T.testGroup name [T.Iso.test   i]
-    testLens  d name l = withDepth d $ T.testGroup name [T.Lens.test  l]
-    testPrism d name p = withDepth d $ T.testGroup name [T.Prism.test p]
+                 ) => Int -> TestName -> Lens.Prism' s a -> TestTree
+    testIso   d name i = withDepth d $ Test.testGroup name [Test.Iso.test   i]
+    testLens  d name l = withDepth d $ Test.testGroup name [Test.Lens.test  l]
+    testPrism d name p = withDepth d $ Test.testGroup name [Test.Prism.test p]
 
-    withDepth :: Int -> (T.TestTree -> T.TestTree)
-    withDepth depth = T.localOption (T.SC.SmallCheckDepth depth)
+    withDepth :: Int -> (TestTree -> TestTree)
+    withDepth depth = Test.localOption (Test.SC.SmallCheckDepth depth)
 
-    testModule :: T.TestName -> [T.TestTree] -> T.TestTree
-    testModule = T.testGroup
+    testModule :: TestName -> [TestTree] -> TestTree
+    testModule = Test.testGroup
 
-    testType :: T.TestName -> [T.TestTree] -> T.TestTree
-    testType name subtrees = T.localOption typeTimeout
-                             $ T.testGroup name subtrees
+    testType :: TestName -> [TestTree] -> TestTree
+    testType name subtrees = Test.localOption typeTimeout
+                             $ Test.testGroup name subtrees
 
     def :: Int
-    def = (T.defaultValue :: T.SC.SmallCheckDepth)
+    def = (Test.defaultValue :: Test.SC.SmallCheckDepth)
           |> toInteger |> fromIntegral
 
-    typeTimeout :: T.Timeout
-    typeTimeout = T.mkTimeout 20000000 -- 20 seconds
+    typeTimeout :: Test.Timeout
+    typeTimeout = Test.mkTimeout 20000000 -- 20 seconds
 
-ingredients :: IO [T.Ingredient]
-ingredients = [ [T.htmlRunner]
-              , T.defaultIngredients
+ingredients :: IO [Test.Ingredient]
+ingredients = [ [Test.htmlRunner]
+              , Test.defaultIngredients
               ] |> mconcat |> pure
 
-testTree :: IO T.TestTree
+testTree :: IO TestTree
 testTree = do
   ninjas <- forM testFiles parseTestNinja
 
@@ -542,8 +516,8 @@ testTree = do
                   |> addComponentName "language-ninja"
                   |> lintHaddock
 
-  let tests = T.testGroup "language-ninja"
-              [ T.testGroup "golden"
+  let tests = Test.testGroup "language-ninja"
+              [ Test.testGroup "golden"
                  (fmap (uncurry ninjaTests) (zip testFiles ninjas))
               , aesonTests
               , opticsTests
@@ -555,7 +529,7 @@ test :: IO ()
 test = do
   is <- ingredients
   tree <- testTree
-  T.defaultMainWithIngredients is tree
+  Test.defaultMainWithIngredients is tree
 
 main :: IO ()
 main = do

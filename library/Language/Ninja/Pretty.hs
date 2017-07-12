@@ -21,7 +21,6 @@
 {-# OPTIONS_HADDOCK #-}
 
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
 
 -- |
 --   Module      : Language.Ninja.Pretty
@@ -46,34 +45,24 @@ module Language.Ninja.Pretty
   , prettyBind
   ) where
 
-import qualified Control.Arrow         as Arr
+import           Control.Arrow       (second)
 
-import           Control.Lens.Getter   ((^.))
+import qualified Control.Lens        as Lens
 
-import           Language.Ninja.AST    (FileText)
+import qualified Language.Ninja.AST  as AST
 
-import qualified Language.Ninja.AST    as AST
+import qualified Data.HashMap.Strict as HM
 
-import           Data.ByteString       (ByteString)
-import qualified Data.ByteString       as BS
-import qualified Data.ByteString.Char8 as BSC8
+import           Data.HashSet        (HashSet)
+import qualified Data.HashSet        as HS
 
-import           Data.HashMap.Strict   (HashMap)
-import qualified Data.HashMap.Strict   as HM
+import           Data.Text           (Text)
+import qualified Data.Text           as Text
 
-import           Data.HashSet          (HashSet)
-import qualified Data.HashSet          as HS
+import           Data.Char           (isSpace)
+import           Data.Monoid         ((<>))
 
-import           Data.Text             (Text)
-import qualified Data.Text             as T
-import qualified Data.Text.Encoding    as T
-
-import qualified Data.HashMap.Strict   as HM
-
-import           Data.Char             (isSpace)
-import           Data.Monoid           ((<>))
-
-import           Flow                  ((.>), (|>))
+import           Flow                ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
@@ -82,12 +71,12 @@ import           Flow                  ((.>), (|>))
 --   @since 0.1.0
 prettyNinja :: AST.Ninja () -> Text
 prettyNinja ninja
-  = [ map prettyRule     (HM.toList (ninja ^. AST.ninjaRules))
-    , map prettySingle   (HM.toList (ninja ^. AST.ninjaSingles))
-    , map prettyMultiple (HM.toList (ninja ^. AST.ninjaMultiples))
-    , map prettyPhony    (HM.toList (ninja ^. AST.ninjaPhonys))
-    , map prettyDefault  (HS.toList (ninja ^. AST.ninjaDefaults))
-    , map prettyPool     (HM.toList (ninja ^. AST.ninjaPools))
+  = [ map prettyRule     (HM.toList (Lens.view AST.ninjaRules     ninja))
+    , map prettySingle   (HM.toList (Lens.view AST.ninjaSingles   ninja))
+    , map prettyMultiple (HM.toList (Lens.view AST.ninjaMultiples ninja))
+    , map prettyPhony    (HM.toList (Lens.view AST.ninjaPhonys    ninja))
+    , map prettyDefault  (HS.toList (Lens.view AST.ninjaDefaults  ninja))
+    , map prettyPool     (HM.toList (Lens.view AST.ninjaPools     ninja))
     ] |> mconcat |> mconcat
 
 -- | Pretty-print an 'AST.Expr'
@@ -105,38 +94,38 @@ prettyExpr = go .> mconcat
 --   @since 0.1.0
 prettyRule :: (Text, AST.Rule ()) -> Text
 prettyRule (name, rule) = do
-  let binds = rule ^. AST.ruleBind
+  let binds = Lens.view AST.ruleBind rule
               |> HM.toList
-              |> map (Arr.second prettyExpr .> prettyBind)
+              |> map (second prettyExpr .> prettyBind)
               |> mconcat
   mconcat ["rule ", name, "\n", binds]
 
 -- | Pretty-print a Ninja @build@ declaration with one output.
 --
 --   @since 0.1.0
-prettySingle :: (FileText, AST.Build ()) -> Text
+prettySingle :: (Text, AST.Build ()) -> Text
 prettySingle (output, build) = prettyMultiple (HS.singleton output, build)
 
 -- | Pretty-print a Ninja @build@ declaration with multiple outputs.
 --
 --   @since 0.1.0
-prettyMultiple :: (HashSet FileText, AST.Build ()) -> Text
+prettyMultiple :: (HashSet Text, AST.Build ()) -> Text
 prettyMultiple (outputs, build) = do
   let prefixIfThere :: Text -> Text -> Text
-      prefixIfThere pfx rest = if T.all isSpace rest then "" else pfx <> rest
+      prefixIfThere pfx rest = if Text.all isSpace rest then "" else pfx <> rest
 
   let unwordsSet :: HashSet Text -> Text
-      unwordsSet = HS.toList .> T.unwords
+      unwordsSet = HS.toList .> Text.unwords
 
-  let ruleName  = build ^. AST.buildRule
-  let deps      = build ^. AST.buildDeps
-  let binds     = build ^. AST.buildBind
-  let normal    = deps ^. AST.depsNormal
-  let implicit  = deps ^. AST.depsImplicit
-  let orderOnly = deps ^. AST.depsOrderOnly
+  let ruleName  = Lens.view AST.buildRule build
+  let deps      = Lens.view AST.buildDeps build
+  let binds     = Lens.view AST.buildBind build
+  let normal    = Lens.view AST.depsNormal    deps
+  let implicit  = Lens.view AST.depsImplicit  deps
+  let orderOnly = Lens.view AST.depsOrderOnly deps
 
   mconcat
-    [ "build ", T.unwords (HS.toList outputs), ": "
+    [ "build ", Text.unwords (HS.toList outputs), ": "
     , ruleName, " ", unwordsSet normal
     , prefixIfThere " | "  (unwordsSet implicit)
     , prefixIfThere " || " (unwordsSet orderOnly), "\n"
@@ -146,18 +135,18 @@ prettyMultiple (outputs, build) = do
 -- | Pretty-print a Ninja phony @build@ declaration.
 --
 --   @since 0.1.0
-prettyPhony :: (Text, HashSet FileText) -> Text
+prettyPhony :: (Text, HashSet Text) -> Text
 prettyPhony (name, inputs)
-  = [ ["build ", name, ": phony ", T.unwords (HS.toList inputs)]
-    ] |> map mconcat |> T.unlines
+  = [ ["build ", name, ": phony ", Text.unwords (HS.toList inputs)]
+    ] |> map mconcat |> Text.unlines
 
 -- | Pretty-print a Ninja @default@ declaration.
 --
 --   @since 0.1.0
-prettyDefault :: FileText -> Text
+prettyDefault :: Text -> Text
 prettyDefault target
   = [ ["default ", target]
-    ] |> map mconcat |> T.unlines
+    ] |> map mconcat |> Text.unlines
 
 -- | Pretty-print a Ninja @pool@ declaration.
 --
@@ -166,7 +155,7 @@ prettyPool :: (Text, Int) -> Text
 prettyPool (name, depth)
   = [ ["pool ", name]
     , ["    depth = ", tshow depth]
-    ] |> map mconcat |> T.unlines
+    ] |> map mconcat |> Text.unlines
 
 -- | Pretty-print a Ninja indented binding.
 --
@@ -177,6 +166,6 @@ prettyBind (name, value) = mconcat ["    ", name, " = ", value, "\n"]
 --------------------------------------------------------------------------------
 
 tshow :: (Show s) => s -> Text
-tshow = show .> T.pack
+tshow = show .> Text.pack
 
 --------------------------------------------------------------------------------

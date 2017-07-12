@@ -23,8 +23,6 @@
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 
 -- |
@@ -56,11 +54,7 @@ import           GHC.Generics              (Generic)
 
 import           Data.Text                 (Text)
 
-import           Flow                      ((.>), (|>))
-
 import qualified Text.Megaparsec           as M
-
-import qualified Language.Ninja.AST.Expr   as AST
 
 --------------------------------------------------------------------------------
 
@@ -101,6 +95,8 @@ data ParseError
     --   @since 0.1.0
     ParseUnexpectedBinding !Text
   deriving (Eq, Show, Generic)
+
+-- FIXME: remove unused errors here
 
 -- | Default instance.
 --

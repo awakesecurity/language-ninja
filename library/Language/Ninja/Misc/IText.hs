@@ -42,12 +42,10 @@ module Language.Ninja.Misc.IText
   ( IText, uninternText, internText, itext
   ) where
 
-import           Data.Text              (Text)
-import qualified Data.Text              as T
-import qualified Data.Text.Encoding     as T
+import qualified Control.Lens           as Lens
 
-import           Data.Aeson
-                 (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
+import           Data.Text              (Text)
+
 import qualified Data.Aeson             as Aeson
 import qualified Data.Aeson.Types       as Aeson
 
@@ -58,10 +56,8 @@ import           Control.DeepSeq        (NFData (..))
 import           Data.Hashable          (Hashable (..))
 import           Data.String            (IsString (..))
 import           GHC.Generics           (Generic)
-import qualified Test.SmallCheck.Series as SC
 
-import qualified Control.Lens
-import           Control.Lens.Iso       (Iso')
+import qualified Test.SmallCheck.Series as SC
 
 import           Control.Arrow          (first)
 import           Flow                   ((.>), (|>))
@@ -100,7 +96,7 @@ uninternText (MkIText i) = Interned.unintern i
 internText :: Text -> IText
 internText = Interned.intern .> MkIText
 
--- | An 'Iso' between 'Text' and 'IText'.
+-- | An 'Lens.Iso'' between 'Text' and 'IText'.
 --
 --   prop> ((fromString x) ^. itext) = T.pack x
 --
@@ -112,8 +108,8 @@ internText = Interned.intern .> MkIText
 --
 --   @since 0.1.0
 {-# INLINE itext #-}
-itext :: Iso' Text IText
-itext = Control.Lens.iso internText uninternText
+itext :: Lens.Iso' Text IText
+itext = Lens.iso internText uninternText
 
 -- | The 'Ord' instance in @intern@ compares hashes rather than values.
 --
@@ -151,26 +147,26 @@ instance NFData IText where
 -- | Converts to JSON string via 'uninternText'.
 --
 --   @since 0.1.0
-instance ToJSON IText where
-  toJSON = uninternText .> toJSON
+instance Aeson.ToJSON IText where
+  toJSON = uninternText .> Aeson.toJSON
 
--- | Inverse of the 'ToJSON' instance.
+-- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance FromJSON IText where
+instance Aeson.FromJSON IText where
   parseJSON = Aeson.withText "IText" (internText .> pure)
 
 -- | Converts to JSON string via 'uninternText'.
 --
 --   @since 0.1.0
-instance ToJSONKey IText where
+instance Aeson.ToJSONKey IText where
   toJSONKey = Aeson.toJSONKeyText uninternText
 
--- | Inverse of the 'ToJSONKey' instance.
+-- | Inverse of the 'Aeson.ToJSONKey' instance.
 --
 --   @since 0.1.0
-instance FromJSONKey IText where
-  fromJSONKey = Aeson.mapFromJSONKeyFunction internText fromJSONKey
+instance Aeson.FromJSONKey IText where
+  fromJSONKey = Aeson.mapFromJSONKeyFunction internText Aeson.fromJSONKey
 
 -- | Uses the 'Text' instance.
 --

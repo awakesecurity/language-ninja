@@ -43,17 +43,18 @@ module Language.Ninja.Misc.Command
 
 import           Data.Text              (Text)
 
-import           Data.Aeson             (FromJSON, ToJSON)
+import qualified Data.Aeson             as Aeson
 
 import           Control.DeepSeq        (NFData)
 import           Data.Hashable          (Hashable)
 import           GHC.Generics           (Generic)
-import           Test.SmallCheck.Series as SC
 
-import qualified Control.Lens
-import           Control.Lens.Iso       (Iso')
+import           Test.SmallCheck.Series ((>>-))
+import qualified Test.SmallCheck.Series as SC
 
-import           Flow
+import qualified Control.Lens           as Lens
+
+import           Flow                   ((.>))
 
 --------------------------------------------------------------------------------
 
@@ -65,7 +66,7 @@ newtype Command
     { _commandText :: Text
     }
   deriving ( Eq, Ord, Show, Read, Generic, Hashable, NFData
-           , ToJSON, FromJSON )
+           , Aeson.ToJSON, Aeson.FromJSON )
 
 -- | Constructor for a 'Command'.
 --
@@ -78,8 +79,8 @@ makeCommand = MkCommand
 --
 --   @since 0.1.0
 {-# INLINE commandText #-}
-commandText :: Iso' Command Text
-commandText = Control.Lens.iso _commandText MkCommand
+commandText :: Lens.Iso' Command Text
+commandText = Lens.iso _commandText MkCommand
 
 -- | Uses the underlying 'Text' instance.
 --
