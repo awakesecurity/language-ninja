@@ -8,6 +8,20 @@ with rec {
   # Compute, e.g.: "x86_64-linux-ghc-8.0.2"
   computeHaskellDir = hp: pkg: "${pkg.system}-${hp.ghc.name}";
 
+  setHaddockStyle = hp: pkg: (
+    haskell.lib.overrideCabal pkg (old: rec {
+      preInstall = (''
+        for haddockDir in ./dist/doc/html/*; do
+             if test -d "$haddockDir"; then
+                 rm -fv "$haddockDir/ocean.css"
+                 rm -fv "$haddockDir/haddock-util.js"
+                 cp -v "./misc/haddock.css" "$haddockDir/ocean.css"
+                 cp -v "./misc/haddock.js"  "$haddockDir/haddock-util.js"
+             fi
+        done
+      '' + (old.preInstall or ""));
+    }));
+
   addHydraHaddock = hp: pkg: (
     with rec {
       suffix = "share/doc/${computeHaskellDir hp pkg}/${pkg.name}/html";
@@ -89,7 +103,8 @@ with rec {
 
 {
   language-ninja = (
-    addHydraHaddock hp
+    setHaddockStyle hp
+    (addHydraHaddock hp
     (addHydraHPC hp
-    (addHydraTasty hp hp.language-ninja)));
+    (addHydraTasty hp hp.language-ninja))));
 }
