@@ -1,3 +1,28 @@
+- extensions:
+    - default: true
+
+    # These are basically non-negotiable
+    - {name: AllowAmbiguousTypes,      within: []} # should never be necessary
+    - {name: Arrows,                   within: []} # weird syntax
+    - {name: DatatypeContexts,         within: []} # useless
+    - {name: EmptyCase,                within: []} # nearly useless
+    - {name: ImpredicativeTypes,       within: []} # very buggy
+    - {name: IncoherentInstances,      within: []} # footgun
+    - {name: NondecreasingIndentation, within: []} # can be very confusing
+
+    # These can be appealed
+    - {name: ApplicativeDo,            within: []} # buggy
+    - {name: DeriveAnyClass,           within: []} # can be confusing w/ GND
+    - {name: FunctionalDependencies,   within: []} # use TypeFamilies instead
+    - {name: ImplicitParams,           within: []} # dynamically scoped
+    - {name: PatternGuards,            within: []} # ViewPatterns usually better
+    - {name: TemplateHaskell,          within: []} # avoid whenever reasonable
+    - {name: TemplateHaskellQuotes,    within: []} # ditto
+
+    # Exceptions to the above
+    - {name: FunctionalDependencies, within: [NinjaToNix.Misc.Supply]}
+    - {name: PatternGuards,          within: [Tests.ReferenceLexer]}
+
 - modules:
     - {name: [Data.Set],                    as: Set}
     - {name: [Data.Map.Strict],             as: Map}
@@ -37,7 +62,7 @@
 
 - functions:
     - {name: unsafePerformIO, within: [Tests.ReferenceLexer.Str0]}
-    
+
 - warn: {name: Use explicit module export list}
 
 - ignore: {name: Redundant bracket}
