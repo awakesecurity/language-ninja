@@ -52,7 +52,8 @@ module Language.Ninja.Misc.Located
   , Spans, makeSpans, spansSet
 
     -- * @Span@
-  , Span, makeSpan, spanPath, spanRange, spanStart, spanEnd
+  , Span, makeSpan, spanPath, spanRange
+  , spanStart, spanEnd, spanStartPos, spanEndPos
 
     -- * @Position@
   , Position, makePosition
@@ -144,7 +145,12 @@ tokenizeFile path = tokenize (Just path) <$> Mock.readFile path
 tokenizeText :: Text -> [Located Text]
 tokenizeText = tokenize Nothing
 
--- | FIXME: doc
+-- | This function takes the output of 'tokenize' and returns a map from paths
+--   to the contents of the associated files.
+--
+--   prop> untokenize [] == Map.empty
+--   prop> untokenize (xs <> ys) == untokenize xs <> untokenize ys
+--   prop> untokenize (tokenize (Just path) t) == Map.singleton path t
 --
 --   FIXME: implement
 --
@@ -210,7 +216,7 @@ instance ( Monad m, SC.CoSerial m Text, SC.CoSerial m t
 
 --------------------------------------------------------------------------------
 
--- | FIXME: doc
+-- | A type representing a set of source spans.
 --
 --   @since 0.1.0
 newtype Spans
@@ -219,14 +225,14 @@ newtype Spans
            , Generic, Aeson.ToJSON, Aeson.FromJSON
            , Hashable, NFData )
 
--- | FIXME: doc
+-- | Construct a 'Spans' from a list of 'Span's.
 --
 --   @since 0.1.0
 {-# INLINE makeSpans #-}
 makeSpans :: [Span] -> Spans
 makeSpans = HS.fromList .> MkSpans
 
--- | FIXME: doc
+-- | A lens into the @'HashSet' 'Span'@ underlying a value of type 'Spans'.
 --
 --   @since 0.1.0
 {-# INLINE spansSet #-}
@@ -267,7 +273,7 @@ makeSpan mpath start end = case compareOffset start end of
                              GT -> makeSpan mpath end start
                              _  -> MkSpan mpath start end
 
--- | FIXME: doc
+-- | A lens into the (nullable) path associated with a 'Span'.
 --
 --   @since 0.1.0
 {-# INLINE spanPath #-}
@@ -275,7 +281,7 @@ spanPath :: Lens.Lens' Span (Maybe Misc.Path)
 spanPath = let helper (MkSpan p s e) = (p, \x -> MkSpan x s e)
            in Lens.lens (helper .> fst) (helper .> snd)
 
--- | FIXME: doc
+-- | A lens giving the start and end 'Offset's associated with a 'Span'.
 --
 --   @since 0.1.0
 {-# INLINE spanRange #-}
@@ -283,19 +289,33 @@ spanRange :: Lens.Lens' Span (Offset, Offset)
 spanRange = let helper (MkSpan p s e) = ((s, e), \(s', e') -> MkSpan p s' e')
             in Lens.lens (helper .> fst) (helper .> snd)
 
--- | FIXME: doc
+-- | A lens into the 'Offset' associated with the start of a 'Span'.
 --
 --   @since 0.1.0
 {-# INLINE spanStart #-}
 spanStart :: Lens.Lens' Span Offset
 spanStart = spanRange . Lens._1
 
--- | FIXME: doc
+-- | A lens into the 'Offset' associated with the end of a 'Span'.
 --
 --   @since 0.1.0
 {-# INLINE spanEnd #-}
 spanEnd :: Lens.Lens' Span Offset
 spanEnd = spanRange . Lens._2
+
+-- | A getter for the 'Position' associated with the start of a 'Span'.
+--
+--   @since 0.1.0
+{-# INLINE spanStartPos #-}
+spanStartPos :: Lens.Getter Span Position
+spanStartPos = Lens.to (\(MkSpan p s _) -> makePosition p s)
+
+-- | A getter for the 'Position' associated with the end of a 'Span'.
+--
+--   @since 0.1.0
+{-# INLINE spanEndPos #-}
+spanEndPos :: Lens.Getter Span Position
+spanEndPos = Lens.to (\(MkSpan p _ e) -> makePosition p e)
 
 -- | Converts to @{file: …, start: …, end: …}@.
 --
@@ -396,7 +416,9 @@ positionLine = positionOffset . Lens._1
 positionCol :: Lens.Lens' Position Column
 positionCol = positionOffset . Lens._2
 
--- | FIXME: doc
+-- | If two 'Position's are comparable (i.e.: if they are in the same file),
+--   this function will return an 'Ordering' giving their relative positions.
+--   Otherwise, it will of course return 'Nothing'.
 --
 --   @since 0.1.0
 comparePosition :: Position -> Position -> Maybe Ordering
@@ -456,7 +478,8 @@ instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Position
 --   @since 0.1.0
 type Offset = (Line, Column)
 
--- | FIXME: doc
+-- | Compare two 'Offset's in lexicographic order (i.e.: the 'Column' is
+--   ignored unless they are on the same 'Line').
 --
 --   @since 0.1.0
 compareOffset :: Offset -> Offset -> Ordering
@@ -465,14 +488,22 @@ compareOffset (lineX, colX) (lineY, colY)
   | (lineX > lineY) = GT
   | otherwise       = compare colX colY
 
--- | FIXME: doc
+-- | A lens into the 'Line' associated with an 'Offset'.
+--
+--   For now, this is simply defined as @offsetLine = 'Lens._1'@,
+--   but if 'Offset' is later refactored to be an abstract data type, using
+--   this lens instead of 'Lens._1' will decrease the amount of code that
+--   breaks.
 --
 --   @since 0.1.0
 {-# INLINE offsetLine #-}
 offsetLine :: Lens.Lens' Offset Line
 offsetLine = Lens._1
 
--- | FIXME: doc
+-- | A lens into the 'Line' associated with an 'Offset'.
+--
+--   Read the description of 'offsetLine' for an understanding of why this
+--   exists and why you should use it instead of 'Lens._2'.
 --
 --   @since 0.1.0
 {-# INLINE offsetColumn #-}
