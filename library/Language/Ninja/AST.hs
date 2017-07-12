@@ -17,9 +17,6 @@
 --     See the License for the specific language governing permissions and
 --     limitations under the License.
 
-{-# OPTIONS_GHC #-}
-{-# OPTIONS_HADDOCK #-}
-
 -- |
 --   Module      : Language.Ninja.AST
 --   Copyright   : Copyright 2017 Awake Security
@@ -78,6 +75,8 @@ import qualified Language.Ninja.AST.Ninja as AST
 import qualified Language.Ninja.AST.Rule  as AST
 
 --------------------------------------------------------------------------------
+
+-- FIXME: remove these type aliases
 
 -- | A type alias for 'ByteString'.
 --

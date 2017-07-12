@@ -17,9 +17,6 @@
 --     See the License for the specific language governing permissions and
 --     limitations under the License.
 
-{-# OPTIONS_GHC #-}
-{-# OPTIONS_HADDOCK #-}
-
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE DeriveDataTypeable    #-}
 {-# LANGUAGE DeriveFoldable        #-}
@@ -50,6 +47,7 @@ module Language.Ninja.AST.Expr
   , _Exprs, _Lit, _Var
   , askVar, askExpr, addBind, addBinds
   , normalizeExpr
+  , ExprConstraint
   ) where
 
 import           Control.Arrow             (second)

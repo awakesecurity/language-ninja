@@ -17,15 +17,11 @@
 --     See the License for the specific language governing permissions and
 --     limitations under the License.
 
-{-# OPTIONS_GHC #-}
-{-# OPTIONS_HADDOCK #-}
-
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE UndecidableInstances       #-}
 
 -- |

@@ -17,17 +17,12 @@
 --     See the License for the specific language governing permissions and
 --     limitations under the License.
 
-{-# OPTIONS_GHC -Wall #-}
-{-# OPTIONS_HADDOCK #-}
-
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE InstanceSigs               #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RankNTypes                 #-}
-{-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 
 -- |

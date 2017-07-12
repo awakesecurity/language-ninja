@@ -17,9 +17,6 @@
 --     See the License for the specific language governing permissions and
 --     limitations under the License.
 
-{-# OPTIONS_GHC #-}
-{-# OPTIONS_HADDOCK #-}
-
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -399,7 +396,7 @@ poolDepthPositive = Lens.iso fromPD toPD
     toPD (Just p) = PoolDepth p
     toPD Nothing  = PoolInfinite
 
--- | Converts 'PoolInfinite' to @"infinite"@ and 'PoolDepth' to the
+-- | Converts 'makePoolInfinite' to @"infinite"@ and 'makePoolDepth' to the
 --   corresponding JSON number.
 --
 --   @since 0.1.0

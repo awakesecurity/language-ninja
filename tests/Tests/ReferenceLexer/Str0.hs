@@ -34,9 +34,6 @@
 --     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 --     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-{-# OPTIONS_GHC #-}
-{-# OPTIONS_HADDOCK #-}
-
 -- |
 --   Module      : Tests.ReferenceLexer.Str0
 --   Copyright   : Copyright 2011-2017 Neil Mitchell

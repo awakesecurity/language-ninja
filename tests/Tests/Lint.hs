@@ -17,16 +17,13 @@
 --     See the License for the specific language governing permissions and
 --     limitations under the License.
 
-{-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE RecordWildCards       #-}
-{-# LANGUAGE StandaloneDeriving    #-}
 
 -- |
 --   Module      : Tests.Lint

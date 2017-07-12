@@ -35,9 +35,6 @@
 --     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 --     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-{-# OPTIONS_GHC #-}
-{-# OPTIONS_HADDOCK #-}
-
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE DeriveGeneric              #-}
@@ -78,6 +75,12 @@ module Language.Ninja.Lexer
   , LFile  (..)
   , LBind  (..)
   , LBuild (..), makeLBuild
+
+  , LexemeConstraint
+  , LNameConstraint
+  , LFileConstraint
+  , LBindConstraint
+  , LBuildConstraint
 
     -- * Classes
   , PositionParsing (..)
@@ -126,22 +129,10 @@ import qualified Language.Ninja.Mock       as Mock
 
 --------------------------------------------------------------------------------
 
+-- | FIXME: doc
+--
+--   @since 0.1.0
 type Ann = Misc.Spans
-
---------------------------------------------------------------------------------
-
-spanned :: (Monad m, PositionParsing m) => m a -> m (Ann, a)
-spanned p = do
-  start  <- getPosition
-  result <- p
-  end    <- getPosition
-  let getPosFile = Lens.view Misc.positionFile
-  let (sfile, efile) = (getPosFile start, getPosFile end)
-  when (sfile /= efile) $ fail "spanned: somehow went over multiple files!"
-  let file = sfile
-  let offS = Lens.view Misc.positionOffset start
-  let offE = Lens.view Misc.positionOffset end
-  pure (Misc.makeSpans [Misc.makeSpan file offS offE], result)
 
 --------------------------------------------------------------------------------
 
@@ -634,6 +625,21 @@ lexemesP = do
             ] |> asum |> many
   M.eof
   pure (catMaybes maybes)
+
+--------------------------------------------------------------------------------
+
+spanned :: (Monad m, PositionParsing m) => m a -> m (Ann, a)
+spanned p = do
+  start  <- getPosition
+  result <- p
+  end    <- getPosition
+  let getPosFile = Lens.view Misc.positionFile
+  let (sfile, efile) = (getPosFile start, getPosFile end)
+  when (sfile /= efile) $ fail "spanned: somehow went over multiple files!"
+  let file = sfile
+  let offS = Lens.view Misc.positionOffset start
+  let offE = Lens.view Misc.positionOffset end
+  pure (Misc.makeSpans [Misc.makeSpan file offS offE], result)
 
 --------------------------------------------------------------------------------
 

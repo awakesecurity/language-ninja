@@ -18,7 +18,6 @@
 --     limitations under the License.
 
 {-# OPTIONS_GHC -Wno-unused-imports #-}
-{-# OPTIONS_HADDOCK #-}
 
 -- |
 --   Module      : Language.Ninja.Tutorial
