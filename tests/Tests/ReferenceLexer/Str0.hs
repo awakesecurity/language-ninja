@@ -3,7 +3,8 @@
 -- File: tests/Tests/ReferenceLexer/Str0.hs
 --
 -- License:
---     Copyright Neil Mitchell 2011-2017.
+--     Copyright Neil Mitchell  2011-2017.
+--     Copyright Awake Security 2017.
 --     All rights reserved.
 --
 --     Redistribution and use in source and binary forms, with or without

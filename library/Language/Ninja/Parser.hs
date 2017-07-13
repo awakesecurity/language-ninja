@@ -3,7 +3,8 @@
 -- File: library/Language/Ninja/Parser.hs
 --
 -- License:
---     Copyright Neil Mitchell 2011-2017.
+--     Copyright Neil Mitchell  2011-2017.
+--     Copyright Awake Networks 2017.
 --     All rights reserved.
 --
 --     Redistribution and use in source and binary forms, with or without
