@@ -145,7 +145,7 @@ askExpr e (Var   _ x)  = askVar e x
 askVar :: AST.Env Text Text -> Text -> Text
 askVar e x = fromMaybe Text.empty (AST.askEnv e x)
 
--- | Add a binding with the given name ('Text') and value ('PExpr') to the
+-- | Add a binding with the given name ('Text') and value ('Expr') to the
 --   given context.
 --
 --   @since 0.1.0
@@ -157,7 +157,7 @@ addBind k v e = AST.addEnv k (askExpr e v) e
 --
 --   For example:
 --
---   >>> let binds = [("x", PLit "5"), ("y", PVar "x")]
+--   >>> let binds = [("x", Lit "5"), ("y", Var "x")]
 --   >>> AST.headEnv (addBinds binds AST.makeEnv)
 --   fromList [("x","5"),("y","")]
 --
