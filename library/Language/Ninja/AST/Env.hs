@@ -58,6 +58,7 @@ module Language.Ninja.AST.Env
   ( Key, Maps
   , Env, makeEnv, fromEnv, headEnv, tailEnv
   , scopeEnv, addEnv, askEnv
+  , EnvConstraint
   ) where
 
 import           Control.Applicative       ((<|>))

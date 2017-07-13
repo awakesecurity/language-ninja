@@ -53,7 +53,6 @@ import qualified Control.Lens              as Lens
 import           Flow                      ((.>), (|>))
 
 import           Data.HashMap.Strict       (HashMap)
-import           Data.HashSet              (HashSet)
 import           Data.Text                 (Text)
 
 import           Control.DeepSeq           (NFData)
