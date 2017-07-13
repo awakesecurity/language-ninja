@@ -76,8 +76,6 @@ import           Data.Char                 (isAsciiLower, isAsciiUpper, isDigit)
 
 import           Flow                      ((.>), (|>))
 
-import           Language.Ninja.AST        (Str)
-
 import qualified Language.Ninja.AST        as AST
 import qualified Language.Ninja.Errors     as Errors
 import qualified Language.Ninja.Misc       as Misc
@@ -93,6 +91,8 @@ import           Tests.ReferenceLexer.Str0 (Str0 (..))
 import qualified Tests.ReferenceLexer.Str0 as Str0
 
 --------------------------------------------------------------------------------
+
+type Str = BSC8.ByteString
 
 -- | Lex the given file.
 lexerFile :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)

@@ -66,13 +66,7 @@ module Language.Ninja.AST
     -- * "Language.Ninja.AST.Env"
   , AST.Env
   , AST.makeEnv, AST.fromEnv, AST.addEnv, AST.askEnv, AST.scopeEnv
-
-    -- * Miscellaneous
-  , Str, FileStr, Text, FileText
   ) where
-
-import           Data.ByteString          (ByteString)
-import           Data.Text                (Text)
 
 import qualified Language.Ninja.AST.Build as AST
 import qualified Language.Ninja.AST.Deps  as AST
@@ -80,24 +74,5 @@ import qualified Language.Ninja.AST.Env   as AST
 import qualified Language.Ninja.AST.Expr  as AST
 import qualified Language.Ninja.AST.Ninja as AST
 import qualified Language.Ninja.AST.Rule  as AST
-
---------------------------------------------------------------------------------
-
--- FIXME: remove these type aliases
-
--- | A type alias for 'ByteString'.
---
---   @since 0.1.0
-type Str = ByteString
-
--- | A type alias for 'ByteString', representing a path.
---
---   @since 0.1.0
-type FileStr = ByteString
-
--- | A type alias for 'Text', representing a path.
---
---   @since 0.1.0
-type FileText = Text
 
 --------------------------------------------------------------------------------
