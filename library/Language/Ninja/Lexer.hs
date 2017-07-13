@@ -129,7 +129,7 @@ import qualified Language.Ninja.Mock       as Mock
 
 --------------------------------------------------------------------------------
 
--- | FIXME: doc
+-- | The type of annotations returned by the lexer.
 --
 --   @since 0.1.0
 type Ann = Misc.Spans
