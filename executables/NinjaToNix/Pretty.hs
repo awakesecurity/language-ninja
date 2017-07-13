@@ -28,7 +28,7 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   A pretty-printer for the types defined in "NinjaToNix.Types".
 module NinjaToNix.Pretty
   ( prettySNinja, prettySBuild
   , PP.putDoc

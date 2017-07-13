@@ -36,7 +36,7 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   This module contains orphan instances used in testing.
 module Tests.Orphans
   ( -- No exports other than instances.
   ) where

@@ -34,7 +34,7 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   The @language-ninja@ test suite.
 module Main (main) where
 
 import           Data.Maybe                 (catMaybes)

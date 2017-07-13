@@ -33,10 +33,17 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
-module Main
-  ( module Main -- FIXME: specific export list
-  ) where
+--   This executable converts a Ninja file to JSON data that can be given, along
+--   with a source path, to a Nix expression that computes a derivation that
+--   will execute the Ninja build against the source path in an incremental
+--   fashion; i.e.: it generates one Nix derivation per build edge in the
+--   Ninja build graph.
+--
+--   That Nix expression will later be added to this repository, but for now
+--   it is available <https://git.io/vQ9mU here>.
+--
+--   FIXME: move ninja2nix and incremental.nix to a separate repository
+module Main (main) where
 
 import qualified Control.Lens                as Lens
 

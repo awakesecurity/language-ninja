@@ -32,7 +32,8 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   Tests that involve linting the project.
+--   In particular, Haddock linting is currently supported.
 module Tests.Lint
   ( lintHaddock
 
@@ -75,7 +76,7 @@ import qualified Turtle
 
 --------------------------------------------------------------------------------
 
--- | FIXME: doc
+-- | Generate and lint the Haddock documentation for this project.
 lintHaddock :: LintHaddockOptions -> IO Test.TestTree
 lintHaddock options = do
   _ <- H.withGhc [] GHC.getSessionDynFlags
@@ -85,7 +86,7 @@ lintHaddock options = do
 
 --------------------------------------------------------------------------------
 
--- | FIXME: doc
+-- | A type for options provided to 'lintHaddock'.
 data LintHaddockOptions
   = MkLintHaddockOptions
     { componentNames   :: [ComponentName]
@@ -94,38 +95,38 @@ data LintHaddockOptions
     }
   deriving (Eq, Show)
 
--- | FIXME: doc
+-- | An empty 'LintHaddockOptions'.
 emptyLintHaddockOptions :: LintHaddockOptions
 emptyLintHaddockOptions = MkLintHaddockOptions [] [] []
 
--- | FIXME: doc
+-- | Add the given 'ComponentName' to the given 'LintHaddockOptions'.
 addComponentName :: ComponentName
                  -> (LintHaddockOptions -> LintHaddockOptions)
 addComponentName cn = modifyComponentNames (cn :)
 
--- | FIXME: doc
+-- | Add the given 'SinceException' to the given 'LintHaddockOptions'.
 addSinceException :: SinceException
                   -> (LintHaddockOptions -> LintHaddockOptions)
 addSinceException se = modifySinceExceptions (se :)
 
--- | FIXME: doc
+-- | Add the given Haddock argument to the given 'LintHaddockOptions'.
 addHaddockArgument :: String
                    -> (LintHaddockOptions -> LintHaddockOptions)
 addHaddockArgument arg = modifyHaddockArguments (arg :)
 
--- | FIXME: doc
-modifySinceExceptions :: ([SinceException] -> [SinceException])
-                      -> (LintHaddockOptions -> LintHaddockOptions)
-modifySinceExceptions f (MkLintHaddockOptions {..})
-  = MkLintHaddockOptions { sinceExceptions = f sinceExceptions, .. }
-
--- | FIXME: doc
+-- | Modify the list of 'ComponentName's with the given function.
 modifyComponentNames :: ([ComponentName] -> [ComponentName])
                      -> (LintHaddockOptions -> LintHaddockOptions)
 modifyComponentNames f (MkLintHaddockOptions {..})
   = MkLintHaddockOptions { componentNames = f componentNames, .. }
 
--- | FIXME: doc
+-- | Modify the list of 'SinceException's with the given function.
+modifySinceExceptions :: ([SinceException] -> [SinceException])
+                      -> (LintHaddockOptions -> LintHaddockOptions)
+modifySinceExceptions f (MkLintHaddockOptions {..})
+  = MkLintHaddockOptions { sinceExceptions = f sinceExceptions, .. }
+
+-- | Modify the list of Haddock arguments with the given function.
 modifyHaddockArguments :: ([String] -> [String])
                        -> (LintHaddockOptions -> LintHaddockOptions)
 modifyHaddockArguments f (MkLintHaddockOptions {..})
@@ -133,10 +134,13 @@ modifyHaddockArguments f (MkLintHaddockOptions {..})
 
 --------------------------------------------------------------------------------
 
--- | FIXME: doc
+-- | The name of a Cabal component for which the Haddock documentation should
+--   be linted.
 type ComponentName = String
 
--- | FIXME: doc
+-- | An exception to the checker that ensures that every top-level exposed
+--   declaration has an @\@since@ attribute; this takes the form of a
+--   fully-qualified Haskell name, e.g.: @Control.Monad.unless@.
 type SinceException = String
 
 --------------------------------------------------------------------------------

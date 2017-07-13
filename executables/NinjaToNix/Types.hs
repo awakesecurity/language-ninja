@@ -32,7 +32,7 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   Types defined for the @ninja2nix@ executable.
 module NinjaToNix.Types
   ( module NinjaToNix.Types -- FIXME: specific export list
   ) where

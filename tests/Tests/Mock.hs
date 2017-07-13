@@ -32,7 +32,8 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   This module contains concrete types that are used when mocking interfaces
+--   defined in "Language.Ninja.Mock".
 module Tests.Mock
   ( FSAction (..)
   ) where

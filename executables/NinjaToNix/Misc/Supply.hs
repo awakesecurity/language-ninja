@@ -33,7 +33,8 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   A monad transformer that exposes a nicer interface to the datatype
+--   defined in @concurrent-supply@.
 module NinjaToNix.Misc.Supply
   ( -- * @MonadSupply@
     MonadSupply (..)
@@ -65,7 +66,7 @@ import           Flow
 
 --------------------------------------------------------------------------------
 
--- | FIXME: doc
+-- | A monad in which a splittable supply of fresh variables is available.
 class (Monad m) => MonadSupply u m | m -> u where
   {-# MINIMAL fresh, split #-}
 

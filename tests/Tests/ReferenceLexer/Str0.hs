@@ -41,7 +41,7 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   A NUL-terminated bytestring type used in the reference lexer.
 module Tests.ReferenceLexer.Str0
   ( module Tests.ReferenceLexer.Str0 -- FIXME: specific export list
   ) where
