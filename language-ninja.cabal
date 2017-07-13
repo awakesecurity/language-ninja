@@ -16,6 +16,8 @@ synopsis:                 A Haskell library for parsing, pretty-printing, and
                           compiling the Ninja build language.
 description:              A Haskell library for parsing, pretty-printing, and
                           compiling the Ninja build language.
+                          The best place to start reading this documentation is
+                          the "Language.Ninja" module.
 
 source-repository head
     type:                 git
