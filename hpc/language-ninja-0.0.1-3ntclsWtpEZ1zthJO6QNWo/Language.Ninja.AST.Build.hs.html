@@ -1,0 +1,240 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style type="text/css">
+span.lineno { color: white; background: #aaaaaa; border-right: solid white 12px }
+span.nottickedoff { background: yellow}
+span.istickedoff { background: white }
+span.tickonlyfalse { margin: -1px; border: 1px solid #f20913; background: #f20913 }
+span.tickonlytrue  { margin: -1px; border: 1px solid #60de51; background: #60de51 }
+span.funcount { font-size: small; color: orange; z-index: 2; position: absolute; right: 20 }
+span.decl { font-weight: bold }
+span.spaces    { background: white }
+</style>
+</head>
+<body>
+<pre>
+<span class="lineno">    1 </span>-- -*- coding: utf-8; mode: haskell; -*-
+<span class="lineno">    2 </span>
+<span class="lineno">    3 </span>-- File: library/Language/Ninja/AST/Build.hs
+<span class="lineno">    4 </span>--
+<span class="lineno">    5 </span>-- License:
+<span class="lineno">    6 </span>--     Copyright 2017 Awake Security
+<span class="lineno">    7 </span>--
+<span class="lineno">    8 </span>--     Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<span class="lineno">    9 </span>--     you may not use this file except in compliance with the License.
+<span class="lineno">   10 </span>--     You may obtain a copy of the License at
+<span class="lineno">   11 </span>--
+<span class="lineno">   12 </span>--       http://www.apache.org/licenses/LICENSE-2.0
+<span class="lineno">   13 </span>--
+<span class="lineno">   14 </span>--     Unless required by applicable law or agreed to in writing, software
+<span class="lineno">   15 </span>--     distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<span class="lineno">   16 </span>--     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<span class="lineno">   17 </span>--     See the License for the specific language governing permissions and
+<span class="lineno">   18 </span>--     limitations under the License.
+<span class="lineno">   19 </span>
+<span class="lineno">   20 </span>{-# LANGUAGE ConstraintKinds       #-}
+<span class="lineno">   21 </span>{-# LANGUAGE DeriveFoldable        #-}
+<span class="lineno">   22 </span>{-# LANGUAGE DeriveFunctor         #-}
+<span class="lineno">   23 </span>{-# LANGUAGE DeriveGeneric         #-}
+<span class="lineno">   24 </span>{-# LANGUAGE DeriveTraversable     #-}
+<span class="lineno">   25 </span>{-# LANGUAGE FlexibleContexts      #-}
+<span class="lineno">   26 </span>{-# LANGUAGE FlexibleInstances     #-}
+<span class="lineno">   27 </span>{-# LANGUAGE KindSignatures        #-}
+<span class="lineno">   28 </span>{-# LANGUAGE MultiParamTypeClasses #-}
+<span class="lineno">   29 </span>{-# LANGUAGE OverloadedStrings     #-}
+<span class="lineno">   30 </span>{-# LANGUAGE RecordWildCards       #-}
+<span class="lineno">   31 </span>{-# LANGUAGE UndecidableInstances  #-}
+<span class="lineno">   32 </span>
+<span class="lineno">   33 </span>-- |
+<span class="lineno">   34 </span>--   Module      : Language.Ninja.AST.Build
+<span class="lineno">   35 </span>--   Copyright   : Copyright 2017 Awake Security
+<span class="lineno">   36 </span>--   License     : Apache-2.0
+<span class="lineno">   37 </span>--   Maintainer  : opensource@awakesecurity.com
+<span class="lineno">   38 </span>--   Stability   : experimental
+<span class="lineno">   39 </span>--
+<span class="lineno">   40 </span>--   This module contains a type representing a @build@ declaration in the
+<span class="lineno">   41 </span>--   parsed Ninja AST, along with any supporting or related types.
+<span class="lineno">   42 </span>--
+<span class="lineno">   43 </span>--   @since 0.1.0
+<span class="lineno">   44 </span>module Language.Ninja.AST.Build
+<span class="lineno">   45 </span>  ( -- * @Build@
+<span class="lineno">   46 </span>    Build, makeBuild
+<span class="lineno">   47 </span>  , buildRule, buildEnv, buildDeps, buildBind
+<span class="lineno">   48 </span>  , BuildConstraint
+<span class="lineno">   49 </span>  ) where
+<span class="lineno">   50 </span>
+<span class="lineno">   51 </span>import qualified Control.Lens              as Lens
+<span class="lineno">   52 </span>
+<span class="lineno">   53 </span>import           Flow                      ((.&gt;), (|&gt;))
+<span class="lineno">   54 </span>
+<span class="lineno">   55 </span>import           Data.HashMap.Strict       (HashMap)
+<span class="lineno">   56 </span>import           Data.Text                 (Text)
+<span class="lineno">   57 </span>
+<span class="lineno">   58 </span>import           Control.DeepSeq           (NFData)
+<span class="lineno">   59 </span>import           Data.Hashable             (Hashable)
+<span class="lineno">   60 </span>import           GHC.Generics              (Generic)
+<span class="lineno">   61 </span>
+<span class="lineno">   62 </span>import qualified Test.QuickCheck           as QC
+<span class="lineno">   63 </span>import           Test.QuickCheck.Instances ()
+<span class="lineno">   64 </span>
+<span class="lineno">   65 </span>import qualified Test.SmallCheck.Series    as SC
+<span class="lineno">   66 </span>
+<span class="lineno">   67 </span>import           GHC.Exts                  (Constraint)
+<span class="lineno">   68 </span>
+<span class="lineno">   69 </span>import           Data.Aeson                ((.:), (.=))
+<span class="lineno">   70 </span>import qualified Data.Aeson                as Aeson
+<span class="lineno">   71 </span>
+<span class="lineno">   72 </span>import qualified Language.Ninja.AST.Deps   as AST
+<span class="lineno">   73 </span>import qualified Language.Ninja.AST.Env    as AST
+<span class="lineno">   74 </span>import qualified Language.Ninja.Misc       as Misc
+<span class="lineno">   75 </span>
+<span class="lineno">   76 </span>--------------------------------------------------------------------------------
+<span class="lineno">   77 </span>
+<span class="lineno">   78 </span>-- | A parsed Ninja @build@ declaration.
+<span class="lineno">   79 </span>--
+<span class="lineno">   80 </span>--   @since 0.1.0
+<span class="lineno">   81 </span>data Build ann
+<span class="lineno">   82 </span>  = MkBuild
+<span class="lineno">   83 </span>    { <span class="nottickedoff"><span class="decl"><span class="nottickedoff">_buildAnn</span></span></span>  :: !ann
+<span class="lineno">   84 </span>    , <span class="istickedoff"><span class="decl"><span class="istickedoff">_buildRule</span></span></span> :: !Text
+<span class="lineno">   85 </span>    , <span class="istickedoff"><span class="decl"><span class="istickedoff">_buildEnv</span></span></span>  :: !(AST.Env Text Text)
+<span class="lineno">   86 </span>    , <span class="istickedoff"><span class="decl"><span class="istickedoff">_buildDeps</span></span></span> :: !(AST.Deps ann)
+<span class="lineno">   87 </span>    , <span class="istickedoff"><span class="decl"><span class="istickedoff">_buildBind</span></span></span> :: !(HashMap Text Text)
+<span class="lineno">   88 </span>    }
+<span class="lineno">   89 </span>  deriving (<span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, Generic, <span class="decl"><span class="istickedoff">Functor</span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Foldable</span></span></span></span>, <span class="decl"><span class="nottickedoff">Traversable</span></span>)
+<span class="lineno">   90 </span>
+<span class="lineno">   91 </span>-- | Construct a 'Build' with all default values.
+<span class="lineno">   92 </span>--
+<span class="lineno">   93 </span>--   @since 0.1.0
+<span class="lineno">   94 </span>{-# INLINE makeBuild #-}
+<span class="lineno">   95 </span>makeBuild :: (Monoid ann)
+<span class="lineno">   96 </span>          =&gt; Text
+<span class="lineno">   97 </span>          -- ^ The rule name
+<span class="lineno">   98 </span>          -&gt; AST.Env Text Text
+<span class="lineno">   99 </span>          -- ^ The environment
+<span class="lineno">  100 </span>          -&gt; Build ann
+<span class="lineno">  101 </span><span class="decl"><span class="istickedoff">makeBuild rule env = MkBuild</span>
+<span class="lineno">  102 </span><span class="spaces">                     </span><span class="istickedoff">{ _buildAnn  = mempty</span>
+<span class="lineno">  103 </span><span class="spaces">                     </span><span class="istickedoff">, _buildRule = rule</span>
+<span class="lineno">  104 </span><span class="spaces">                     </span><span class="istickedoff">, _buildEnv  = env</span>
+<span class="lineno">  105 </span><span class="spaces">                     </span><span class="istickedoff">, _buildDeps = AST.makeDeps</span>
+<span class="lineno">  106 </span><span class="spaces">                     </span><span class="istickedoff">, _buildBind = mempty</span>
+<span class="lineno">  107 </span><span class="spaces">                     </span><span class="istickedoff">}</span></span>
+<span class="lineno">  108 </span>
+<span class="lineno">  109 </span>-- | A lens into the rule name associated with a 'Build'.
+<span class="lineno">  110 </span>--
+<span class="lineno">  111 </span>--   @since 0.1.0
+<span class="lineno">  112 </span>{-# INLINE buildRule #-}
+<span class="lineno">  113 </span>buildRule :: Lens.Lens' (Build ann) Text
+<span class="lineno">  114 </span><span class="decl"><span class="istickedoff">buildRule = Lens.lens _buildRule</span>
+<span class="lineno">  115 </span><span class="spaces">            </span><span class="istickedoff">$ <span class="nottickedoff">\(MkBuild {..}) x -&gt; MkBuild { _buildRule = x, .. }</span></span></span>
+<span class="lineno">  116 </span>
+<span class="lineno">  117 </span>-- | A lens into the environment associated with a 'Build'.
+<span class="lineno">  118 </span>--
+<span class="lineno">  119 </span>--   @since 0.1.0
+<span class="lineno">  120 </span>{-# INLINE buildEnv #-}
+<span class="lineno">  121 </span>buildEnv :: Lens.Lens' (Build ann) (AST.Env Text Text)
+<span class="lineno">  122 </span><span class="decl"><span class="istickedoff">buildEnv = Lens.lens _buildEnv</span>
+<span class="lineno">  123 </span><span class="spaces">           </span><span class="istickedoff">$ <span class="nottickedoff">\(MkBuild {..}) x -&gt; MkBuild { _buildEnv = x, .. }</span></span></span>
+<span class="lineno">  124 </span>
+<span class="lineno">  125 </span>-- | A lens into the dependencies associated with a 'Build'.
+<span class="lineno">  126 </span>--
+<span class="lineno">  127 </span>--   @since 0.1.0
+<span class="lineno">  128 </span>{-# INLINE buildDeps #-}
+<span class="lineno">  129 </span>buildDeps :: Lens.Lens' (Build ann) (AST.Deps ann)
+<span class="lineno">  130 </span><span class="decl"><span class="istickedoff">buildDeps = Lens.lens _buildDeps</span>
+<span class="lineno">  131 </span><span class="spaces">            </span><span class="istickedoff">$ \(MkBuild {..}) x -&gt; MkBuild { _buildDeps = x, .. }</span></span>
+<span class="lineno">  132 </span>
+<span class="lineno">  133 </span>-- | A lens into the bindings associated with a 'Build'.
+<span class="lineno">  134 </span>--
+<span class="lineno">  135 </span>--   @since 0.1.0
+<span class="lineno">  136 </span>{-# INLINE buildBind #-}
+<span class="lineno">  137 </span>buildBind :: Lens.Lens' (Build ann) (HashMap Text Text)
+<span class="lineno">  138 </span><span class="decl"><span class="istickedoff">buildBind = Lens.lens _buildBind</span>
+<span class="lineno">  139 </span><span class="spaces">            </span><span class="istickedoff">$ \(MkBuild {..}) x -&gt; MkBuild { _buildBind = x, .. }</span></span>
+<span class="lineno">  140 </span>
+<span class="lineno">  141 </span>-- | The usual definition for 'Misc.Annotated'.
+<span class="lineno">  142 </span>--
+<span class="lineno">  143 </span>--   @since 0.1.0
+<span class="lineno">  144 </span>instance Misc.Annotated Build where
+<span class="lineno">  145 </span>  <span class="decl"><span class="nottickedoff">annotation' f = Lens.lens (helper .&gt; fst) (helper .&gt; snd)</span>
+<span class="lineno">  146 </span><span class="spaces">    </span><span class="nottickedoff">where</span>
+<span class="lineno">  147 </span><span class="spaces">      </span><span class="nottickedoff">helper (MkBuild {..})</span>
+<span class="lineno">  148 </span><span class="spaces">        </span><span class="nottickedoff">= ( _buildAnn</span>
+<span class="lineno">  149 </span><span class="spaces">          </span><span class="nottickedoff">, \x -&gt; MkBuild { _buildAnn = x, _buildDeps = f &lt;$&gt; _buildDeps, .. } )</span></span>
+<span class="lineno">  150 </span>
+<span class="lineno">  151 </span>-- | Converts to @{ann: …, rule: …, env: …, deps: …, bind: …}@.
+<span class="lineno">  152 </span>--
+<span class="lineno">  153 </span>--   @since 0.1.0
+<span class="lineno">  154 </span>instance (Aeson.ToJSON ann) =&gt; Aeson.ToJSON (Build ann) where
+<span class="lineno">  155 </span>  <span class="decl"><span class="nottickedoff">toJSON (MkBuild {..})</span>
+<span class="lineno">  156 </span><span class="spaces">    </span><span class="nottickedoff">= [ &quot;ann&quot;  .= _buildAnn</span>
+<span class="lineno">  157 </span><span class="spaces">      </span><span class="nottickedoff">, &quot;rule&quot; .= _buildRule</span>
+<span class="lineno">  158 </span><span class="spaces">      </span><span class="nottickedoff">, &quot;env&quot;  .= _buildEnv</span>
+<span class="lineno">  159 </span><span class="spaces">      </span><span class="nottickedoff">, &quot;deps&quot; .= _buildDeps</span>
+<span class="lineno">  160 </span><span class="spaces">      </span><span class="nottickedoff">, &quot;bind&quot; .= _buildBind</span>
+<span class="lineno">  161 </span><span class="spaces">      </span><span class="nottickedoff">] |&gt; Aeson.object</span></span>
+<span class="lineno">  162 </span>
+<span class="lineno">  163 </span>-- | Inverse of the 'Aeson.ToJSON' instance.
+<span class="lineno">  164 </span>--
+<span class="lineno">  165 </span>--   @since 0.1.0
+<span class="lineno">  166 </span>instance (Aeson.FromJSON ann) =&gt; Aeson.FromJSON (Build ann) where
+<span class="lineno">  167 </span>  <span class="decl"><span class="nottickedoff">parseJSON = (Aeson.withObject &quot;Build&quot; $ \o -&gt; do</span>
+<span class="lineno">  168 </span><span class="spaces">                  </span><span class="nottickedoff">_buildAnn  &lt;- (o .: &quot;ann&quot;)  &gt;&gt;= pure</span>
+<span class="lineno">  169 </span><span class="spaces">                  </span><span class="nottickedoff">_buildRule &lt;- (o .: &quot;rule&quot;) &gt;&gt;= pure</span>
+<span class="lineno">  170 </span><span class="spaces">                  </span><span class="nottickedoff">_buildEnv  &lt;- (o .: &quot;env&quot;)  &gt;&gt;= pure</span>
+<span class="lineno">  171 </span><span class="spaces">                  </span><span class="nottickedoff">_buildDeps &lt;- (o .: &quot;deps&quot;) &gt;&gt;= pure</span>
+<span class="lineno">  172 </span><span class="spaces">                  </span><span class="nottickedoff">_buildBind &lt;- (o .: &quot;bind&quot;) &gt;&gt;= pure</span>
+<span class="lineno">  173 </span><span class="spaces">                  </span><span class="nottickedoff">pure (MkBuild {..}))</span></span>
+<span class="lineno">  174 </span>
+<span class="lineno">  175 </span>-- | Reasonable 'QC.Arbitrary' instance for 'Build'.
+<span class="lineno">  176 </span>--
+<span class="lineno">  177 </span>--   @since 0.1.0
+<span class="lineno">  178 </span>instance (QC.Arbitrary ann) =&gt; QC.Arbitrary (Build ann) where
+<span class="lineno">  179 </span>  <span class="decl"><span class="nottickedoff">arbitrary = MkBuild</span>
+<span class="lineno">  180 </span><span class="spaces">              </span><span class="nottickedoff">&lt;$&gt; QC.arbitrary</span>
+<span class="lineno">  181 </span><span class="spaces">              </span><span class="nottickedoff">&lt;*&gt; QC.arbitrary</span>
+<span class="lineno">  182 </span><span class="spaces">              </span><span class="nottickedoff">&lt;*&gt; QC.arbitrary</span>
+<span class="lineno">  183 </span><span class="spaces">              </span><span class="nottickedoff">&lt;*&gt; QC.arbitrary</span>
+<span class="lineno">  184 </span><span class="spaces">              </span><span class="nottickedoff">&lt;*&gt; QC.arbitrary</span></span>
+<span class="lineno">  185 </span>
+<span class="lineno">  186 </span>-- | Default 'Hashable' instance via 'Generic'.
+<span class="lineno">  187 </span>--
+<span class="lineno">  188 </span>--   @since 0.1.0
+<span class="lineno">  189 </span>instance (Hashable ann) =&gt; Hashable (Build ann)
+<span class="lineno">  190 </span>
+<span class="lineno">  191 </span>-- | Default 'NFData' instance via 'Generic'.
+<span class="lineno">  192 </span>--
+<span class="lineno">  193 </span>--   @since 0.1.0
+<span class="lineno">  194 </span>instance (NFData ann) =&gt; NFData (Build ann)
+<span class="lineno">  195 </span>
+<span class="lineno">  196 </span>-- | Default 'SC.Serial' instance via 'Generic'.
+<span class="lineno">  197 </span>--
+<span class="lineno">  198 </span>--   @since 0.1.0
+<span class="lineno">  199 </span>instance ( Monad m, BuildConstraint (SC.Serial m) ann
+<span class="lineno">  200 </span>         ) =&gt; SC.Serial m (Build ann)
+<span class="lineno">  201 </span>
+<span class="lineno">  202 </span>-- | Default 'SC.CoSerial' instance via 'Generic'.
+<span class="lineno">  203 </span>--
+<span class="lineno">  204 </span>--   @since 0.1.0
+<span class="lineno">  205 </span>instance ( Monad m, BuildConstraint (SC.CoSerial m) ann
+<span class="lineno">  206 </span>         ) =&gt; SC.CoSerial m (Build ann)
+<span class="lineno">  207 </span>
+<span class="lineno">  208 </span>-- | The set of constraints required for a given constraint to be automatically
+<span class="lineno">  209 </span>--   computed for a 'Build'.
+<span class="lineno">  210 </span>--
+<span class="lineno">  211 </span>--   @since 0.1.0
+<span class="lineno">  212 </span>type BuildConstraint (c :: * -&gt; Constraint) (ann :: *)
+<span class="lineno">  213 </span>  = ( AST.DepsConstraint c ann
+<span class="lineno">  214 </span>    , c Text
+<span class="lineno">  215 </span>    , c (HashMap Text Text)
+<span class="lineno">  216 </span>    , c (AST.Maps Text Text)
+<span class="lineno">  217 </span>    , c ann
+<span class="lineno">  218 </span>    )
+<span class="lineno">  219 </span>
+<span class="lineno">  220 </span>--------------------------------------------------------------------------------
+
+</pre>
+</body>
+</html>

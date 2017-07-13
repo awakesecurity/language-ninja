@@ -1,0 +1,612 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style type="text/css">
+span.lineno { color: white; background: #aaaaaa; border-right: solid white 12px }
+span.nottickedoff { background: yellow}
+span.istickedoff { background: white }
+span.tickonlyfalse { margin: -1px; border: 1px solid #f20913; background: #f20913 }
+span.tickonlytrue  { margin: -1px; border: 1px solid #60de51; background: #60de51 }
+span.funcount { font-size: small; color: orange; z-index: 2; position: absolute; right: 20 }
+span.decl { font-weight: bold }
+span.spaces    { background: white }
+</style>
+</head>
+<body>
+<pre>
+<span class="lineno">    1 </span>-- -*- coding: utf-8; mode: haskell; -*-
+<span class="lineno">    2 </span>
+<span class="lineno">    3 </span>-- File: library/Language/Ninja/Misc/Located.hs
+<span class="lineno">    4 </span>--
+<span class="lineno">    5 </span>-- License:
+<span class="lineno">    6 </span>--     Copyright 2017 Awake Security
+<span class="lineno">    7 </span>--
+<span class="lineno">    8 </span>--     Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<span class="lineno">    9 </span>--     you may not use this file except in compliance with the License.
+<span class="lineno">   10 </span>--     You may obtain a copy of the License at
+<span class="lineno">   11 </span>--
+<span class="lineno">   12 </span>--       http://www.apache.org/licenses/LICENSE-2.0
+<span class="lineno">   13 </span>--
+<span class="lineno">   14 </span>--     Unless required by applicable law or agreed to in writing, software
+<span class="lineno">   15 </span>--     distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<span class="lineno">   16 </span>--     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<span class="lineno">   17 </span>--     See the License for the specific language governing permissions and
+<span class="lineno">   18 </span>--     limitations under the License.
+<span class="lineno">   19 </span>
+<span class="lineno">   20 </span>{-# LANGUAGE DeriveFoldable             #-}
+<span class="lineno">   21 </span>{-# LANGUAGE DeriveFunctor              #-}
+<span class="lineno">   22 </span>{-# LANGUAGE DeriveGeneric              #-}
+<span class="lineno">   23 </span>{-# LANGUAGE DeriveTraversable          #-}
+<span class="lineno">   24 </span>{-# LANGUAGE FlexibleContexts           #-}
+<span class="lineno">   25 </span>{-# LANGUAGE FlexibleInstances          #-}
+<span class="lineno">   26 </span>{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+<span class="lineno">   27 </span>{-# LANGUAGE LambdaCase                 #-}
+<span class="lineno">   28 </span>{-# LANGUAGE MultiParamTypeClasses      #-}
+<span class="lineno">   29 </span>{-# LANGUAGE OverloadedStrings          #-}
+<span class="lineno">   30 </span>{-# LANGUAGE RecordWildCards            #-}
+<span class="lineno">   31 </span>{-# LANGUAGE UndecidableInstances       #-}
+<span class="lineno">   32 </span>
+<span class="lineno">   33 </span>-- |
+<span class="lineno">   34 </span>--   Module      : Language.Ninja.Misc.Located
+<span class="lineno">   35 </span>--   Copyright   : Copyright 2017 Awake Security
+<span class="lineno">   36 </span>--   License     : Apache-2.0
+<span class="lineno">   37 </span>--   Maintainer  : opensource@awakesecurity.com
+<span class="lineno">   38 </span>--   Stability   : experimental
+<span class="lineno">   39 </span>--
+<span class="lineno">   40 </span>--   Tokenize text into a list of non-whitespace chunks, each of which is
+<span class="lineno">   41 </span>--   annotated with its source location.
+<span class="lineno">   42 </span>--
+<span class="lineno">   43 </span>--   @since 0.1.0
+<span class="lineno">   44 </span>module Language.Ninja.Misc.Located
+<span class="lineno">   45 </span>  ( -- * @Located@
+<span class="lineno">   46 </span>    Located
+<span class="lineno">   47 </span>  , tokenize, tokenizeFile, tokenizeText
+<span class="lineno">   48 </span>  , untokenize
+<span class="lineno">   49 </span>  , locatedPos, locatedVal
+<span class="lineno">   50 </span>
+<span class="lineno">   51 </span>    -- * @Spans@
+<span class="lineno">   52 </span>  , Spans, makeSpans, spansSet
+<span class="lineno">   53 </span>
+<span class="lineno">   54 </span>    -- * @Span@
+<span class="lineno">   55 </span>  , Span, makeSpan, spanPath, spanRange
+<span class="lineno">   56 </span>  , spanStart, spanEnd, spanStartPos, spanEndPos
+<span class="lineno">   57 </span>
+<span class="lineno">   58 </span>    -- * @Position@
+<span class="lineno">   59 </span>  , Position, makePosition
+<span class="lineno">   60 </span>  , positionFile, positionOffset, positionLine, positionCol
+<span class="lineno">   61 </span>  , comparePosition
+<span class="lineno">   62 </span>
+<span class="lineno">   63 </span>    -- * @Offset@
+<span class="lineno">   64 </span>  , Offset, compareOffset, offsetLine, offsetColumn
+<span class="lineno">   65 </span>
+<span class="lineno">   66 </span>    -- * Miscellaneous
+<span class="lineno">   67 </span>  , Line, Column
+<span class="lineno">   68 </span>  ) where
+<span class="lineno">   69 </span>
+<span class="lineno">   70 </span>import           Control.Arrow            (second, (&amp;&amp;&amp;), (***))
+<span class="lineno">   71 </span>
+<span class="lineno">   72 </span>import qualified Control.Lens             as Lens
+<span class="lineno">   73 </span>
+<span class="lineno">   74 </span>import           Control.Monad.ST         (ST)
+<span class="lineno">   75 </span>import qualified Control.Monad.ST         as ST
+<span class="lineno">   76 </span>import           Data.STRef               (STRef)
+<span class="lineno">   77 </span>import qualified Data.STRef               as ST
+<span class="lineno">   78 </span>
+<span class="lineno">   79 </span>import           Data.Char                (isSpace)
+<span class="lineno">   80 </span>import qualified Data.Maybe
+<span class="lineno">   81 </span>import           Data.Semigroup           (Semigroup ((&lt;&gt;)))
+<span class="lineno">   82 </span>
+<span class="lineno">   83 </span>import           Data.Text                (Text)
+<span class="lineno">   84 </span>import qualified Data.Text                as Text
+<span class="lineno">   85 </span>
+<span class="lineno">   86 </span>import           Data.HashSet             (HashSet)
+<span class="lineno">   87 </span>import qualified Data.HashSet             as HS
+<span class="lineno">   88 </span>
+<span class="lineno">   89 </span>import           Data.Map.Strict          (Map)
+<span class="lineno">   90 </span>
+<span class="lineno">   91 </span>import           Control.DeepSeq          (NFData)
+<span class="lineno">   92 </span>import           Data.Hashable            (Hashable)
+<span class="lineno">   93 </span>import           GHC.Generics             (Generic)
+<span class="lineno">   94 </span>
+<span class="lineno">   95 </span>import qualified Test.SmallCheck.Series   as SC
+<span class="lineno">   96 </span>
+<span class="lineno">   97 </span>import           Data.Aeson               ((.:), (.=))
+<span class="lineno">   98 </span>import qualified Data.Aeson               as Aeson
+<span class="lineno">   99 </span>import qualified Data.Aeson.Types         as Aeson
+<span class="lineno">  100 </span>
+<span class="lineno">  101 </span>import           Flow                     ((.&gt;), (|&gt;))
+<span class="lineno">  102 </span>
+<span class="lineno">  103 </span>import qualified Language.Ninja.Misc.Path as Misc
+<span class="lineno">  104 </span>import qualified Language.Ninja.Mock      as Mock
+<span class="lineno">  105 </span>
+<span class="lineno">  106 </span>--------------------------------------------------------------------------------
+<span class="lineno">  107 </span>
+<span class="lineno">  108 </span>-- | This datatype represents a value annotated with a source location.
+<span class="lineno">  109 </span>--
+<span class="lineno">  110 </span>--   @since 0.1.0
+<span class="lineno">  111 </span>data Located t
+<span class="lineno">  112 </span>  = MkLocated
+<span class="lineno">  113 </span>    { <span class="istickedoff"><span class="decl"><span class="istickedoff">_locatedPos</span></span></span> :: {-# UNPACK #-} !Position
+<span class="lineno">  114 </span>    , <span class="istickedoff"><span class="decl"><span class="istickedoff">_locatedVal</span></span></span> ::                !t
+<span class="lineno">  115 </span>    }
+<span class="lineno">  116 </span>  deriving (<span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, Generic, <span class="decl"><span class="nottickedoff">Functor</span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Foldable</span></span></span></span>, <span class="decl"><span class="nottickedoff">Traversable</span></span>)
+<span class="lineno">  117 </span>
+<span class="lineno">  118 </span>-- | Construct a 'Located' value directly.
+<span class="lineno">  119 </span>--
+<span class="lineno">  120 </span>--   @since 0.1.0
+<span class="lineno">  121 </span>{-# INLINE makeLocated #-}
+<span class="lineno">  122 </span>makeLocated :: Position -&gt; t -&gt; Located t
+<span class="lineno">  123 </span><span class="decl"><span class="nottickedoff">makeLocated = MkLocated</span></span>
+<span class="lineno">  124 </span>
+<span class="lineno">  125 </span>-- | Given @path :: 'Maybe' 'Misc.Path'@ and a @text :: 'Text'@, do the
+<span class="lineno">  126 </span>--   following:
+<span class="lineno">  127 </span>--
+<span class="lineno">  128 </span>--   * Remove all @'\r'@ characters from the @text@.
+<span class="lineno">  129 </span>--   * Split the @text@ into chunks that are guaranteed not to contain newlines
+<span class="lineno">  130 </span>--     or whitespace, and which are annotated with their location.
+<span class="lineno">  131 </span>--
+<span class="lineno">  132 </span>--   @since 0.1.0
+<span class="lineno">  133 </span>tokenize :: Maybe Misc.Path -&gt; Text -&gt; [Located Text]
+<span class="lineno">  134 </span><span class="decl"><span class="nottickedoff">tokenize mpath = removeWhitespace (mpath, 0, 0)</span></span>
+<span class="lineno">  135 </span>
+<span class="lineno">  136 </span>-- | Read the file at the given 'Misc.Path' and then run 'tokenize' on the
+<span class="lineno">  137 </span>--   resulting 'Text'.
+<span class="lineno">  138 </span>--
+<span class="lineno">  139 </span>--   @since 0.1.0
+<span class="lineno">  140 </span>tokenizeFile :: (Mock.MonadReadFile m) =&gt; Misc.Path -&gt; m [Located Text]
+<span class="lineno">  141 </span><span class="decl"><span class="nottickedoff">tokenizeFile path = tokenize (Just path) &lt;$&gt; Mock.readFile path</span></span>
+<span class="lineno">  142 </span>
+<span class="lineno">  143 </span>-- | This function is equivalent to @tokenize Nothing@.
+<span class="lineno">  144 </span>--
+<span class="lineno">  145 </span>--   @since 0.1.0
+<span class="lineno">  146 </span>tokenizeText :: Text -&gt; [Located Text]
+<span class="lineno">  147 </span><span class="decl"><span class="nottickedoff">tokenizeText = tokenize Nothing</span></span>
+<span class="lineno">  148 </span>
+<span class="lineno">  149 </span>-- | This function takes the output of 'tokenize' and returns a map from paths
+<span class="lineno">  150 </span>--   to the contents of the associated files.
+<span class="lineno">  151 </span>--
+<span class="lineno">  152 </span>--   prop&gt; untokenize [] == Map.empty
+<span class="lineno">  153 </span>--   prop&gt; untokenize (xs &lt;&gt; ys) == untokenize xs &lt;&gt; untokenize ys
+<span class="lineno">  154 </span>--   prop&gt; untokenize (tokenize (Just path) t) == Map.singleton path t
+<span class="lineno">  155 </span>--
+<span class="lineno">  156 </span>--   FIXME: implement
+<span class="lineno">  157 </span>--
+<span class="lineno">  158 </span>--   @since 0.1.0
+<span class="lineno">  159 </span>untokenize :: [Located Text] -&gt; Map Misc.Path Text
+<span class="lineno">  160 </span><span class="decl"><span class="nottickedoff">untokenize = error &quot;Language.Ninja.Misc.Located.untokenize is not yet written&quot;</span></span>
+<span class="lineno">  161 </span>
+<span class="lineno">  162 </span>-- | The position of this located value.
+<span class="lineno">  163 </span>--
+<span class="lineno">  164 </span>--   @since 0.1.0
+<span class="lineno">  165 </span>{-# INLINE locatedPos #-}
+<span class="lineno">  166 </span>locatedPos :: Lens.Lens' (Located t) Position
+<span class="lineno">  167 </span><span class="decl"><span class="istickedoff">locatedPos = Lens.lens _locatedPos</span>
+<span class="lineno">  168 </span><span class="spaces">             </span><span class="istickedoff">$ \(MkLocated {..}) x -&gt; MkLocated { _locatedPos = x, .. }</span></span>
+<span class="lineno">  169 </span>
+<span class="lineno">  170 </span>-- | The value underlying this located value.
+<span class="lineno">  171 </span>--
+<span class="lineno">  172 </span>--   @since 0.1.0
+<span class="lineno">  173 </span>{-# INLINE locatedVal #-}
+<span class="lineno">  174 </span>locatedVal :: Lens.Lens' (Located t) t
+<span class="lineno">  175 </span><span class="decl"><span class="istickedoff">locatedVal = Lens.lens _locatedVal</span>
+<span class="lineno">  176 </span><span class="spaces">             </span><span class="istickedoff">$ \(MkLocated {..}) x -&gt; MkLocated { _locatedVal = x, .. }</span></span>
+<span class="lineno">  177 </span>
+<span class="lineno">  178 </span>-- | Converts to @{position: …, value: …}@.
+<span class="lineno">  179 </span>--
+<span class="lineno">  180 </span>--   @since 0.1.0
+<span class="lineno">  181 </span>instance (Aeson.ToJSON t) =&gt; Aeson.ToJSON (Located t) where
+<span class="lineno">  182 </span>  <span class="decl"><span class="istickedoff">toJSON (MkLocated {..})</span>
+<span class="lineno">  183 </span><span class="spaces">    </span><span class="istickedoff">= [ &quot;pos&quot; .= _locatedPos</span>
+<span class="lineno">  184 </span><span class="spaces">      </span><span class="istickedoff">, &quot;val&quot; .= _locatedVal</span>
+<span class="lineno">  185 </span><span class="spaces">      </span><span class="istickedoff">] |&gt; Aeson.object</span></span>
+<span class="lineno">  186 </span>
+<span class="lineno">  187 </span>-- | Inverse of the 'Aeson.ToJSON' instance.
+<span class="lineno">  188 </span>--
+<span class="lineno">  189 </span>--   @since 0.1.0
+<span class="lineno">  190 </span>instance (Aeson.FromJSON t) =&gt; Aeson.FromJSON (Located t) where
+<span class="lineno">  191 </span>  <span class="decl"><span class="istickedoff">parseJSON = (Aeson.withObject <span class="nottickedoff">&quot;Located&quot;</span> $ \o -&gt; do</span>
+<span class="lineno">  192 </span><span class="spaces">                  </span><span class="istickedoff">_locatedPos &lt;- (o .: &quot;pos&quot;) &gt;&gt;= pure</span>
+<span class="lineno">  193 </span><span class="spaces">                  </span><span class="istickedoff">_locatedVal &lt;- (o .: &quot;val&quot;) &gt;&gt;= pure</span>
+<span class="lineno">  194 </span><span class="spaces">                  </span><span class="istickedoff">pure (MkLocated {..}))</span></span>
+<span class="lineno">  195 </span>
+<span class="lineno">  196 </span>-- | Default 'Hashable' instance via 'Generic'.
+<span class="lineno">  197 </span>--
+<span class="lineno">  198 </span>--   @since 0.1.0
+<span class="lineno">  199 </span>instance (Hashable t) =&gt; Hashable (Located t)
+<span class="lineno">  200 </span>
+<span class="lineno">  201 </span>-- | Default 'NFData' instance via 'Generic'.
+<span class="lineno">  202 </span>--
+<span class="lineno">  203 </span>--   @since 0.1.0
+<span class="lineno">  204 </span>instance (NFData t) =&gt; NFData (Located t)
+<span class="lineno">  205 </span>
+<span class="lineno">  206 </span>-- | Default 'SC.Serial' instance via 'Generic'.
+<span class="lineno">  207 </span>--
+<span class="lineno">  208 </span>--   @since 0.1.0
+<span class="lineno">  209 </span>instance ( Monad m, SC.Serial m Text, SC.Serial m t
+<span class="lineno">  210 </span>         ) =&gt; SC.Serial m (Located t)
+<span class="lineno">  211 </span>
+<span class="lineno">  212 </span>-- | Default 'SC.CoSerial' instance via 'Generic'.
+<span class="lineno">  213 </span>--
+<span class="lineno">  214 </span>--   @since 0.1.0
+<span class="lineno">  215 </span>instance ( Monad m, SC.CoSerial m Text, SC.CoSerial m t
+<span class="lineno">  216 </span>         ) =&gt; SC.CoSerial m (Located t)
+<span class="lineno">  217 </span>
+<span class="lineno">  218 </span>--------------------------------------------------------------------------------
+<span class="lineno">  219 </span>
+<span class="lineno">  220 </span>-- | A type representing a set of source spans.
+<span class="lineno">  221 </span>--
+<span class="lineno">  222 </span>--   @since 0.1.0
+<span class="lineno">  223 </span>newtype Spans
+<span class="lineno">  224 </span>  = MkSpans (HashSet Span)
+<span class="lineno">  225 </span>  deriving ( <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Semigroup</span></span></span></span></span></span>, <span class="decl"><span class="istickedoff"><span class="decl"><span class="istickedoff"><span class="decl"><span class="istickedoff">Monoid</span></span></span></span></span></span>
+<span class="lineno">  226 </span>           , Generic, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Aeson.ToJSON</span></span></span></span></span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Aeson.FromJSON</span></span></span></span>
+<span class="lineno">  227 </span>           , <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Hashable</span></span></span></span>, <span class="decl"><span class="nottickedoff">NFData</span></span> )
+<span class="lineno">  228 </span>
+<span class="lineno">  229 </span>-- | Construct a 'Spans' from a list of 'Span's.
+<span class="lineno">  230 </span>--
+<span class="lineno">  231 </span>--   @since 0.1.0
+<span class="lineno">  232 </span>{-# INLINE makeSpans #-}
+<span class="lineno">  233 </span>makeSpans :: [Span] -&gt; Spans
+<span class="lineno">  234 </span><span class="decl"><span class="istickedoff">makeSpans = HS.fromList .&gt; MkSpans</span></span>
+<span class="lineno">  235 </span>
+<span class="lineno">  236 </span>-- | A lens into the @'HashSet' 'Span'@ underlying a value of type 'Spans'.
+<span class="lineno">  237 </span>--
+<span class="lineno">  238 </span>--   @since 0.1.0
+<span class="lineno">  239 </span>{-# INLINE spansSet #-}
+<span class="lineno">  240 </span>spansSet :: Lens.Iso' Spans (HashSet Span)
+<span class="lineno">  241 </span><span class="decl"><span class="nottickedoff">spansSet = Lens.iso (\(MkSpans s) -&gt; s) MkSpans</span></span>
+<span class="lineno">  242 </span>
+<span class="lineno">  243 </span>-- | Default 'SC.Serial' instance via 'Generic'.
+<span class="lineno">  244 </span>--
+<span class="lineno">  245 </span>--   @since 0.1.0
+<span class="lineno">  246 </span>instance (Monad m, SC.Serial m (HashSet Span)) =&gt; SC.Serial m Spans
+<span class="lineno">  247 </span>
+<span class="lineno">  248 </span>-- | Default 'SC.CoSerial' instance via 'Generic'.
+<span class="lineno">  249 </span>--
+<span class="lineno">  250 </span>--   @since 0.1.0
+<span class="lineno">  251 </span>instance (Monad m, SC.CoSerial m (HashSet Span)) =&gt; SC.CoSerial m Spans
+<span class="lineno">  252 </span>
+<span class="lineno">  253 </span>--------------------------------------------------------------------------------
+<span class="lineno">  254 </span>
+<span class="lineno">  255 </span>-- | Represents a span of source code.
+<span class="lineno">  256 </span>--
+<span class="lineno">  257 </span>--   @since 0.1.0
+<span class="lineno">  258 </span>data Span
+<span class="lineno">  259 </span>  = MkSpan !(Maybe Misc.Path) !Offset !Offset
+<span class="lineno">  260 </span>  deriving (<span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, Generic)
+<span class="lineno">  261 </span>
+<span class="lineno">  262 </span>-- | Construct a 'Span' from a given start position to a given end position.
+<span class="lineno">  263 </span>--
+<span class="lineno">  264 </span>--   @since 0.1.0
+<span class="lineno">  265 </span>{-# INLINE makeSpan #-}
+<span class="lineno">  266 </span>makeSpan :: Maybe Misc.Path
+<span class="lineno">  267 </span>         -- ^ The file in which this span resides, if any.
+<span class="lineno">  268 </span>         -&gt; Offset
+<span class="lineno">  269 </span>         -- ^ The start offset.
+<span class="lineno">  270 </span>         -&gt; Offset
+<span class="lineno">  271 </span>         -- ^ The end offset.
+<span class="lineno">  272 </span>         -&gt; Span
+<span class="lineno">  273 </span><span class="decl"><span class="istickedoff">makeSpan mpath start end = case compareOffset start end of</span>
+<span class="lineno">  274 </span><span class="spaces">                             </span><span class="istickedoff">GT -&gt; <span class="nottickedoff">makeSpan mpath end start</span></span>
+<span class="lineno">  275 </span><span class="spaces">                             </span><span class="istickedoff">_  -&gt; MkSpan mpath start end</span></span>
+<span class="lineno">  276 </span>
+<span class="lineno">  277 </span>-- | A lens into the (nullable) path associated with a 'Span'.
+<span class="lineno">  278 </span>--
+<span class="lineno">  279 </span>--   @since 0.1.0
+<span class="lineno">  280 </span>{-# INLINE spanPath #-}
+<span class="lineno">  281 </span>spanPath :: Lens.Lens' Span (Maybe Misc.Path)
+<span class="lineno">  282 </span><span class="decl"><span class="nottickedoff">spanPath = let helper (MkSpan p s e) = (p, \x -&gt; MkSpan x s e)</span>
+<span class="lineno">  283 </span><span class="spaces">           </span><span class="nottickedoff">in Lens.lens (helper .&gt; fst) (helper .&gt; snd)</span></span>
+<span class="lineno">  284 </span>
+<span class="lineno">  285 </span>-- | A lens giving the start and end 'Offset's associated with a 'Span'.
+<span class="lineno">  286 </span>--
+<span class="lineno">  287 </span>--   @since 0.1.0
+<span class="lineno">  288 </span>{-# INLINE spanRange #-}
+<span class="lineno">  289 </span>spanRange :: Lens.Lens' Span (Offset, Offset)
+<span class="lineno">  290 </span><span class="decl"><span class="nottickedoff">spanRange = let helper (MkSpan p s e) = ((s, e), \(s', e') -&gt; MkSpan p s' e')</span>
+<span class="lineno">  291 </span><span class="spaces">            </span><span class="nottickedoff">in Lens.lens (helper .&gt; fst) (helper .&gt; snd)</span></span>
+<span class="lineno">  292 </span>
+<span class="lineno">  293 </span>-- | A lens into the 'Offset' associated with the start of a 'Span'.
+<span class="lineno">  294 </span>--
+<span class="lineno">  295 </span>--   @since 0.1.0
+<span class="lineno">  296 </span>{-# INLINE spanStart #-}
+<span class="lineno">  297 </span>spanStart :: Lens.Lens' Span Offset
+<span class="lineno">  298 </span><span class="decl"><span class="nottickedoff">spanStart = spanRange . Lens._1</span></span>
+<span class="lineno">  299 </span>
+<span class="lineno">  300 </span>-- | A lens into the 'Offset' associated with the end of a 'Span'.
+<span class="lineno">  301 </span>--
+<span class="lineno">  302 </span>--   @since 0.1.0
+<span class="lineno">  303 </span>{-# INLINE spanEnd #-}
+<span class="lineno">  304 </span>spanEnd :: Lens.Lens' Span Offset
+<span class="lineno">  305 </span><span class="decl"><span class="nottickedoff">spanEnd = spanRange . Lens._2</span></span>
+<span class="lineno">  306 </span>
+<span class="lineno">  307 </span>-- | A getter for the 'Position' associated with the start of a 'Span'.
+<span class="lineno">  308 </span>--
+<span class="lineno">  309 </span>--   @since 0.1.0
+<span class="lineno">  310 </span>{-# INLINE spanStartPos #-}
+<span class="lineno">  311 </span>spanStartPos :: Lens.Getter Span Position
+<span class="lineno">  312 </span><span class="decl"><span class="nottickedoff">spanStartPos = Lens.to (\(MkSpan p s _) -&gt; makePosition p s)</span></span>
+<span class="lineno">  313 </span>
+<span class="lineno">  314 </span>-- | A getter for the 'Position' associated with the end of a 'Span'.
+<span class="lineno">  315 </span>--
+<span class="lineno">  316 </span>--   @since 0.1.0
+<span class="lineno">  317 </span>{-# INLINE spanEndPos #-}
+<span class="lineno">  318 </span>spanEndPos :: Lens.Getter Span Position
+<span class="lineno">  319 </span><span class="decl"><span class="nottickedoff">spanEndPos = Lens.to (\(MkSpan p _ e) -&gt; makePosition p e)</span></span>
+<span class="lineno">  320 </span>
+<span class="lineno">  321 </span>-- | Converts to @{file: …, start: …, end: …}@.
+<span class="lineno">  322 </span>--
+<span class="lineno">  323 </span>--   @since 0.1.0
+<span class="lineno">  324 </span>instance Aeson.ToJSON Span where
+<span class="lineno">  325 </span>  <span class="decl"><span class="nottickedoff">toJSON (MkSpan file start end)</span>
+<span class="lineno">  326 </span><span class="spaces">    </span><span class="nottickedoff">= [ &quot;file&quot;  .= maybe Aeson.Null Aeson.toJSON file</span>
+<span class="lineno">  327 </span><span class="spaces">      </span><span class="nottickedoff">, &quot;start&quot; .= offsetJ start</span>
+<span class="lineno">  328 </span><span class="spaces">      </span><span class="nottickedoff">, &quot;end&quot;   .= offsetJ end</span>
+<span class="lineno">  329 </span><span class="spaces">      </span><span class="nottickedoff">] |&gt; Aeson.object</span>
+<span class="lineno">  330 </span><span class="spaces">    </span><span class="nottickedoff">where</span>
+<span class="lineno">  331 </span><span class="spaces">      </span><span class="nottickedoff">offsetJ :: (Line, Column) -&gt; Aeson.Value</span>
+<span class="lineno">  332 </span><span class="spaces">      </span><span class="nottickedoff">offsetJ (line, col) = Aeson.object [&quot;line&quot; .= line, &quot;col&quot; .= col]</span></span>
+<span class="lineno">  333 </span>
+<span class="lineno">  334 </span>-- | Inverse of the 'Aeson.ToJSON' instance.
+<span class="lineno">  335 </span>--
+<span class="lineno">  336 </span>--   @since 0.1.0
+<span class="lineno">  337 </span>instance Aeson.FromJSON Span where
+<span class="lineno">  338 </span>  <span class="decl"><span class="nottickedoff">parseJSON = (Aeson.withObject &quot;Span&quot; $ \o -&gt; do</span>
+<span class="lineno">  339 </span><span class="spaces">                  </span><span class="nottickedoff">file  &lt;- (o .: &quot;file&quot;)  &gt;&gt;= pure</span>
+<span class="lineno">  340 </span><span class="spaces">                  </span><span class="nottickedoff">start &lt;- (o .: &quot;start&quot;) &gt;&gt;= offsetP</span>
+<span class="lineno">  341 </span><span class="spaces">                  </span><span class="nottickedoff">end   &lt;- (o .: &quot;end&quot;)   &gt;&gt;= offsetP</span>
+<span class="lineno">  342 </span><span class="spaces">                  </span><span class="nottickedoff">pure (MkSpan file start end))</span>
+<span class="lineno">  343 </span><span class="spaces">    </span><span class="nottickedoff">where</span>
+<span class="lineno">  344 </span><span class="spaces">      </span><span class="nottickedoff">offsetP :: Aeson.Value -&gt; Aeson.Parser Offset</span>
+<span class="lineno">  345 </span><span class="spaces">      </span><span class="nottickedoff">offsetP = (Aeson.withObject &quot;Offset&quot; $ \o -&gt; do</span>
+<span class="lineno">  346 </span><span class="spaces">                    </span><span class="nottickedoff">line &lt;- (o .: &quot;line&quot;) &gt;&gt;= pure</span>
+<span class="lineno">  347 </span><span class="spaces">                    </span><span class="nottickedoff">col  &lt;- (o .: &quot;col&quot;)  &gt;&gt;= pure</span>
+<span class="lineno">  348 </span><span class="spaces">                    </span><span class="nottickedoff">pure (line, col))</span></span>
+<span class="lineno">  349 </span>
+<span class="lineno">  350 </span>-- | Default 'Hashable' instance via 'Generic'.
+<span class="lineno">  351 </span>--
+<span class="lineno">  352 </span>--   @since 0.1.0
+<span class="lineno">  353 </span>instance Hashable Span
+<span class="lineno">  354 </span>
+<span class="lineno">  355 </span>-- | Default 'NFData' instance via 'Generic'.
+<span class="lineno">  356 </span>--
+<span class="lineno">  357 </span>--   @since 0.1.0
+<span class="lineno">  358 </span>instance NFData Span
+<span class="lineno">  359 </span>
+<span class="lineno">  360 </span>-- | Default 'SC.Serial' instance via 'Generic'.
+<span class="lineno">  361 </span>--
+<span class="lineno">  362 </span>--   @since 0.1.0
+<span class="lineno">  363 </span>instance (Monad m, SC.Serial m Text) =&gt; SC.Serial m Span
+<span class="lineno">  364 </span>
+<span class="lineno">  365 </span>-- | Default 'SC.CoSerial' instance via 'Generic'.
+<span class="lineno">  366 </span>--
+<span class="lineno">  367 </span>--   @since 0.1.0
+<span class="lineno">  368 </span>instance (Monad m, SC.CoSerial m Text) =&gt; SC.CoSerial m Span
+<span class="lineno">  369 </span>
+<span class="lineno">  370 </span>--------------------------------------------------------------------------------
+<span class="lineno">  371 </span>
+<span class="lineno">  372 </span>-- | This datatype represents the position of a cursor in a text file.
+<span class="lineno">  373 </span>--
+<span class="lineno">  374 </span>--   @since 0.1.0
+<span class="lineno">  375 </span>data Position
+<span class="lineno">  376 </span>  = MkPosition
+<span class="lineno">  377 </span>    { <span class="istickedoff"><span class="decl"><span class="istickedoff">_positionFile</span></span></span> ::                !(Maybe Misc.Path)
+<span class="lineno">  378 </span>    , <span class="istickedoff"><span class="decl"><span class="istickedoff">_positionLine</span></span></span> :: {-# UNPACK #-} !Line
+<span class="lineno">  379 </span>    , <span class="istickedoff"><span class="decl"><span class="istickedoff">_positionCol</span></span></span>  :: {-# UNPACK #-} !Column
+<span class="lineno">  380 </span>    }
+<span class="lineno">  381 </span>  deriving (<span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, Generic)
+<span class="lineno">  382 </span>
+<span class="lineno">  383 </span>-- | Construct a 'Position' from a (nullable) path and a @(line, column)@ pair.
+<span class="lineno">  384 </span>--
+<span class="lineno">  385 </span>--   @since 0.1.0
+<span class="lineno">  386 </span>{-# INLINE makePosition #-}
+<span class="lineno">  387 </span>makePosition :: Maybe Misc.Path -&gt; Offset -&gt; Position
+<span class="lineno">  388 </span><span class="decl"><span class="istickedoff">makePosition file (line, column) = MkPosition file line column</span></span>
+<span class="lineno">  389 </span>
+<span class="lineno">  390 </span>-- | The path of the file pointed to by this position, if any.
+<span class="lineno">  391 </span>--
+<span class="lineno">  392 </span>--   @since 0.1.0
+<span class="lineno">  393 </span>{-# INLINE positionFile #-}
+<span class="lineno">  394 </span>positionFile :: Lens.Lens' Position (Maybe Misc.Path)
+<span class="lineno">  395 </span><span class="decl"><span class="istickedoff">positionFile = Lens.lens _positionFile</span>
+<span class="lineno">  396 </span><span class="spaces">               </span><span class="istickedoff">$ \(MkPosition {..}) x -&gt; MkPosition { _positionFile = x, .. }</span></span>
+<span class="lineno">  397 </span>
+<span class="lineno">  398 </span>-- | The offset in the file pointed to by this position.
+<span class="lineno">  399 </span>--
+<span class="lineno">  400 </span>--   @since 0.1.0
+<span class="lineno">  401 </span>{-# INLINE positionOffset #-}
+<span class="lineno">  402 </span>positionOffset :: Lens.Lens' Position Offset
+<span class="lineno">  403 </span><span class="decl"><span class="istickedoff">positionOffset</span>
+<span class="lineno">  404 </span><span class="spaces">  </span><span class="istickedoff">= Lens.lens (_positionLine &amp;&amp;&amp; _positionCol)</span>
+<span class="lineno">  405 </span><span class="spaces">    </span><span class="istickedoff">$ \(MkPosition {..}) (line, col) -&gt;</span>
+<span class="lineno">  406 </span><span class="spaces">        </span><span class="istickedoff">MkPosition { _positionLine = line, _positionCol = col, .. }</span></span>
+<span class="lineno">  407 </span>
+<span class="lineno">  408 </span>-- | The line number in the file pointed to by this position.
+<span class="lineno">  409 </span>--
+<span class="lineno">  410 </span>--   @since 0.1.0
+<span class="lineno">  411 </span>{-# INLINE positionLine #-}
+<span class="lineno">  412 </span>positionLine :: Lens.Lens' Position Line
+<span class="lineno">  413 </span><span class="decl"><span class="istickedoff">positionLine = positionOffset . Lens._1</span></span>
+<span class="lineno">  414 </span>
+<span class="lineno">  415 </span>-- | The column number in the line pointed to by this position.
+<span class="lineno">  416 </span>--
+<span class="lineno">  417 </span>--   @since 0.1.0
+<span class="lineno">  418 </span>{-# INLINE positionCol #-}
+<span class="lineno">  419 </span>positionCol :: Lens.Lens' Position Column
+<span class="lineno">  420 </span><span class="decl"><span class="istickedoff">positionCol = positionOffset . Lens._2</span></span>
+<span class="lineno">  421 </span>
+<span class="lineno">  422 </span>-- | If two 'Position's are comparable (i.e.: if they are in the same file),
+<span class="lineno">  423 </span>--   this function will return an 'Ordering' giving their relative positions.
+<span class="lineno">  424 </span>--   Otherwise, it will of course return 'Nothing'.
+<span class="lineno">  425 </span>--
+<span class="lineno">  426 </span>--   @since 0.1.0
+<span class="lineno">  427 </span>comparePosition :: Position -&gt; Position -&gt; Maybe Ordering
+<span class="lineno">  428 </span><span class="decl"><span class="nottickedoff">comparePosition = go</span>
+<span class="lineno">  429 </span><span class="spaces">  </span><span class="nottickedoff">where</span>
+<span class="lineno">  430 </span><span class="spaces">    </span><span class="nottickedoff">go (MkPosition fileX lineX colX) (MkPosition fileY lineY colY)</span>
+<span class="lineno">  431 </span><span class="spaces">      </span><span class="nottickedoff">= compareTriple (fileX, (lineX, colX)) (fileY, (lineY, colY))</span>
+<span class="lineno">  432 </span><span class="spaces"></span><span class="nottickedoff"></span>
+<span class="lineno">  433 </span><span class="spaces">    </span><span class="nottickedoff">compareTriple :: (Maybe Misc.Path, Offset) -&gt; (Maybe Misc.Path, Offset)</span>
+<span class="lineno">  434 </span><span class="spaces">                  </span><span class="nottickedoff">-&gt; Maybe Ordering</span>
+<span class="lineno">  435 </span><span class="spaces">    </span><span class="nottickedoff">compareTriple (mfileX, offX) (mfileY, offY)</span>
+<span class="lineno">  436 </span><span class="spaces">      </span><span class="nottickedoff">| (mfileX == mfileY) = Just (compareOffset offX offY)</span>
+<span class="lineno">  437 </span><span class="spaces">      </span><span class="nottickedoff">| otherwise          = Nothing</span></span>
+<span class="lineno">  438 </span>
+<span class="lineno">  439 </span>-- | Converts to @{file: …, line: …, col: …}@.
+<span class="lineno">  440 </span>--
+<span class="lineno">  441 </span>--   @since 0.1.0
+<span class="lineno">  442 </span>instance Aeson.ToJSON Position where
+<span class="lineno">  443 </span>  <span class="decl"><span class="istickedoff">toJSON (MkPosition {..})</span>
+<span class="lineno">  444 </span><span class="spaces">    </span><span class="istickedoff">= [ &quot;file&quot; .= _positionFile</span>
+<span class="lineno">  445 </span><span class="spaces">      </span><span class="istickedoff">, &quot;line&quot; .= _positionLine</span>
+<span class="lineno">  446 </span><span class="spaces">      </span><span class="istickedoff">, &quot;col&quot;  .= _positionCol</span>
+<span class="lineno">  447 </span><span class="spaces">      </span><span class="istickedoff">] |&gt; Aeson.object</span></span>
+<span class="lineno">  448 </span>
+<span class="lineno">  449 </span>-- | Inverse of the 'Aeson.ToJSON' instance.
+<span class="lineno">  450 </span>--
+<span class="lineno">  451 </span>--   @since 0.1.0
+<span class="lineno">  452 </span>instance Aeson.FromJSON Position where
+<span class="lineno">  453 </span>  <span class="decl"><span class="istickedoff">parseJSON = (Aeson.withObject <span class="nottickedoff">&quot;Position&quot;</span> $ \o -&gt; do</span>
+<span class="lineno">  454 </span><span class="spaces">                  </span><span class="istickedoff">_positionFile &lt;- (o .: &quot;file&quot;) &gt;&gt;= pure</span>
+<span class="lineno">  455 </span><span class="spaces">                  </span><span class="istickedoff">_positionLine &lt;- (o .: &quot;line&quot;) &gt;&gt;= pure</span>
+<span class="lineno">  456 </span><span class="spaces">                  </span><span class="istickedoff">_positionCol  &lt;- (o .: &quot;col&quot;)  &gt;&gt;= pure</span>
+<span class="lineno">  457 </span><span class="spaces">                  </span><span class="istickedoff">pure (MkPosition {..}))</span></span>
+<span class="lineno">  458 </span>
+<span class="lineno">  459 </span>-- | Default 'Hashable' instance via 'Generic'.
+<span class="lineno">  460 </span>--
+<span class="lineno">  461 </span>--   @since 0.1.0
+<span class="lineno">  462 </span>instance Hashable Position
+<span class="lineno">  463 </span>
+<span class="lineno">  464 </span>-- | Default 'NFData' instance via 'Generic'.
+<span class="lineno">  465 </span>--
+<span class="lineno">  466 </span>--   @since 0.1.0
+<span class="lineno">  467 </span>instance NFData Position
+<span class="lineno">  468 </span>
+<span class="lineno">  469 </span>-- | Default 'SC.Serial' instance via 'Generic'.
+<span class="lineno">  470 </span>--
+<span class="lineno">  471 </span>--   @since 0.1.0
+<span class="lineno">  472 </span>instance (Monad m, SC.Serial m Text) =&gt; SC.Serial m Position
+<span class="lineno">  473 </span>
+<span class="lineno">  474 </span>-- | Default 'SC.CoSerial' instance via 'Generic'.
+<span class="lineno">  475 </span>--
+<span class="lineno">  476 </span>--   @since 0.1.0
+<span class="lineno">  477 </span>instance (Monad m, SC.CoSerial m Text) =&gt; SC.CoSerial m Position
+<span class="lineno">  478 </span>
+<span class="lineno">  479 </span>--------------------------------------------------------------------------------
+<span class="lineno">  480 </span>
+<span class="lineno">  481 </span>-- | A line/column offset into a file.
+<span class="lineno">  482 </span>--
+<span class="lineno">  483 </span>--   @since 0.1.0
+<span class="lineno">  484 </span>type Offset = (Line, Column)
+<span class="lineno">  485 </span>
+<span class="lineno">  486 </span>-- | Compare two 'Offset's in lexicographic order (i.e.: the 'Column' is
+<span class="lineno">  487 </span>--   ignored unless they are on the same 'Line').
+<span class="lineno">  488 </span>--
+<span class="lineno">  489 </span>--   @since 0.1.0
+<span class="lineno">  490 </span>compareOffset :: Offset -&gt; Offset -&gt; Ordering
+<span class="lineno">  491 </span><span class="decl"><span class="istickedoff">compareOffset (lineX, colX) (lineY, colY)</span>
+<span class="lineno">  492 </span><span class="spaces">  </span><span class="istickedoff">| (lineX &lt; lineY) = LT</span>
+<span class="lineno">  493 </span><span class="spaces">  </span><span class="istickedoff">| <span class="tickonlyfalse">(lineX &gt; lineY)</span> = <span class="nottickedoff">GT</span></span>
+<span class="lineno">  494 </span><span class="spaces">  </span><span class="istickedoff">| <span class="tickonlytrue">otherwise</span>       = compare colX colY</span></span>
+<span class="lineno">  495 </span>
+<span class="lineno">  496 </span>-- | A lens into the 'Line' associated with an 'Offset'.
+<span class="lineno">  497 </span>--
+<span class="lineno">  498 </span>--   For now, this is simply defined as @offsetLine = 'Lens._1'@,
+<span class="lineno">  499 </span>--   but if 'Offset' is later refactored to be an abstract data type, using
+<span class="lineno">  500 </span>--   this lens instead of 'Lens._1' will decrease the amount of code that
+<span class="lineno">  501 </span>--   breaks.
+<span class="lineno">  502 </span>--
+<span class="lineno">  503 </span>--   @since 0.1.0
+<span class="lineno">  504 </span>{-# INLINE offsetLine #-}
+<span class="lineno">  505 </span>offsetLine :: Lens.Lens' Offset Line
+<span class="lineno">  506 </span><span class="decl"><span class="nottickedoff">offsetLine = Lens._1</span></span>
+<span class="lineno">  507 </span>
+<span class="lineno">  508 </span>-- | A lens into the 'Line' associated with an 'Offset'.
+<span class="lineno">  509 </span>--
+<span class="lineno">  510 </span>--   Read the description of 'offsetLine' for an understanding of why this
+<span class="lineno">  511 </span>--   exists and why you should use it instead of 'Lens._2'.
+<span class="lineno">  512 </span>--
+<span class="lineno">  513 </span>--   @since 0.1.0
+<span class="lineno">  514 </span>{-# INLINE offsetColumn #-}
+<span class="lineno">  515 </span>offsetColumn :: Lens.Lens' Offset Column
+<span class="lineno">  516 </span><span class="decl"><span class="nottickedoff">offsetColumn = Lens._2</span></span>
+<span class="lineno">  517 </span>
+<span class="lineno">  518 </span>--------------------------------------------------------------------------------
+<span class="lineno">  519 </span>
+<span class="lineno">  520 </span>-- | A line number.
+<span class="lineno">  521 </span>--
+<span class="lineno">  522 </span>--   @since 0.1.0
+<span class="lineno">  523 </span>type Line = Int
+<span class="lineno">  524 </span>
+<span class="lineno">  525 </span>-- | A column number.
+<span class="lineno">  526 </span>--
+<span class="lineno">  527 </span>--   @since 0.1.0
+<span class="lineno">  528 </span>type Column = Int
+<span class="lineno">  529 </span>
+<span class="lineno">  530 </span>--------------------------------------------------------------------------------
+<span class="lineno">  531 </span>
+<span class="lineno">  532 </span>data Chunk
+<span class="lineno">  533 </span>  = ChunkText                 !Text
+<span class="lineno">  534 </span>  | ChunkSpace {-# UNPACK #-} !Int
+<span class="lineno">  535 </span>  | ChunkLine  {-# UNPACK #-} !Int
+<span class="lineno">  536 </span>  deriving (<span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>)
+<span class="lineno">  537 </span>
+<span class="lineno">  538 </span>--------------------------------------------------------------------------------
+<span class="lineno">  539 </span>
+<span class="lineno">  540 </span>newtype Chunks
+<span class="lineno">  541 </span>  = MkChunks { <span class="nottickedoff"><span class="decl"><span class="nottickedoff">fromChunks</span></span></span> :: [Chunk] }
+<span class="lineno">  542 </span>  deriving (<span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>)
+<span class="lineno">  543 </span>
+<span class="lineno">  544 </span>{-# INLINE chunksNil #-}
+<span class="lineno">  545 </span>chunksNil :: Chunks
+<span class="lineno">  546 </span><span class="decl"><span class="nottickedoff">chunksNil = MkChunks []</span></span>
+<span class="lineno">  547 </span>
+<span class="lineno">  548 </span>chunksCons :: Chunk -&gt; Chunks -&gt; Chunks
+<span class="lineno">  549 </span><span class="decl"><span class="nottickedoff">chunksCons = \chunk (MkChunks list) -&gt; MkChunks (go chunk list)</span>
+<span class="lineno">  550 </span><span class="spaces">  </span><span class="nottickedoff">where</span>
+<span class="lineno">  551 </span><span class="spaces">    </span><span class="nottickedoff">{-# INLINE go #-}</span>
+<span class="lineno">  552 </span><span class="spaces">    </span><span class="nottickedoff">go (ChunkSpace m) (ChunkSpace n : rest) = ChunkSpace (m + n)  : rest</span>
+<span class="lineno">  553 </span><span class="spaces">    </span><span class="nottickedoff">go (ChunkLine  m) (ChunkLine  n : rest) = ChunkLine  (m + n)  : rest</span>
+<span class="lineno">  554 </span><span class="spaces">    </span><span class="nottickedoff">go (ChunkText  a) (ChunkText  b : rest) = ChunkText  (a &lt;&gt; b) : rest</span>
+<span class="lineno">  555 </span><span class="spaces">    </span><span class="nottickedoff">go other          list                  = other               : list</span></span>
+<span class="lineno">  556 </span>
+<span class="lineno">  557 </span>{-# INLINE chunksAddChar #-}
+<span class="lineno">  558 </span>chunksAddChar :: Char -&gt; Chunks -&gt; Chunks
+<span class="lineno">  559 </span><span class="decl"><span class="nottickedoff">chunksAddChar '\n'             = chunksCons (ChunkLine 1)</span>
+<span class="lineno">  560 </span><span class="spaces"></span><span class="nottickedoff">chunksAddChar '\r'             = id</span>
+<span class="lineno">  561 </span><span class="spaces"></span><span class="nottickedoff">chunksAddChar c    | isSpace c = chunksCons (ChunkSpace 1)</span>
+<span class="lineno">  562 </span><span class="spaces"></span><span class="nottickedoff">chunksAddChar c                = chunksCons (ChunkText (Text.singleton c))</span></span>
+<span class="lineno">  563 </span>
+<span class="lineno">  564 </span>--------------------------------------------------------------------------------
+<span class="lineno">  565 </span>
+<span class="lineno">  566 </span>removeWhitespace :: (Maybe Misc.Path, Line, Column) -&gt; Text -&gt; [Located Text]
+<span class="lineno">  567 </span><span class="decl"><span class="nottickedoff">removeWhitespace (file, initLine, initCol) =</span>
+<span class="lineno">  568 </span><span class="spaces">  </span><span class="nottickedoff">go .&gt; Data.Maybe.catMaybes .&gt; map makeLoc</span>
+<span class="lineno">  569 </span><span class="spaces">  </span><span class="nottickedoff">where</span>
+<span class="lineno">  570 </span><span class="spaces">    </span><span class="nottickedoff">go :: Text -&gt; [Maybe (Line, Column, Text)]</span>
+<span class="lineno">  571 </span><span class="spaces">    </span><span class="nottickedoff">go text = ST.runST $ do</span>
+<span class="lineno">  572 </span><span class="spaces">      </span><span class="nottickedoff">ref &lt;- ST.newSTRef (initLine, initCol)</span>
+<span class="lineno">  573 </span><span class="spaces">      </span><span class="nottickedoff">Text.foldr chunksAddChar chunksNil text</span>
+<span class="lineno">  574 </span><span class="spaces">        </span><span class="nottickedoff">|&gt; fromChunks</span>
+<span class="lineno">  575 </span><span class="spaces">        </span><span class="nottickedoff">|&gt; mapM (applyChunk ref)</span>
+<span class="lineno">  576 </span><span class="spaces"></span><span class="nottickedoff"></span>
+<span class="lineno">  577 </span><span class="spaces">    </span><span class="nottickedoff">applyChunk :: STRef s (Line, Column)</span>
+<span class="lineno">  578 </span><span class="spaces">               </span><span class="nottickedoff">-&gt; Chunk -&gt; ST s (Maybe (Line, Column, Text))</span>
+<span class="lineno">  579 </span><span class="spaces">    </span><span class="nottickedoff">applyChunk ref = \case</span>
+<span class="lineno">  580 </span><span class="spaces">      </span><span class="nottickedoff">ChunkLine  n -&gt; do ST.modifySTRef' ref ((+ n) *** const 0)</span>
+<span class="lineno">  581 </span><span class="spaces">                         </span><span class="nottickedoff">pure Nothing</span>
+<span class="lineno">  582 </span><span class="spaces">      </span><span class="nottickedoff">ChunkSpace n -&gt; do ST.modifySTRef' ref (second (+ n))</span>
+<span class="lineno">  583 </span><span class="spaces">                         </span><span class="nottickedoff">pure Nothing</span>
+<span class="lineno">  584 </span><span class="spaces">      </span><span class="nottickedoff">ChunkText  t -&gt; do (line, column) &lt;- ST.readSTRef ref</span>
+<span class="lineno">  585 </span><span class="spaces">                         </span><span class="nottickedoff">ST.modifySTRef' ref (second (+ Text.length t))</span>
+<span class="lineno">  586 </span><span class="spaces">                         </span><span class="nottickedoff">pure (Just (line, column, t))</span>
+<span class="lineno">  587 </span><span class="spaces"></span><span class="nottickedoff"></span>
+<span class="lineno">  588 </span><span class="spaces">    </span><span class="nottickedoff">{-# INLINE makeLoc #-}</span>
+<span class="lineno">  589 </span><span class="spaces">    </span><span class="nottickedoff">makeLoc :: (Line, Column, Text) -&gt; Located Text</span>
+<span class="lineno">  590 </span><span class="spaces">    </span><span class="nottickedoff">makeLoc (line, col, text) = makeLocated (MkPosition file line col) text</span></span>
+<span class="lineno">  591 </span>
+<span class="lineno">  592 </span>--------------------------------------------------------------------------------
+
+</pre>
+</body>
+</html>

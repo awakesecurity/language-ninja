@@ -1,0 +1,392 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style type="text/css">
+span.lineno { color: white; background: #aaaaaa; border-right: solid white 12px }
+span.nottickedoff { background: yellow}
+span.istickedoff { background: white }
+span.tickonlyfalse { margin: -1px; border: 1px solid #f20913; background: #f20913 }
+span.tickonlytrue  { margin: -1px; border: 1px solid #60de51; background: #60de51 }
+span.funcount { font-size: small; color: orange; z-index: 2; position: absolute; right: 20 }
+span.decl { font-weight: bold }
+span.spaces    { background: white }
+</style>
+</head>
+<body>
+<pre>
+<span class="lineno">    1 </span>-- -*- coding: utf-8; mode: haskell; -*-
+<span class="lineno">    2 </span>
+<span class="lineno">    3 </span>-- File: library/Language/Ninja/Parser.hs
+<span class="lineno">    4 </span>--
+<span class="lineno">    5 </span>-- License:
+<span class="lineno">    6 </span>--     Copyright Neil Mitchell  2011-2017.
+<span class="lineno">    7 </span>--     Copyright Awake Networks 2017.
+<span class="lineno">    8 </span>--     All rights reserved.
+<span class="lineno">    9 </span>--
+<span class="lineno">   10 </span>--     Redistribution and use in source and binary forms, with or without
+<span class="lineno">   11 </span>--     modification, are permitted provided that the following conditions are
+<span class="lineno">   12 </span>--     met:
+<span class="lineno">   13 </span>--
+<span class="lineno">   14 </span>--         * Redistributions of source code must retain the above copyright
+<span class="lineno">   15 </span>--           notice, this list of conditions and the following disclaimer.
+<span class="lineno">   16 </span>--
+<span class="lineno">   17 </span>--         * Redistributions in binary form must reproduce the above
+<span class="lineno">   18 </span>--           copyright notice, this list of conditions and the following
+<span class="lineno">   19 </span>--           disclaimer in the documentation and/or other materials provided
+<span class="lineno">   20 </span>--           with the distribution.
+<span class="lineno">   21 </span>--
+<span class="lineno">   22 </span>--         * Neither the name of Neil Mitchell nor the names of other
+<span class="lineno">   23 </span>--           contributors may be used to endorse or promote products derived
+<span class="lineno">   24 </span>--           from this software without specific prior written permission.
+<span class="lineno">   25 </span>--
+<span class="lineno">   26 </span>--     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+<span class="lineno">   27 </span>--     &quot;AS IS&quot; AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+<span class="lineno">   28 </span>--     LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+<span class="lineno">   29 </span>--     A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+<span class="lineno">   30 </span>--     OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+<span class="lineno">   31 </span>--     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+<span class="lineno">   32 </span>--     LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+<span class="lineno">   33 </span>--     DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+<span class="lineno">   34 </span>--     THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+<span class="lineno">   35 </span>--     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+<span class="lineno">   36 </span>--     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+<span class="lineno">   37 </span>
+<span class="lineno">   38 </span>{-# LANGUAGE ConstraintKinds       #-}
+<span class="lineno">   39 </span>{-# LANGUAGE FlexibleContexts      #-}
+<span class="lineno">   40 </span>{-# LANGUAGE FlexibleInstances     #-}
+<span class="lineno">   41 </span>{-# LANGUAGE GADTs                 #-}
+<span class="lineno">   42 </span>{-# LANGUAGE LambdaCase            #-}
+<span class="lineno">   43 </span>{-# LANGUAGE MultiParamTypeClasses #-}
+<span class="lineno">   44 </span>{-# LANGUAGE OverloadedStrings     #-}
+<span class="lineno">   45 </span>{-# LANGUAGE RankNTypes            #-}
+<span class="lineno">   46 </span>
+<span class="lineno">   47 </span>-- |
+<span class="lineno">   48 </span>--   Module      : Language.Ninja.Parser
+<span class="lineno">   49 </span>--   Copyright   : Copyright 2011-2017 Neil Mitchell
+<span class="lineno">   50 </span>--   License     : BSD3
+<span class="lineno">   51 </span>--   Maintainer  : opensource@awakesecurity.com
+<span class="lineno">   52 </span>--   Stability   : experimental
+<span class="lineno">   53 </span>--
+<span class="lineno">   54 </span>--   Parse a Ninja file.
+<span class="lineno">   55 </span>--
+<span class="lineno">   56 </span>--   @since 0.1.0
+<span class="lineno">   57 </span>module Language.Ninja.Parser
+<span class="lineno">   58 </span>  ( -- * @parse*IO@
+<span class="lineno">   59 </span>    parseFileIO
+<span class="lineno">   60 </span>  , parseTextIO
+<span class="lineno">   61 </span>  , parseBSIO
+<span class="lineno">   62 </span>  , parseLexemesIO
+<span class="lineno">   63 </span>
+<span class="lineno">   64 </span>    -- * @parse*@
+<span class="lineno">   65 </span>  , parseFile
+<span class="lineno">   66 </span>  , parseText
+<span class="lineno">   67 </span>  , parseBS
+<span class="lineno">   68 </span>  , parseLexemes
+<span class="lineno">   69 </span>
+<span class="lineno">   70 </span>    -- * @parse*WithEnv@
+<span class="lineno">   71 </span>  , parseFileWithEnv
+<span class="lineno">   72 </span>  , parseTextWithEnv
+<span class="lineno">   73 </span>  , parseBSWithEnv
+<span class="lineno">   74 </span>  , parseLexemesWithEnv
+<span class="lineno">   75 </span>  ) where
+<span class="lineno">   76 </span>
+<span class="lineno">   77 </span>import           Control.Arrow              (second)
+<span class="lineno">   78 </span>import           Control.Exception          (throwIO)
+<span class="lineno">   79 </span>import           Control.Monad              ((&gt;=&gt;))
+<span class="lineno">   80 </span>
+<span class="lineno">   81 </span>import           Control.Monad.Error.Class  (MonadError)
+<span class="lineno">   82 </span>import           Control.Monad.Trans.Except (runExceptT)
+<span class="lineno">   83 </span>
+<span class="lineno">   84 </span>import qualified Control.Lens               as Lens
+<span class="lineno">   85 </span>
+<span class="lineno">   86 </span>import           Data.Maybe                 (Maybe (Just, Nothing))
+<span class="lineno">   87 </span>import           Data.Monoid                (Endo (Endo, appEndo), (&lt;&gt;))
+<span class="lineno">   88 </span>
+<span class="lineno">   89 </span>import qualified Data.ByteString.Char8      as BSC8
+<span class="lineno">   90 </span>
+<span class="lineno">   91 </span>import           Data.Text                  (Text)
+<span class="lineno">   92 </span>import qualified Data.Text.Encoding         as Text
+<span class="lineno">   93 </span>
+<span class="lineno">   94 </span>import qualified Data.HashMap.Strict        as HM
+<span class="lineno">   95 </span>
+<span class="lineno">   96 </span>import           Data.HashSet               (HashSet)
+<span class="lineno">   97 </span>import qualified Data.HashSet               as HS
+<span class="lineno">   98 </span>
+<span class="lineno">   99 </span>import           Language.Ninja.Lexer       (Ann)
+<span class="lineno">  100 </span>
+<span class="lineno">  101 </span>import qualified Language.Ninja.AST         as AST
+<span class="lineno">  102 </span>import qualified Language.Ninja.Errors      as Errors
+<span class="lineno">  103 </span>import qualified Language.Ninja.Lexer       as Lexer
+<span class="lineno">  104 </span>import qualified Language.Ninja.Misc        as Misc
+<span class="lineno">  105 </span>import qualified Language.Ninja.Mock        as Mock
+<span class="lineno">  106 </span>
+<span class="lineno">  107 </span>import           Flow                       ((.&gt;), (|&gt;))
+<span class="lineno">  108 </span>
+<span class="lineno">  109 </span>--------------------------------------------------------------------------------
+<span class="lineno">  110 </span>
+<span class="lineno">  111 </span>-- | Parse the file at the given path into a 'AST.Ninja'.
+<span class="lineno">  112 </span>--   This function may throw an exception if parsing fails.
+<span class="lineno">  113 </span>--
+<span class="lineno">  114 </span>--   @since 0.1.0
+<span class="lineno">  115 </span>parseFileIO :: Misc.Path -&gt; IO (AST.Ninja Ann)
+<span class="lineno">  116 </span><span class="decl"><span class="istickedoff">parseFileIO file = forceIO (parseFile file)</span></span>
+<span class="lineno">  117 </span>
+<span class="lineno">  118 </span>-- | Parse the given 'Text' into a 'AST.Ninja'.
+<span class="lineno">  119 </span>--   This function may throw an exception if parsing fails.
+<span class="lineno">  120 </span>--
+<span class="lineno">  121 </span>--   @since 0.1.0
+<span class="lineno">  122 </span>parseTextIO :: Text -&gt; IO (AST.Ninja Ann)
+<span class="lineno">  123 </span><span class="decl"><span class="nottickedoff">parseTextIO text = forceIO (parseText text)</span></span>
+<span class="lineno">  124 </span>
+<span class="lineno">  125 </span>-- | Parse the given 'BSC8.ByteString' into a 'AST.Ninja'.
+<span class="lineno">  126 </span>--   This function may throw an exception if parsing fails.
+<span class="lineno">  127 </span>--
+<span class="lineno">  128 </span>--   @since 0.1.0
+<span class="lineno">  129 </span>parseBSIO :: BSC8.ByteString -&gt; IO (AST.Ninja Ann)
+<span class="lineno">  130 </span><span class="decl"><span class="nottickedoff">parseBSIO bs = forceIO (parseBS bs)</span></span>
+<span class="lineno">  131 </span>
+<span class="lineno">  132 </span>-- | Parse the given list of 'Lexer.Lexeme's into a 'AST.Ninja'.
+<span class="lineno">  133 </span>--   This function may throw an exception if parsing fails.
+<span class="lineno">  134 </span>--
+<span class="lineno">  135 </span>--   @since 0.1.0
+<span class="lineno">  136 </span>parseLexemesIO :: [Lexer.Lexeme Ann] -&gt; IO (AST.Ninja Ann)
+<span class="lineno">  137 </span><span class="decl"><span class="nottickedoff">parseLexemesIO lexemes = forceIO (parseLexemes lexemes)</span></span>
+<span class="lineno">  138 </span>
+<span class="lineno">  139 </span>--------------------------------------------------------------------------------
+<span class="lineno">  140 </span>
+<span class="lineno">  141 </span>-- | Parse the file at the given path into a 'AST.Ninja'.
+<span class="lineno">  142 </span>--
+<span class="lineno">  143 </span>--   @since 0.1.0
+<span class="lineno">  144 </span>parseFile :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
+<span class="lineno">  145 </span>          =&gt; Misc.Path -&gt; m (AST.Ninja Ann)
+<span class="lineno">  146 </span><span class="decl"><span class="istickedoff">parseFile file = parseFileWithEnv file AST.makeEnv</span></span>
+<span class="lineno">  147 </span>
+<span class="lineno">  148 </span>-- | Parse the given 'Text' into a 'AST.Ninja'.
+<span class="lineno">  149 </span>--
+<span class="lineno">  150 </span>--   @since 0.1.0
+<span class="lineno">  151 </span>parseText :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
+<span class="lineno">  152 </span>          =&gt; Text -&gt; m (AST.Ninja Ann)
+<span class="lineno">  153 </span><span class="decl"><span class="nottickedoff">parseText text = parseTextWithEnv text AST.makeEnv</span></span>
+<span class="lineno">  154 </span>
+<span class="lineno">  155 </span>-- | Parse the given 'BSC8.ByteString' into a 'AST.Ninja'.
+<span class="lineno">  156 </span>--
+<span class="lineno">  157 </span>--   @since 0.1.0
+<span class="lineno">  158 </span>parseBS :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
+<span class="lineno">  159 </span>          =&gt; BSC8.ByteString -&gt; m (AST.Ninja Ann)
+<span class="lineno">  160 </span><span class="decl"><span class="nottickedoff">parseBS bs = parseBSWithEnv bs AST.makeEnv</span></span>
+<span class="lineno">  161 </span>
+<span class="lineno">  162 </span>-- | Parse the given list of 'Lexer.Lexeme's into a 'AST.Ninja'.
+<span class="lineno">  163 </span>--
+<span class="lineno">  164 </span>--   @since 0.1.0
+<span class="lineno">  165 </span>parseLexemes :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
+<span class="lineno">  166 </span>             =&gt; [Lexer.Lexeme Ann] -&gt; m (AST.Ninja Ann)
+<span class="lineno">  167 </span><span class="decl"><span class="nottickedoff">parseLexemes lexemes = parseLexemesWithEnv lexemes AST.makeEnv</span></span>
+<span class="lineno">  168 </span>
+<span class="lineno">  169 </span>--------------------------------------------------------------------------------
+<span class="lineno">  170 </span>
+<span class="lineno">  171 </span>-- | Parse the file at the given path using the given Ninja variable context,
+<span class="lineno">  172 </span>--   resulting in a 'AST.Ninja'.
+<span class="lineno">  173 </span>--
+<span class="lineno">  174 </span>--   @since 0.1.0
+<span class="lineno">  175 </span>parseFileWithEnv :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
+<span class="lineno">  176 </span>                 =&gt; Misc.Path -&gt; AST.Env Text Text -&gt; m (AST.Ninja Ann)
+<span class="lineno">  177 </span><span class="decl"><span class="istickedoff">parseFileWithEnv path env = fst &lt;$&gt; parseFileInternal path (AST.makeNinja, env)</span></span>
+<span class="lineno">  178 </span>
+<span class="lineno">  179 </span>-- | Parse the given 'Text' using the given Ninja variable context,
+<span class="lineno">  180 </span>--   resulting in a 'AST.Ninja'.
+<span class="lineno">  181 </span>--
+<span class="lineno">  182 </span>--   @since 0.1.0
+<span class="lineno">  183 </span>parseTextWithEnv :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
+<span class="lineno">  184 </span>                 =&gt; Text -&gt; AST.Env Text Text -&gt; m (AST.Ninja Ann)
+<span class="lineno">  185 </span><span class="decl"><span class="nottickedoff">parseTextWithEnv text env = fst &lt;$&gt; parseTextInternal text (AST.makeNinja, env)</span></span>
+<span class="lineno">  186 </span>
+<span class="lineno">  187 </span>-- | Parse the given 'BSC8.ByteString' using the given Ninja variable context,
+<span class="lineno">  188 </span>--   resulting in a 'AST.Ninja'.
+<span class="lineno">  189 </span>--
+<span class="lineno">  190 </span>--   @since 0.1.0
+<span class="lineno">  191 </span>parseBSWithEnv :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
+<span class="lineno">  192 </span>                 =&gt; BSC8.ByteString -&gt; AST.Env Text Text -&gt; m (AST.Ninja Ann)
+<span class="lineno">  193 </span><span class="decl"><span class="nottickedoff">parseBSWithEnv bs env = fst &lt;$&gt; parseBSInternal bs (AST.makeNinja, env)</span></span>
+<span class="lineno">  194 </span>
+<span class="lineno">  195 </span>-- | Parse the given list of 'Lexer.Lexeme's into a 'AST.Ninja'.
+<span class="lineno">  196 </span>--
+<span class="lineno">  197 </span>--   @since 0.1.0
+<span class="lineno">  198 </span>parseLexemesWithEnv :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
+<span class="lineno">  199 </span>                    =&gt; [Lexer.Lexeme Ann] -&gt; AST.Env Text Text
+<span class="lineno">  200 </span>                    -&gt; m (AST.Ninja Ann)
+<span class="lineno">  201 </span><span class="decl"><span class="nottickedoff">parseLexemesWithEnv lexemes env</span>
+<span class="lineno">  202 </span><span class="spaces">  </span><span class="nottickedoff">= fst &lt;$&gt; parseLexemesInternal lexemes (AST.makeNinja, env)</span></span>
+<span class="lineno">  203 </span>
+<span class="lineno">  204 </span>--------------------------------------------------------------------------------
+<span class="lineno">  205 </span>
+<span class="lineno">  206 </span>type NinjaWithEnv = (AST.Ninja Ann, AST.Env Text Text)
+<span class="lineno">  207 </span>
+<span class="lineno">  208 </span>--------------------------------------------------------------------------------
+<span class="lineno">  209 </span>
+<span class="lineno">  210 </span>parseFileInternal :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
+<span class="lineno">  211 </span>                  =&gt; Misc.Path -&gt; NinjaWithEnv -&gt; m NinjaWithEnv
+<span class="lineno">  212 </span><span class="decl"><span class="istickedoff">parseFileInternal path (ninja, env) = do</span>
+<span class="lineno">  213 </span><span class="spaces">  </span><span class="istickedoff">text &lt;- Mock.readFile path</span>
+<span class="lineno">  214 </span><span class="spaces">  </span><span class="istickedoff">parseTextInternal text (ninja, env)</span></span>
+<span class="lineno">  215 </span>
+<span class="lineno">  216 </span>parseTextInternal :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
+<span class="lineno">  217 </span>                  =&gt; Text -&gt; NinjaWithEnv -&gt; m NinjaWithEnv
+<span class="lineno">  218 </span><span class="decl"><span class="istickedoff">parseTextInternal text = parseBSInternal (Text.encodeUtf8 text)</span></span>
+<span class="lineno">  219 </span>
+<span class="lineno">  220 </span>parseBSInternal :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
+<span class="lineno">  221 </span>                  =&gt; BSC8.ByteString -&gt; NinjaWithEnv -&gt; m NinjaWithEnv
+<span class="lineno">  222 </span><span class="decl"><span class="istickedoff">parseBSInternal bs (ninja, env) = do</span>
+<span class="lineno">  223 </span><span class="spaces">  </span><span class="istickedoff">lexemes &lt;- Lexer.lexerBS bs</span>
+<span class="lineno">  224 </span><span class="spaces">  </span><span class="istickedoff">parseLexemesInternal lexemes (ninja, env)</span></span>
+<span class="lineno">  225 </span>
+<span class="lineno">  226 </span>parseLexemesInternal :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
+<span class="lineno">  227 </span>                     =&gt; [Lexer.Lexeme Ann] -&gt; NinjaWithEnv -&gt; m NinjaWithEnv
+<span class="lineno">  228 </span><span class="decl"><span class="istickedoff">parseLexemesInternal lexemes (ninja, env) = withBinds lexemes</span>
+<span class="lineno">  229 </span><span class="spaces">                                            </span><span class="istickedoff">|&gt; map (uncurry applyStmt)</span>
+<span class="lineno">  230 </span><span class="spaces">                                            </span><span class="istickedoff">|&gt; foldr (&gt;=&gt;) pure</span>
+<span class="lineno">  231 </span><span class="spaces">                                            </span><span class="istickedoff">|&gt; (\f -&gt; f (ninja, env))</span>
+<span class="lineno">  232 </span><span class="spaces">                                            </span><span class="istickedoff">|&gt; fmap addSpecialVars</span></span>
+<span class="lineno">  233 </span>
+<span class="lineno">  234 </span>--------------------------------------------------------------------------------
+<span class="lineno">  235 </span>
+<span class="lineno">  236 </span>type MonadApplyFun m = (MonadError Errors.ParseError m, Mock.MonadReadFile m)
+<span class="lineno">  237 </span>type ApplyFun' m = [(Text, AST.Expr Ann)] -&gt; NinjaWithEnv -&gt; m NinjaWithEnv
+<span class="lineno">  238 </span>type ApplyFun = (forall m. (MonadApplyFun m) =&gt; ApplyFun' m)
+<span class="lineno">  239 </span>
+<span class="lineno">  240 </span>--------------------------------------------------------------------------------
+<span class="lineno">  241 </span>
+<span class="lineno">  242 </span>forceIO :: (forall m. (MonadApplyFun m) =&gt; m a) -&gt; IO a
+<span class="lineno">  243 </span><span class="decl"><span class="istickedoff">forceIO action = runExceptT action &gt;&gt;= either <span class="nottickedoff">throwIO</span> pure</span></span>
+<span class="lineno">  244 </span>
+<span class="lineno">  245 </span>--------------------------------------------------------------------------------
+<span class="lineno">  246 </span>
+<span class="lineno">  247 </span>addSpecialVars :: NinjaWithEnv -&gt; NinjaWithEnv
+<span class="lineno">  248 </span><span class="decl"><span class="istickedoff">addSpecialVars (ninja, env) = (mutator ninja, env)</span>
+<span class="lineno">  249 </span><span class="spaces">  </span><span class="istickedoff">where</span>
+<span class="lineno">  250 </span><span class="spaces">    </span><span class="istickedoff">specialVars :: [Text]</span>
+<span class="lineno">  251 </span><span class="spaces">    </span><span class="istickedoff">specialVars = [&quot;ninja_required_version&quot;, &quot;builddir&quot;]</span>
+<span class="lineno">  252 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  253 </span><span class="spaces">    </span><span class="istickedoff">addVar :: Text -&gt; (AST.Ninja Ann -&gt; AST.Ninja Ann)</span>
+<span class="lineno">  254 </span><span class="spaces">    </span><span class="istickedoff">addVar name = case AST.askEnv env name of</span>
+<span class="lineno">  255 </span><span class="spaces">                    </span><span class="istickedoff">(Just v) -&gt; Lens.over AST.ninjaSpecials (HM.insert name v)</span>
+<span class="lineno">  256 </span><span class="spaces">                    </span><span class="istickedoff">Nothing  -&gt; id</span>
+<span class="lineno">  257 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  258 </span><span class="spaces">    </span><span class="istickedoff">mutator :: AST.Ninja Ann -&gt; AST.Ninja Ann</span>
+<span class="lineno">  259 </span><span class="spaces">    </span><span class="istickedoff">mutator = map addVar specialVars |&gt; map Endo |&gt; mconcat |&gt; appEndo</span></span>
+<span class="lineno">  260 </span>
+<span class="lineno">  261 </span>withBinds :: [Lexer.Lexeme Ann] -&gt; [(Lexer.Lexeme Ann, [(Text, AST.Expr Ann)])]
+<span class="lineno">  262 </span><span class="decl"><span class="istickedoff">withBinds = \case []     -&gt; []</span>
+<span class="lineno">  263 </span><span class="spaces">                  </span><span class="istickedoff">(x:xs) -&gt; let (a, b) = f xs</span>
+<span class="lineno">  264 </span><span class="spaces">                            </span><span class="istickedoff">in (x, a) : withBinds b</span>
+<span class="lineno">  265 </span><span class="spaces">  </span><span class="istickedoff">where</span>
+<span class="lineno">  266 </span><span class="spaces">    </span><span class="istickedoff">f :: [Lexer.Lexeme Ann] -&gt; ([(Text, AST.Expr Ann)], [Lexer.Lexeme Ann])</span>
+<span class="lineno">  267 </span><span class="spaces">    </span><span class="istickedoff">f (Lexer.LexBind _ binding : rest) = let Lexer.MkLBind _ name b = binding</span>
+<span class="lineno">  268 </span><span class="spaces">                                             </span><span class="istickedoff">Lexer.MkLName _ a = name</span>
+<span class="lineno">  269 </span><span class="spaces">                                             </span><span class="istickedoff">(as, bs) = f rest</span>
+<span class="lineno">  270 </span><span class="spaces">                                         </span><span class="istickedoff">in ((Text.decodeUtf8 a, b) : as, bs)</span>
+<span class="lineno">  271 </span><span class="spaces">    </span><span class="istickedoff">f xs                               = ([], xs)</span></span>
+<span class="lineno">  272 </span>
+<span class="lineno">  273 </span>--------------------------------------------------------------------------------
+<span class="lineno">  274 </span>
+<span class="lineno">  275 </span>applyStmt :: Lexer.Lexeme Ann -&gt; ApplyFun
+<span class="lineno">  276 </span><span class="decl"><span class="istickedoff">applyStmt lexeme binds (ninja, env)</span>
+<span class="lineno">  277 </span><span class="spaces">  </span><span class="istickedoff">= (case lexeme of</span>
+<span class="lineno">  278 </span><span class="spaces">       </span><span class="istickedoff">(Lexer.LexBuild    _ann   lbuild) -&gt; applyBuild    lbuild</span>
+<span class="lineno">  279 </span><span class="spaces">       </span><span class="istickedoff">(Lexer.LexRule     _ann    lname) -&gt; applyRule     lname</span>
+<span class="lineno">  280 </span><span class="spaces">       </span><span class="istickedoff">(Lexer.LexDefault  _ann defaults) -&gt; applyDefault  defaults</span>
+<span class="lineno">  281 </span><span class="spaces">       </span><span class="istickedoff">(Lexer.LexPool     _ann    lname) -&gt; <span class="nottickedoff">applyPool     lname</span></span>
+<span class="lineno">  282 </span><span class="spaces">       </span><span class="istickedoff">(Lexer.LexInclude  _ann    lfile) -&gt; applyInclude  lfile</span>
+<span class="lineno">  283 </span><span class="spaces">       </span><span class="istickedoff">(Lexer.LexSubninja _ann    lfile) -&gt; applySubninja lfile</span>
+<span class="lineno">  284 </span><span class="spaces">       </span><span class="istickedoff">(Lexer.LexDefine   _ann    lbind) -&gt; applyDefine   lbind</span>
+<span class="lineno">  285 </span><span class="spaces">       </span><span class="istickedoff">(Lexer.LexBind     _ann    lbind) -&gt; <span class="nottickedoff">throwUnexpectedBinding lbind</span>)</span>
+<span class="lineno">  286 </span><span class="spaces">    </span><span class="istickedoff">|&gt; (\f -&gt; f binds (ninja, env))</span>
+<span class="lineno">  287 </span><span class="spaces">  </span><span class="istickedoff">where</span>
+<span class="lineno">  288 </span><span class="spaces">    </span><span class="istickedoff">-- FIXME: don't discard annotation</span>
+<span class="lineno">  289 </span><span class="spaces">    </span><span class="istickedoff">throwUnexpectedBinding :: Lexer.LBind Ann -&gt; ApplyFun</span>
+<span class="lineno">  290 </span><span class="spaces">    </span><span class="istickedoff"><span class="nottickedoff">throwUnexpectedBinding (Lexer.MkLBind _ (Lexer.MkLName _ var) _)</span></span>
+<span class="lineno">  291 </span><span class="spaces">      </span><span class="istickedoff"><span class="nottickedoff">= \_ _ -&gt; Errors.throwParseUnexpectedBinding (Text.decodeUtf8 var)</span></span></span>
+<span class="lineno">  292 </span>
+<span class="lineno">  293 </span>applyBuild :: Lexer.LBuild Ann -&gt; ApplyFun
+<span class="lineno">  294 </span><span class="decl"><span class="istickedoff">applyBuild (Lexer.MkLBuild _annB loutputs lrule ldeps) lbinds (ninja, env) = do</span>
+<span class="lineno">  295 </span><span class="spaces">  </span><span class="istickedoff">let outputs = map (AST.askExpr env) loutputs</span>
+<span class="lineno">  296 </span><span class="spaces">  </span><span class="istickedoff">let rule    = lrule |&gt; (\(Lexer.MkLName _annN name) -&gt; Text.decodeUtf8 name)</span>
+<span class="lineno">  297 </span><span class="spaces">  </span><span class="istickedoff">let deps    = HS.fromList (map (AST.askExpr env) ldeps)</span>
+<span class="lineno">  298 </span><span class="spaces">  </span><span class="istickedoff">let binds   = HM.fromList (map (second (AST.askExpr env)) lbinds)</span>
+<span class="lineno">  299 </span><span class="spaces">  </span><span class="istickedoff">let (normal, implicit, orderOnly) = splitDeps deps</span>
+<span class="lineno">  300 </span><span class="spaces">  </span><span class="istickedoff">let build = AST.makeBuild rule env</span>
+<span class="lineno">  301 </span><span class="spaces">              </span><span class="istickedoff">|&gt; (Lens.set (AST.buildDeps . AST.depsNormal)    normal)</span>
+<span class="lineno">  302 </span><span class="spaces">              </span><span class="istickedoff">|&gt; (Lens.set (AST.buildDeps . AST.depsImplicit)  implicit)</span>
+<span class="lineno">  303 </span><span class="spaces">              </span><span class="istickedoff">|&gt; (Lens.set (AST.buildDeps . AST.depsOrderOnly) orderOnly)</span>
+<span class="lineno">  304 </span><span class="spaces">              </span><span class="istickedoff">|&gt; (Lens.set AST.buildBind                       binds)</span>
+<span class="lineno">  305 </span><span class="spaces">  </span><span class="istickedoff">let allDeps = normal &lt;&gt; implicit &lt;&gt; orderOnly</span>
+<span class="lineno">  306 </span><span class="spaces">  </span><span class="istickedoff">let addP = \p -&gt; [(x, allDeps) | x &lt;- outputs] &lt;&gt; (HM.toList p)</span>
+<span class="lineno">  307 </span><span class="spaces">                   </span><span class="istickedoff">|&gt; HM.fromList</span>
+<span class="lineno">  308 </span><span class="spaces">  </span><span class="istickedoff">let addS = HM.insert (head outputs) build</span>
+<span class="lineno">  309 </span><span class="spaces">  </span><span class="istickedoff">let addM = HM.insert (HS.fromList outputs) build</span>
+<span class="lineno">  310 </span><span class="spaces">  </span><span class="istickedoff">let ninja' | (rule == &quot;phony&quot;)     = Lens.over AST.ninjaPhonys    addP ninja</span>
+<span class="lineno">  311 </span><span class="spaces">             </span><span class="istickedoff">| (length outputs == 1) = Lens.over AST.ninjaSingles   addS ninja</span>
+<span class="lineno">  312 </span><span class="spaces">             </span><span class="istickedoff">| <span class="tickonlytrue">otherwise</span>             = Lens.over AST.ninjaMultiples addM ninja</span>
+<span class="lineno">  313 </span><span class="spaces">  </span><span class="istickedoff">pure (ninja', env)</span></span>
+<span class="lineno">  314 </span>
+<span class="lineno">  315 </span>applyRule :: Lexer.LName Ann -&gt; ApplyFun
+<span class="lineno">  316 </span><span class="decl"><span class="istickedoff">applyRule (Lexer.MkLName ann name) binds (ninja, env) = do</span>
+<span class="lineno">  317 </span><span class="spaces">  </span><span class="istickedoff">let rule = AST.makeRule</span>
+<span class="lineno">  318 </span><span class="spaces">             </span><span class="istickedoff">|&gt; Lens.set Misc.annotation ann</span>
+<span class="lineno">  319 </span><span class="spaces">             </span><span class="istickedoff">|&gt; Lens.set AST.ruleBind    (HM.fromList binds)</span>
+<span class="lineno">  320 </span><span class="spaces">  </span><span class="istickedoff">let nameT = Text.decodeUtf8 name</span>
+<span class="lineno">  321 </span><span class="spaces">  </span><span class="istickedoff">pure (ninja |&gt; Lens.over AST.ninjaRules (HM.insert nameT rule), env)</span></span>
+<span class="lineno">  322 </span>
+<span class="lineno">  323 </span>applyDefault :: [AST.Expr Ann] -&gt; ApplyFun
+<span class="lineno">  324 </span><span class="decl"><span class="istickedoff">applyDefault ldefaults _ (ninja, env) = do</span>
+<span class="lineno">  325 </span><span class="spaces">  </span><span class="istickedoff">let defaults = HS.fromList (map (AST.askExpr <span class="nottickedoff">env</span>) ldefaults)</span>
+<span class="lineno">  326 </span><span class="spaces">  </span><span class="istickedoff">pure (ninja |&gt; Lens.over AST.ninjaDefaults (defaults &lt;&gt;), env)</span></span>
+<span class="lineno">  327 </span>
+<span class="lineno">  328 </span>applyPool :: Lexer.LName Ann -&gt; ApplyFun
+<span class="lineno">  329 </span><span class="decl"><span class="nottickedoff">applyPool (Lexer.MkLName _ann name) binds (ninja, env) = do</span>
+<span class="lineno">  330 </span><span class="spaces">  </span><span class="nottickedoff">depth &lt;- getDepth env binds</span>
+<span class="lineno">  331 </span><span class="spaces">  </span><span class="nottickedoff">let nameT = Text.decodeUtf8 name</span>
+<span class="lineno">  332 </span><span class="spaces">  </span><span class="nottickedoff">pure (ninja |&gt; Lens.over AST.ninjaPools (HM.insert nameT depth), env)</span></span>
+<span class="lineno">  333 </span>
+<span class="lineno">  334 </span>applyInclude :: Lexer.LFile Ann -&gt; ApplyFun
+<span class="lineno">  335 </span><span class="decl"><span class="istickedoff">applyInclude (Lexer.MkLFile expr) _ (ninja, env) = do</span>
+<span class="lineno">  336 </span><span class="spaces">  </span><span class="istickedoff">let file = AST.askExpr env expr |&gt; Lens.view (Lens.from Misc.pathText)</span>
+<span class="lineno">  337 </span><span class="spaces">  </span><span class="istickedoff">parseFileInternal file (ninja, env)</span></span>
+<span class="lineno">  338 </span>
+<span class="lineno">  339 </span>applySubninja :: Lexer.LFile Ann -&gt; ApplyFun
+<span class="lineno">  340 </span><span class="decl"><span class="istickedoff">applySubninja (Lexer.MkLFile expr) _ (ninja, env) = do</span>
+<span class="lineno">  341 </span><span class="spaces">  </span><span class="istickedoff">let file = AST.askExpr env expr |&gt; Lens.view (Lens.from Misc.pathText)</span>
+<span class="lineno">  342 </span><span class="spaces">  </span><span class="istickedoff">parseFileInternal file (ninja, AST.scopeEnv env)</span></span>
+<span class="lineno">  343 </span>
+<span class="lineno">  344 </span>applyDefine :: Lexer.LBind Ann -&gt; ApplyFun
+<span class="lineno">  345 </span><span class="decl"><span class="istickedoff">applyDefine (Lexer.MkLBind _annB (Lexer.MkLName _annN var) value) _ (ninja, env)</span>
+<span class="lineno">  346 </span><span class="spaces">  </span><span class="istickedoff">= pure (ninja, AST.addBind (Text.decodeUtf8 var) value env)</span></span>
+<span class="lineno">  347 </span>
+<span class="lineno">  348 </span>--------------------------------------------------------------------------------
+<span class="lineno">  349 </span>
+<span class="lineno">  350 </span>splitDeps :: HashSet Text -&gt; (HashSet Text, HashSet Text, HashSet Text)
+<span class="lineno">  351 </span><span class="decl"><span class="istickedoff">splitDeps = HS.toList</span>
+<span class="lineno">  352 </span><span class="spaces">            </span><span class="istickedoff">.&gt; go</span>
+<span class="lineno">  353 </span><span class="spaces">            </span><span class="istickedoff">.&gt; (\(a, b, c) -&gt; (HS.fromList a, HS.fromList b, HS.fromList c))</span>
+<span class="lineno">  354 </span><span class="spaces">  </span><span class="istickedoff">where</span>
+<span class="lineno">  355 </span><span class="spaces">    </span><span class="istickedoff">go :: [Text] -&gt; ([Text], [Text], [Text])</span>
+<span class="lineno">  356 </span><span class="spaces">    </span><span class="istickedoff">go []                   = ([],      [],     [])</span>
+<span class="lineno">  357 </span><span class="spaces">    </span><span class="istickedoff">go (x:xs) | (x == &quot;|&quot;)  = ([],  a &lt;&gt; b,      c)</span>
+<span class="lineno">  358 </span><span class="spaces">              </span><span class="istickedoff">| (x == &quot;||&quot;) = ([],       b, a &lt;&gt; c)</span>
+<span class="lineno">  359 </span><span class="spaces">              </span><span class="istickedoff">| <span class="tickonlytrue">otherwise</span>   = (x:a,      b,      c)</span>
+<span class="lineno">  360 </span><span class="spaces">      </span><span class="istickedoff">where</span>
+<span class="lineno">  361 </span><span class="spaces">        </span><span class="istickedoff">(a, b, c) = go xs</span></span>
+<span class="lineno">  362 </span>
+<span class="lineno">  363 </span>getDepth :: (MonadError Errors.ParseError m)
+<span class="lineno">  364 </span>         =&gt; AST.Env Text Text -&gt; [(Text, AST.Expr Ann)] -&gt; m Int
+<span class="lineno">  365 </span><span class="decl"><span class="nottickedoff">getDepth env xs</span>
+<span class="lineno">  366 </span><span class="spaces">  </span><span class="nottickedoff">= case AST.askExpr env &lt;$&gt; lookup &quot;depth&quot; xs of</span>
+<span class="lineno">  367 </span><span class="spaces">      </span><span class="nottickedoff">Nothing  -&gt; pure 1</span>
+<span class="lineno">  368 </span><span class="spaces">      </span><span class="nottickedoff">(Just x) -&gt; case BSC8.readInt (Text.encodeUtf8 x) of</span>
+<span class="lineno">  369 </span><span class="spaces">                    </span><span class="nottickedoff">(Just (i, n)) | n == &quot;&quot; -&gt; pure i</span>
+<span class="lineno">  370 </span><span class="spaces">                    </span><span class="nottickedoff">_                       -&gt; Errors.throwParseBadDepthField x</span></span>
+<span class="lineno">  371 </span>
+<span class="lineno">  372 </span>--------------------------------------------------------------------------------
+
+</pre>
+</body>
+</html>

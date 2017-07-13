@@ -1,0 +1,316 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style type="text/css">
+span.lineno { color: white; background: #aaaaaa; border-right: solid white 12px }
+span.nottickedoff { background: yellow}
+span.istickedoff { background: white }
+span.tickonlyfalse { margin: -1px; border: 1px solid #f20913; background: #f20913 }
+span.tickonlytrue  { margin: -1px; border: 1px solid #60de51; background: #60de51 }
+span.funcount { font-size: small; color: orange; z-index: 2; position: absolute; right: 20 }
+span.decl { font-weight: bold }
+span.spaces    { background: white }
+</style>
+</head>
+<body>
+<pre>
+<span class="lineno">    1 </span>-- -*- coding: utf-8; mode: haskell; -*-
+<span class="lineno">    2 </span>
+<span class="lineno">    3 </span>-- File: library/Language/Ninja/AST/Expr.hs
+<span class="lineno">    4 </span>--
+<span class="lineno">    5 </span>-- License:
+<span class="lineno">    6 </span>--     Copyright 2017 Awake Security
+<span class="lineno">    7 </span>--
+<span class="lineno">    8 </span>--     Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<span class="lineno">    9 </span>--     you may not use this file except in compliance with the License.
+<span class="lineno">   10 </span>--     You may obtain a copy of the License at
+<span class="lineno">   11 </span>--
+<span class="lineno">   12 </span>--       http://www.apache.org/licenses/LICENSE-2.0
+<span class="lineno">   13 </span>--
+<span class="lineno">   14 </span>--     Unless required by applicable law or agreed to in writing, software
+<span class="lineno">   15 </span>--     distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<span class="lineno">   16 </span>--     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<span class="lineno">   17 </span>--     See the License for the specific language governing permissions and
+<span class="lineno">   18 </span>--     limitations under the License.
+<span class="lineno">   19 </span>
+<span class="lineno">   20 </span>{-# LANGUAGE ConstraintKinds       #-}
+<span class="lineno">   21 </span>{-# LANGUAGE DeriveDataTypeable    #-}
+<span class="lineno">   22 </span>{-# LANGUAGE DeriveFoldable        #-}
+<span class="lineno">   23 </span>{-# LANGUAGE DeriveFunctor         #-}
+<span class="lineno">   24 </span>{-# LANGUAGE DeriveGeneric         #-}
+<span class="lineno">   25 </span>{-# LANGUAGE DeriveTraversable     #-}
+<span class="lineno">   26 </span>{-# LANGUAGE FlexibleContexts      #-}
+<span class="lineno">   27 </span>{-# LANGUAGE FlexibleInstances     #-}
+<span class="lineno">   28 </span>{-# LANGUAGE KindSignatures        #-}
+<span class="lineno">   29 </span>{-# LANGUAGE LambdaCase            #-}
+<span class="lineno">   30 </span>{-# LANGUAGE MultiParamTypeClasses #-}
+<span class="lineno">   31 </span>{-# LANGUAGE OverloadedStrings     #-}
+<span class="lineno">   32 </span>{-# LANGUAGE ScopedTypeVariables   #-}
+<span class="lineno">   33 </span>{-# LANGUAGE UndecidableInstances  #-}
+<span class="lineno">   34 </span>
+<span class="lineno">   35 </span>-- |
+<span class="lineno">   36 </span>--   Module      : Language.Ninja.AST.Expr
+<span class="lineno">   37 </span>--   Copyright   : Copyright 2017 Awake Security
+<span class="lineno">   38 </span>--   License     : Apache-2.0
+<span class="lineno">   39 </span>--   Maintainer  : opensource@awakesecurity.com
+<span class="lineno">   40 </span>--   Stability   : experimental
+<span class="lineno">   41 </span>--
+<span class="lineno">   42 </span>--   This module contains a type representing a string that potentially contains
+<span class="lineno">   43 </span>--   variable references in the parsed Ninja AST, along with any supporting or
+<span class="lineno">   44 </span>--   related types.
+<span class="lineno">   45 </span>--
+<span class="lineno">   46 </span>--   @since 0.1.0
+<span class="lineno">   47 </span>module Language.Ninja.AST.Expr
+<span class="lineno">   48 </span>  ( -- * @Expr@
+<span class="lineno">   49 </span>    Expr (..)
+<span class="lineno">   50 </span>  , _Exprs, _Lit, _Var
+<span class="lineno">   51 </span>  , askVar, askExpr, addBind, addBinds
+<span class="lineno">   52 </span>  , normalizeExpr
+<span class="lineno">   53 </span>  , ExprConstraint
+<span class="lineno">   54 </span>  ) where
+<span class="lineno">   55 </span>
+<span class="lineno">   56 </span>import           Control.Arrow             (second)
+<span class="lineno">   57 </span>
+<span class="lineno">   58 </span>import qualified Control.Lens              as Lens
+<span class="lineno">   59 </span>
+<span class="lineno">   60 </span>import           Data.Foldable             (asum)
+<span class="lineno">   61 </span>import           Data.Maybe                (fromMaybe)
+<span class="lineno">   62 </span>import           Data.Monoid               (Endo (Endo, appEndo), (&lt;&gt;))
+<span class="lineno">   63 </span>
+<span class="lineno">   64 </span>import           Flow                      ((.&gt;), (|&gt;))
+<span class="lineno">   65 </span>
+<span class="lineno">   66 </span>import           Data.Text                 (Text)
+<span class="lineno">   67 </span>import qualified Data.Text                 as Text
+<span class="lineno">   68 </span>
+<span class="lineno">   69 </span>import           Control.DeepSeq           (NFData)
+<span class="lineno">   70 </span>import           Data.Data                 (Data)
+<span class="lineno">   71 </span>import           Data.Hashable             (Hashable)
+<span class="lineno">   72 </span>import           GHC.Generics              (Generic)
+<span class="lineno">   73 </span>
+<span class="lineno">   74 </span>import qualified Test.QuickCheck           as QC
+<span class="lineno">   75 </span>import           Test.QuickCheck.Instances ()
+<span class="lineno">   76 </span>
+<span class="lineno">   77 </span>import qualified Test.SmallCheck.Series    as SC
+<span class="lineno">   78 </span>
+<span class="lineno">   79 </span>import           GHC.Exts                  (Constraint)
+<span class="lineno">   80 </span>
+<span class="lineno">   81 </span>import           Data.Aeson                ((.:), (.=))
+<span class="lineno">   82 </span>import qualified Data.Aeson                as Aeson
+<span class="lineno">   83 </span>
+<span class="lineno">   84 </span>import qualified Language.Ninja.AST.Env    as AST
+<span class="lineno">   85 </span>import qualified Language.Ninja.Misc       as Misc
+<span class="lineno">   86 </span>
+<span class="lineno">   87 </span>--------------------------------------------------------------------------------
+<span class="lineno">   88 </span>
+<span class="lineno">   89 </span>-- | An expression containing variable references in the Ninja language.
+<span class="lineno">   90 </span>--
+<span class="lineno">   91 </span>--   @since 0.1.0
+<span class="lineno">   92 </span>data Expr ann
+<span class="lineno">   93 </span>  = -- | Sequencing of expressions.
+<span class="lineno">   94 </span>    --
+<span class="lineno">   95 </span>    --   @since 0.1.0
+<span class="lineno">   96 </span>    Exprs !ann ![Expr ann]
+<span class="lineno">   97 </span>  | -- | A literal string.
+<span class="lineno">   98 </span>    --
+<span class="lineno">   99 </span>    --   @since 0.1.0
+<span class="lineno">  100 </span>    Lit   !ann !Text
+<span class="lineno">  101 </span>  | -- | A variable reference.
+<span class="lineno">  102 </span>    --
+<span class="lineno">  103 </span>    --   @since 0.1.0
+<span class="lineno">  104 </span>    Var   !ann !Text
+<span class="lineno">  105 </span>  deriving (<span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, Generic, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span>, <span class="decl"><span class="istickedoff">Functor</span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Foldable</span></span></span></span>, <span class="decl"><span class="nottickedoff">Traversable</span></span>)
+<span class="lineno">  106 </span>
+<span class="lineno">  107 </span>-- | A prism for the 'Exprs' constructor.
+<span class="lineno">  108 </span>--
+<span class="lineno">  109 </span>--   @since 0.1.0
+<span class="lineno">  110 </span>{-# INLINE _Exprs #-}
+<span class="lineno">  111 </span>_Exprs :: Lens.Prism' (Expr ann) (ann, [Expr ann])
+<span class="lineno">  112 </span><span class="decl"><span class="istickedoff">_Exprs = Lens.prism' (uncurry Exprs)</span>
+<span class="lineno">  113 </span><span class="spaces">         </span><span class="istickedoff">$ \case (Exprs ann es) -&gt; Just (ann, es)</span>
+<span class="lineno">  114 </span><span class="spaces">                 </span><span class="istickedoff">_              -&gt; Nothing</span></span>
+<span class="lineno">  115 </span>
+<span class="lineno">  116 </span>-- | A prism for the 'Lit' constructor.
+<span class="lineno">  117 </span>--
+<span class="lineno">  118 </span>--   @since 0.1.0
+<span class="lineno">  119 </span>{-# INLINE _Lit #-}
+<span class="lineno">  120 </span>_Lit :: Lens.Prism' (Expr ann) (ann, Text)
+<span class="lineno">  121 </span><span class="decl"><span class="istickedoff">_Lit = Lens.prism' (uncurry Lit)</span>
+<span class="lineno">  122 </span><span class="spaces">       </span><span class="istickedoff">$ \case (Lit ann text) -&gt; Just (ann, text)</span>
+<span class="lineno">  123 </span><span class="spaces">               </span><span class="istickedoff">_              -&gt; Nothing</span></span>
+<span class="lineno">  124 </span>
+<span class="lineno">  125 </span>-- | A prism for the 'Var' constructor.
+<span class="lineno">  126 </span>--
+<span class="lineno">  127 </span>--   @since 0.1.0
+<span class="lineno">  128 </span>{-# INLINE _Var #-}
+<span class="lineno">  129 </span>_Var :: Lens.Prism' (Expr ann) (ann, Text)
+<span class="lineno">  130 </span><span class="decl"><span class="istickedoff">_Var = Lens.prism' (uncurry Var)</span>
+<span class="lineno">  131 </span><span class="spaces">       </span><span class="istickedoff">$ \case (Var ann name) -&gt; Just (ann, name)</span>
+<span class="lineno">  132 </span><span class="spaces">               </span><span class="istickedoff">_              -&gt; Nothing</span></span>
+<span class="lineno">  133 </span>
+<span class="lineno">  134 </span>-- | Evaluate the given 'Expr' in the given context (@'Env' 'Text' 'Text'@).
+<span class="lineno">  135 </span>--
+<span class="lineno">  136 </span>--   @since 0.1.0
+<span class="lineno">  137 </span>askExpr :: AST.Env Text Text -&gt; Expr ann -&gt; Text
+<span class="lineno">  138 </span><span class="decl"><span class="istickedoff">askExpr e (Exprs _ xs) = Text.concat (map (askExpr e) xs)</span>
+<span class="lineno">  139 </span><span class="spaces"></span><span class="istickedoff">askExpr _ (Lit   _ x)  = x</span>
+<span class="lineno">  140 </span><span class="spaces"></span><span class="istickedoff">askExpr e (Var   _ x)  = askVar e x</span></span>
+<span class="lineno">  141 </span>
+<span class="lineno">  142 </span>-- | Look up the given variable in the given context, returning the empty string
+<span class="lineno">  143 </span>--   if the variable was not found.
+<span class="lineno">  144 </span>--
+<span class="lineno">  145 </span>--   @since 0.1.0
+<span class="lineno">  146 </span>askVar :: AST.Env Text Text -&gt; Text -&gt; Text
+<span class="lineno">  147 </span><span class="decl"><span class="istickedoff">askVar e x = fromMaybe Text.empty (AST.askEnv e x)</span></span>
+<span class="lineno">  148 </span>
+<span class="lineno">  149 </span>-- | Add a binding with the given name ('Text') and value ('Expr') to the
+<span class="lineno">  150 </span>--   given context.
+<span class="lineno">  151 </span>--
+<span class="lineno">  152 </span>--   @since 0.1.0
+<span class="lineno">  153 </span>addBind :: Text -&gt; Expr ann -&gt; AST.Env Text Text -&gt; AST.Env Text Text
+<span class="lineno">  154 </span><span class="decl"><span class="istickedoff">addBind k v e = AST.addEnv k (askExpr e v) e</span></span>
+<span class="lineno">  155 </span>
+<span class="lineno">  156 </span>-- | Add bindings from a list. Note that this function evaluates all the
+<span class="lineno">  157 </span>--   right-hand-sides first, and then adds them all to the environment.
+<span class="lineno">  158 </span>--
+<span class="lineno">  159 </span>--   For example:
+<span class="lineno">  160 </span>--
+<span class="lineno">  161 </span>--   &gt;&gt;&gt; let binds = [(&quot;x&quot;, Lit &quot;5&quot;), (&quot;y&quot;, Var &quot;x&quot;)]
+<span class="lineno">  162 </span>--   &gt;&gt;&gt; AST.headEnv (addBinds binds AST.makeEnv)
+<span class="lineno">  163 </span>--   fromList [(&quot;x&quot;,&quot;5&quot;),(&quot;y&quot;,&quot;&quot;)]
+<span class="lineno">  164 </span>--
+<span class="lineno">  165 </span>--   @since 0.1.0
+<span class="lineno">  166 </span>addBinds :: [(Text, Expr ann)] -&gt; AST.Env Text Text -&gt; AST.Env Text Text
+<span class="lineno">  167 </span><span class="decl"><span class="istickedoff">addBinds bs e = map (second (askExpr e) .&gt; uncurry AST.addEnv .&gt; Endo) bs</span>
+<span class="lineno">  168 </span><span class="spaces">                </span><span class="istickedoff">|&gt; mconcat</span>
+<span class="lineno">  169 </span><span class="spaces">                </span><span class="istickedoff">|&gt; (\endo -&gt; appEndo endo e)</span></span>
+<span class="lineno">  170 </span>
+<span class="lineno">  171 </span>-- | Normalize an 'Expr' by recursively flattening any 'Exprs' nodes, removing
+<span class="lineno">  172 </span>--   empty 'Lit' nodes, combining adjacent 'Lit' nodes, and pulling out the
+<span class="lineno">  173 </span>--   interior of the top-level 'Exprs' node if it has only one subnode.
+<span class="lineno">  174 </span>--
+<span class="lineno">  175 </span>--   The number of 'Exprs' nodes in the output is guaranteed to be 0 or 1.
+<span class="lineno">  176 </span>--
+<span class="lineno">  177 </span>--   If it is 0, then there is exactly one node of any type in the output.
+<span class="lineno">  178 </span>--
+<span class="lineno">  179 </span>--   The output is thus isomorphic to @(Maybe ann, [(ann, Either Text Text)])@,
+<span class="lineno">  180 </span>--   where the @Maybe ann@ represents the annotation of the top-level 'Exprs'
+<span class="lineno">  181 </span>--   node if it exists.
+<span class="lineno">  182 </span>--
+<span class="lineno">  183 </span>--   @since 0.1.0
+<span class="lineno">  184 </span>normalizeExpr :: forall ann. (Monoid ann) =&gt; Expr ann -&gt; Expr ann
+<span class="lineno">  185 </span><span class="decl"><span class="istickedoff">normalizeExpr = flatten .&gt; removeEmpty .&gt; combineAdj .&gt; listToExpr</span>
+<span class="lineno">  186 </span><span class="spaces">  </span><span class="istickedoff">where</span>
+<span class="lineno">  187 </span><span class="spaces">    </span><span class="istickedoff">flatten :: Expr ann -&gt; [Expr ann]</span>
+<span class="lineno">  188 </span><span class="spaces">    </span><span class="istickedoff">flatten (Exprs _ es) = concatMap flatten es</span>
+<span class="lineno">  189 </span><span class="spaces">    </span><span class="istickedoff">flatten owise        = [owise]</span>
+<span class="lineno">  190 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  191 </span><span class="spaces">    </span><span class="istickedoff">removeEmpty :: [Expr ann] -&gt; [Expr ann]</span>
+<span class="lineno">  192 </span><span class="spaces">    </span><span class="istickedoff">removeEmpty []                = []</span>
+<span class="lineno">  193 </span><span class="spaces">    </span><span class="istickedoff">removeEmpty (Lit _ &quot;&quot; : rest) = removeEmpty rest</span>
+<span class="lineno">  194 </span><span class="spaces">    </span><span class="istickedoff">removeEmpty (owise    : rest) = owise : removeEmpty rest</span>
+<span class="lineno">  195 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  196 </span><span class="spaces">    </span><span class="istickedoff">combineAdj :: [Expr ann] -&gt; [Expr ann]</span>
+<span class="lineno">  197 </span><span class="spaces">    </span><span class="istickedoff">combineAdj = (\case</span>
+<span class="lineno">  198 </span><span class="spaces">      </span><span class="istickedoff">[]                               -&gt; []</span>
+<span class="lineno">  199 </span><span class="spaces">      </span><span class="istickedoff">(Lit annX x : Lit annY y : rest) -&gt; (Lit (annX &lt;&gt; annY) (x &lt;&gt; y))</span>
+<span class="lineno">  200 </span><span class="spaces">                                          </span><span class="istickedoff">|&gt; (\e -&gt; combineAdj (e : rest))</span>
+<span class="lineno">  201 </span><span class="spaces">      </span><span class="istickedoff">(owise                   : rest) -&gt; owise : combineAdj rest)</span>
+<span class="lineno">  202 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  203 </span><span class="spaces">    </span><span class="istickedoff">listToExpr :: [Expr ann] -&gt; Expr ann</span>
+<span class="lineno">  204 </span><span class="spaces">    </span><span class="istickedoff">listToExpr [e] = e</span>
+<span class="lineno">  205 </span><span class="spaces">    </span><span class="istickedoff">listToExpr es  = Exprs (mconcat (map (Lens.view Misc.annotation) es)) es</span></span>
+<span class="lineno">  206 </span>
+<span class="lineno">  207 </span>-- | The usual definition for 'Lens.Plated'.
+<span class="lineno">  208 </span>--
+<span class="lineno">  209 </span>--   @since 0.1.0
+<span class="lineno">  210 </span>instance (Data ann) =&gt; Lens.Plated (Expr ann)
+<span class="lineno">  211 </span>
+<span class="lineno">  212 </span>-- | The usual definition for 'Misc.Annotated'.
+<span class="lineno">  213 </span>--
+<span class="lineno">  214 </span>--   @since 0.1.0
+<span class="lineno">  215 </span>instance Misc.Annotated Expr where
+<span class="lineno">  216 </span>  <span class="decl"><span class="istickedoff">annotation' f = Lens.lens (helper .&gt; fst) <span class="nottickedoff">(helper .&gt; snd)</span></span>
+<span class="lineno">  217 </span><span class="spaces">    </span><span class="istickedoff">where</span>
+<span class="lineno">  218 </span><span class="spaces">      </span><span class="istickedoff">helper (Exprs ann   es) = <span class="nottickedoff">(ann, \x -&gt; Exprs x (map (fmap f) es))</span></span>
+<span class="lineno">  219 </span><span class="spaces">      </span><span class="istickedoff">helper (Lit   ann text) = (ann, <span class="nottickedoff">\x -&gt; Lit   x text</span>)</span>
+<span class="lineno">  220 </span><span class="spaces">      </span><span class="istickedoff">helper (Var   ann name) = (ann, <span class="nottickedoff">\x -&gt; Var   x name</span>)</span></span>
+<span class="lineno">  221 </span>
+<span class="lineno">  222 </span>-- | Converts 'Exprs' to @{ann: …, exprs: […]}@, 'Lit' to @{ann: …, lit: […]}@,
+<span class="lineno">  223 </span>--   and 'Var' to @{ann: …, var: …}@.
+<span class="lineno">  224 </span>--
+<span class="lineno">  225 </span>--   @since 0.1.0
+<span class="lineno">  226 </span>instance (Aeson.ToJSON ann) =&gt; Aeson.ToJSON (Expr ann) where
+<span class="lineno">  227 </span>  <span class="decl"><span class="istickedoff">toJSON (Exprs ann   es) = Aeson.object [&quot;ann&quot; .= ann, &quot;exprs&quot; .= es]</span>
+<span class="lineno">  228 </span><span class="spaces">  </span><span class="istickedoff">toJSON (Lit   ann text) = Aeson.object [&quot;ann&quot; .= ann, &quot;lit&quot;   .= text]</span>
+<span class="lineno">  229 </span><span class="spaces">  </span><span class="istickedoff">toJSON (Var   ann name) = Aeson.object [&quot;ann&quot; .= ann, &quot;var&quot;   .= name]</span></span>
+<span class="lineno">  230 </span>
+<span class="lineno">  231 </span>-- | Inverse of the 'Aeson.ToJSON' instance.
+<span class="lineno">  232 </span>--
+<span class="lineno">  233 </span>--   @since 0.1.0
+<span class="lineno">  234 </span>instance (Aeson.FromJSON ann) =&gt; Aeson.FromJSON (Expr ann) where
+<span class="lineno">  235 </span>  <span class="decl"><span class="istickedoff">parseJSON = Aeson.withObject <span class="nottickedoff">&quot;Expr&quot;</span> $ \o -&gt; do</span>
+<span class="lineno">  236 </span><span class="spaces">    </span><span class="istickedoff">ann &lt;- o .: &quot;ann&quot;</span>
+<span class="lineno">  237 </span><span class="spaces">    </span><span class="istickedoff">asum [ Exprs ann &lt;$&gt; (o .: &quot;exprs&quot;)</span>
+<span class="lineno">  238 </span><span class="spaces">         </span><span class="istickedoff">, Lit   ann &lt;$&gt; (o .: &quot;lit&quot;)</span>
+<span class="lineno">  239 </span><span class="spaces">         </span><span class="istickedoff">, Var   ann &lt;$&gt; (o .: &quot;var&quot;)</span>
+<span class="lineno">  240 </span><span class="spaces">         </span><span class="istickedoff">]</span></span>
+<span class="lineno">  241 </span>
+<span class="lineno">  242 </span>-- | Reasonable 'QC.Arbitrary' instance for 'Expr'.
+<span class="lineno">  243 </span>--
+<span class="lineno">  244 </span>--   @since 0.1.0
+<span class="lineno">  245 </span>instance forall ann. (QC.Arbitrary ann) =&gt; QC.Arbitrary (Expr ann) where
+<span class="lineno">  246 </span>  <span class="decl"><span class="nottickedoff">arbitrary = QC.sized go</span>
+<span class="lineno">  247 </span><span class="spaces">    </span><span class="nottickedoff">where</span>
+<span class="lineno">  248 </span><span class="spaces">      </span><span class="nottickedoff">go :: Int -&gt; QC.Gen (Expr ann)</span>
+<span class="lineno">  249 </span><span class="spaces">      </span><span class="nottickedoff">go n | n &lt;= 0 = [ litG (QC.resize litLength QC.arbitrary)</span>
+<span class="lineno">  250 </span><span class="spaces">                      </span><span class="nottickedoff">, varG (QC.resize varLength QC.arbitrary)</span>
+<span class="lineno">  251 </span><span class="spaces">                      </span><span class="nottickedoff">] |&gt; QC.oneof</span>
+<span class="lineno">  252 </span><span class="spaces">      </span><span class="nottickedoff">go n          = [ go 0</span>
+<span class="lineno">  253 </span><span class="spaces">                      </span><span class="nottickedoff">, do width &lt;- (`mod` maxWidth) &lt;$&gt; QC.arbitrary</span>
+<span class="lineno">  254 </span><span class="spaces">                           </span><span class="nottickedoff">let subtree = go (n `div` lossRate)</span>
+<span class="lineno">  255 </span><span class="spaces">                           </span><span class="nottickedoff">Exprs &lt;$&gt; QC.arbitrary &lt;*&gt; QC.vectorOf width subtree</span>
+<span class="lineno">  256 </span><span class="spaces">                      </span><span class="nottickedoff">] |&gt; QC.oneof</span>
+<span class="lineno">  257 </span><span class="spaces"></span><span class="nottickedoff"></span>
+<span class="lineno">  258 </span><span class="spaces">      </span><span class="nottickedoff">litG, varG :: QC.Gen Text -&gt; QC.Gen (Expr ann)</span>
+<span class="lineno">  259 </span><span class="spaces">      </span><span class="nottickedoff">litG g = Lit &lt;$&gt; QC.arbitrary &lt;*&gt; g</span>
+<span class="lineno">  260 </span><span class="spaces">      </span><span class="nottickedoff">varG g = Var &lt;$&gt; QC.arbitrary &lt;*&gt; g</span>
+<span class="lineno">  261 </span><span class="spaces"></span><span class="nottickedoff"></span>
+<span class="lineno">  262 </span><span class="spaces">      </span><span class="nottickedoff">litLength, varLength, lossRate, maxWidth :: Int</span>
+<span class="lineno">  263 </span><span class="spaces">      </span><span class="nottickedoff">litLength = 10</span>
+<span class="lineno">  264 </span><span class="spaces">      </span><span class="nottickedoff">varLength = 10</span>
+<span class="lineno">  265 </span><span class="spaces">      </span><span class="nottickedoff">maxWidth  = 5</span>
+<span class="lineno">  266 </span><span class="spaces">      </span><span class="nottickedoff">lossRate  = 2</span></span>
+<span class="lineno">  267 </span>
+<span class="lineno">  268 </span>-- | Default 'Hashable' instance via 'Generic'.
+<span class="lineno">  269 </span>--
+<span class="lineno">  270 </span>--   @since 0.1.0
+<span class="lineno">  271 </span>instance (Hashable ann) =&gt; Hashable (Expr ann)
+<span class="lineno">  272 </span>
+<span class="lineno">  273 </span>-- | Default 'NFData' instance via 'Generic'.
+<span class="lineno">  274 </span>--
+<span class="lineno">  275 </span>--   @since 0.1.0
+<span class="lineno">  276 </span>instance (NFData ann) =&gt; NFData (Expr ann)
+<span class="lineno">  277 </span>
+<span class="lineno">  278 </span>-- | Default 'SC.Serial' instance via 'Generic'.
+<span class="lineno">  279 </span>--
+<span class="lineno">  280 </span>--   @since 0.1.0
+<span class="lineno">  281 </span>instance ( Monad m, ExprConstraint (SC.Serial m) ann
+<span class="lineno">  282 </span>         ) =&gt; SC.Serial m (Expr ann)
+<span class="lineno">  283 </span>
+<span class="lineno">  284 </span>-- | Default 'SC.CoSerial' instance via 'Generic'.
+<span class="lineno">  285 </span>--
+<span class="lineno">  286 </span>--   @since 0.1.0
+<span class="lineno">  287 </span>instance ( Monad m, ExprConstraint (SC.CoSerial m) ann
+<span class="lineno">  288 </span>         ) =&gt; SC.CoSerial m (Expr ann)
+<span class="lineno">  289 </span>
+<span class="lineno">  290 </span>-- | The set of constraints required for a given constraint to be automatically
+<span class="lineno">  291 </span>--   computed for a 'Expr'.
+<span class="lineno">  292 </span>--
+<span class="lineno">  293 </span>--   @since 0.1.0
+<span class="lineno">  294 </span>type ExprConstraint (c :: * -&gt; Constraint) (ann :: *) = (c Text, c ann)
+<span class="lineno">  295 </span>
+<span class="lineno">  296 </span>--------------------------------------------------------------------------------
+
+</pre>
+</body>
+</html>

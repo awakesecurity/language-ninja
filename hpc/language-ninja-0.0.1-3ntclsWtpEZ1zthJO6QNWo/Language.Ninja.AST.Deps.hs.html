@@ -1,0 +1,215 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style type="text/css">
+span.lineno { color: white; background: #aaaaaa; border-right: solid white 12px }
+span.nottickedoff { background: yellow}
+span.istickedoff { background: white }
+span.tickonlyfalse { margin: -1px; border: 1px solid #f20913; background: #f20913 }
+span.tickonlytrue  { margin: -1px; border: 1px solid #60de51; background: #60de51 }
+span.funcount { font-size: small; color: orange; z-index: 2; position: absolute; right: 20 }
+span.decl { font-weight: bold }
+span.spaces    { background: white }
+</style>
+</head>
+<body>
+<pre>
+<span class="lineno">    1 </span>-- -*- coding: utf-8; mode: haskell; -*-
+<span class="lineno">    2 </span>
+<span class="lineno">    3 </span>-- File: library/Language/Ninja/AST/Deps.hs
+<span class="lineno">    4 </span>--
+<span class="lineno">    5 </span>-- License:
+<span class="lineno">    6 </span>--     Copyright 2017 Awake Security
+<span class="lineno">    7 </span>--
+<span class="lineno">    8 </span>--     Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<span class="lineno">    9 </span>--     you may not use this file except in compliance with the License.
+<span class="lineno">   10 </span>--     You may obtain a copy of the License at
+<span class="lineno">   11 </span>--
+<span class="lineno">   12 </span>--       http://www.apache.org/licenses/LICENSE-2.0
+<span class="lineno">   13 </span>--
+<span class="lineno">   14 </span>--     Unless required by applicable law or agreed to in writing, software
+<span class="lineno">   15 </span>--     distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<span class="lineno">   16 </span>--     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<span class="lineno">   17 </span>--     See the License for the specific language governing permissions and
+<span class="lineno">   18 </span>--     limitations under the License.
+<span class="lineno">   19 </span>
+<span class="lineno">   20 </span>{-# LANGUAGE ConstraintKinds       #-}
+<span class="lineno">   21 </span>{-# LANGUAGE DeriveFoldable        #-}
+<span class="lineno">   22 </span>{-# LANGUAGE DeriveFunctor         #-}
+<span class="lineno">   23 </span>{-# LANGUAGE DeriveGeneric         #-}
+<span class="lineno">   24 </span>{-# LANGUAGE DeriveTraversable     #-}
+<span class="lineno">   25 </span>{-# LANGUAGE FlexibleContexts      #-}
+<span class="lineno">   26 </span>{-# LANGUAGE FlexibleInstances     #-}
+<span class="lineno">   27 </span>{-# LANGUAGE KindSignatures        #-}
+<span class="lineno">   28 </span>{-# LANGUAGE MultiParamTypeClasses #-}
+<span class="lineno">   29 </span>{-# LANGUAGE OverloadedStrings     #-}
+<span class="lineno">   30 </span>{-# LANGUAGE RecordWildCards       #-}
+<span class="lineno">   31 </span>{-# LANGUAGE UndecidableInstances  #-}
+<span class="lineno">   32 </span>
+<span class="lineno">   33 </span>-- |
+<span class="lineno">   34 </span>--   Module      : Language.Ninja.AST.Deps
+<span class="lineno">   35 </span>--   Copyright   : Copyright 2017 Awake Security
+<span class="lineno">   36 </span>--   License     : Apache-2.0
+<span class="lineno">   37 </span>--   Maintainer  : opensource@awakesecurity.com
+<span class="lineno">   38 </span>--   Stability   : experimental
+<span class="lineno">   39 </span>--
+<span class="lineno">   40 </span>--   This module contains a type representing the dependencies of a @build@
+<span class="lineno">   41 </span>--   declaration in the parsed Ninja AST, along with any supporting or
+<span class="lineno">   42 </span>--   related types.
+<span class="lineno">   43 </span>--
+<span class="lineno">   44 </span>--   @since 0.1.0
+<span class="lineno">   45 </span>module Language.Ninja.AST.Deps
+<span class="lineno">   46 </span>  ( -- * @Deps@
+<span class="lineno">   47 </span>    Deps, makeDeps
+<span class="lineno">   48 </span>  , depsNormal, depsImplicit, depsOrderOnly
+<span class="lineno">   49 </span>  , DepsConstraint
+<span class="lineno">   50 </span>  ) where
+<span class="lineno">   51 </span>
+<span class="lineno">   52 </span>import qualified Control.Lens              as Lens
+<span class="lineno">   53 </span>
+<span class="lineno">   54 </span>import           Flow                      ((|&gt;))
+<span class="lineno">   55 </span>
+<span class="lineno">   56 </span>import           Data.HashSet              (HashSet)
+<span class="lineno">   57 </span>import           Data.Text                 (Text)
+<span class="lineno">   58 </span>
+<span class="lineno">   59 </span>import           Control.DeepSeq           (NFData)
+<span class="lineno">   60 </span>import           Data.Hashable             (Hashable)
+<span class="lineno">   61 </span>import           GHC.Generics              (Generic)
+<span class="lineno">   62 </span>
+<span class="lineno">   63 </span>import qualified Test.QuickCheck           as QC
+<span class="lineno">   64 </span>import           Test.QuickCheck.Instances ()
+<span class="lineno">   65 </span>
+<span class="lineno">   66 </span>import qualified Test.SmallCheck.Series    as SC
+<span class="lineno">   67 </span>
+<span class="lineno">   68 </span>import           GHC.Exts                  (Constraint)
+<span class="lineno">   69 </span>
+<span class="lineno">   70 </span>import           Data.Aeson                ((.:), (.=))
+<span class="lineno">   71 </span>import qualified Data.Aeson                as Aeson
+<span class="lineno">   72 </span>
+<span class="lineno">   73 </span>import qualified Language.Ninja.Misc       as Misc
+<span class="lineno">   74 </span>
+<span class="lineno">   75 </span>--------------------------------------------------------------------------------
+<span class="lineno">   76 </span>
+<span class="lineno">   77 </span>-- | A set of Ninja build dependencies.
+<span class="lineno">   78 </span>--
+<span class="lineno">   79 </span>--   @since 0.1.0
+<span class="lineno">   80 </span>data Deps ann
+<span class="lineno">   81 </span>  = MkDeps
+<span class="lineno">   82 </span>    { <span class="nottickedoff"><span class="decl"><span class="nottickedoff">_depsAnn</span></span></span>       :: !ann
+<span class="lineno">   83 </span>    , <span class="istickedoff"><span class="decl"><span class="istickedoff">_depsNormal</span></span></span>    :: !(HashSet Text)
+<span class="lineno">   84 </span>    , <span class="istickedoff"><span class="decl"><span class="istickedoff">_depsImplicit</span></span></span>  :: !(HashSet Text)
+<span class="lineno">   85 </span>    , <span class="istickedoff"><span class="decl"><span class="istickedoff">_depsOrderOnly</span></span></span> :: !(HashSet Text)
+<span class="lineno">   86 </span>    }
+<span class="lineno">   87 </span>  deriving (<span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, Generic, <span class="decl"><span class="istickedoff">Functor</span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Foldable</span></span></span></span>, <span class="decl"><span class="nottickedoff">Traversable</span></span>)
+<span class="lineno">   88 </span>
+<span class="lineno">   89 </span>-- | Construct a 'Deps' with all default values
+<span class="lineno">   90 </span>--
+<span class="lineno">   91 </span>--   @since 0.1.0
+<span class="lineno">   92 </span>{-# INLINE makeDeps #-}
+<span class="lineno">   93 </span>makeDeps :: (Monoid ann) =&gt; Deps ann
+<span class="lineno">   94 </span><span class="decl"><span class="istickedoff">makeDeps = MkDeps</span>
+<span class="lineno">   95 </span><span class="spaces">            </span><span class="istickedoff">{ _depsAnn       = mempty</span>
+<span class="lineno">   96 </span><span class="spaces">            </span><span class="istickedoff">, _depsNormal    = mempty</span>
+<span class="lineno">   97 </span><span class="spaces">            </span><span class="istickedoff">, _depsImplicit  = mempty</span>
+<span class="lineno">   98 </span><span class="spaces">            </span><span class="istickedoff">, _depsOrderOnly = mempty</span>
+<span class="lineno">   99 </span><span class="spaces">            </span><span class="istickedoff">}</span></span>
+<span class="lineno">  100 </span>
+<span class="lineno">  101 </span>-- | A lens into the set of normal dependencies in a 'Deps'.
+<span class="lineno">  102 </span>--
+<span class="lineno">  103 </span>--   @since 0.1.0
+<span class="lineno">  104 </span>{-# INLINE depsNormal #-}
+<span class="lineno">  105 </span>depsNormal :: Lens.Lens' (Deps ann) (HashSet Text)
+<span class="lineno">  106 </span><span class="decl"><span class="istickedoff">depsNormal = Lens.lens _depsNormal</span>
+<span class="lineno">  107 </span><span class="spaces">             </span><span class="istickedoff">$ \(MkDeps {..}) x -&gt; MkDeps { _depsNormal = x, .. }</span></span>
+<span class="lineno">  108 </span>
+<span class="lineno">  109 </span>-- | A lens into the set of implicit dependencies in a 'Deps'.
+<span class="lineno">  110 </span>--
+<span class="lineno">  111 </span>--   @since 0.1.0
+<span class="lineno">  112 </span>{-# INLINE depsImplicit #-}
+<span class="lineno">  113 </span>depsImplicit :: Lens.Lens' (Deps ann) (HashSet Text)
+<span class="lineno">  114 </span><span class="decl"><span class="istickedoff">depsImplicit = Lens.lens _depsImplicit</span>
+<span class="lineno">  115 </span><span class="spaces">               </span><span class="istickedoff">$ \(MkDeps {..}) x -&gt; MkDeps { _depsImplicit = x, .. }</span></span>
+<span class="lineno">  116 </span>
+<span class="lineno">  117 </span>-- | A lens into the set of order-only dependencies in a 'Deps'.
+<span class="lineno">  118 </span>--
+<span class="lineno">  119 </span>--   @since 0.1.0
+<span class="lineno">  120 </span>{-# INLINE depsOrderOnly #-}
+<span class="lineno">  121 </span>depsOrderOnly :: Lens.Lens' (Deps ann) (HashSet Text)
+<span class="lineno">  122 </span><span class="decl"><span class="istickedoff">depsOrderOnly = Lens.lens _depsOrderOnly</span>
+<span class="lineno">  123 </span><span class="spaces">                </span><span class="istickedoff">$ \(MkDeps {..}) x -&gt; MkDeps { _depsOrderOnly = x, .. }</span></span>
+<span class="lineno">  124 </span>
+<span class="lineno">  125 </span>-- | The usual definition for 'Misc.Annotated'.
+<span class="lineno">  126 </span>--
+<span class="lineno">  127 </span>--   @since 0.1.0
+<span class="lineno">  128 </span>instance Misc.Annotated Deps where
+<span class="lineno">  129 </span>  <span class="decl"><span class="nottickedoff">annotation' _ = Lens.lens _depsAnn</span>
+<span class="lineno">  130 </span><span class="spaces">                  </span><span class="nottickedoff">$ \(MkDeps {..}) x -&gt; MkDeps { _depsAnn = x, .. }</span></span>
+<span class="lineno">  131 </span>
+<span class="lineno">  132 </span>-- | Converts to @{ann: …, normal: …, implicit: …, order-only: …}@.
+<span class="lineno">  133 </span>--
+<span class="lineno">  134 </span>--   @since 0.1.0
+<span class="lineno">  135 </span>instance (Aeson.ToJSON ann) =&gt; Aeson.ToJSON (Deps ann) where
+<span class="lineno">  136 </span>  <span class="decl"><span class="istickedoff">toJSON (MkDeps {..})</span>
+<span class="lineno">  137 </span><span class="spaces">    </span><span class="istickedoff">= [ &quot;ann&quot;        .= _depsAnn</span>
+<span class="lineno">  138 </span><span class="spaces">      </span><span class="istickedoff">, &quot;normal&quot;     .= _depsNormal</span>
+<span class="lineno">  139 </span><span class="spaces">      </span><span class="istickedoff">, &quot;implicit&quot;   .= _depsImplicit</span>
+<span class="lineno">  140 </span><span class="spaces">      </span><span class="istickedoff">, &quot;order-only&quot; .= _depsOrderOnly</span>
+<span class="lineno">  141 </span><span class="spaces">      </span><span class="istickedoff">] |&gt; Aeson.object</span></span>
+<span class="lineno">  142 </span>
+<span class="lineno">  143 </span>-- | Inverse of the 'Aeson.ToJSON' instance.
+<span class="lineno">  144 </span>--
+<span class="lineno">  145 </span>--   @since 0.1.0
+<span class="lineno">  146 </span>instance (Aeson.FromJSON ann) =&gt; Aeson.FromJSON (Deps ann) where
+<span class="lineno">  147 </span>  <span class="decl"><span class="istickedoff">parseJSON = (Aeson.withObject <span class="nottickedoff">&quot;Deps&quot;</span> $ \o -&gt; do</span>
+<span class="lineno">  148 </span><span class="spaces">                  </span><span class="istickedoff">_depsAnn       &lt;- (o .: &quot;ann&quot;)        &gt;&gt;= pure</span>
+<span class="lineno">  149 </span><span class="spaces">                  </span><span class="istickedoff">_depsNormal    &lt;- (o .: &quot;normal&quot;)     &gt;&gt;= pure</span>
+<span class="lineno">  150 </span><span class="spaces">                  </span><span class="istickedoff">_depsImplicit  &lt;- (o .: &quot;implicit&quot;)   &gt;&gt;= pure</span>
+<span class="lineno">  151 </span><span class="spaces">                  </span><span class="istickedoff">_depsOrderOnly &lt;- (o .: &quot;order-only&quot;) &gt;&gt;= pure</span>
+<span class="lineno">  152 </span><span class="spaces">                  </span><span class="istickedoff">pure (MkDeps {..}))</span></span>
+<span class="lineno">  153 </span>
+<span class="lineno">  154 </span>-- | Reasonable 'QC.Arbitrary' instance for 'Deps'.
+<span class="lineno">  155 </span>--
+<span class="lineno">  156 </span>--   @since 0.1.0
+<span class="lineno">  157 </span>instance (QC.Arbitrary ann) =&gt; QC.Arbitrary (Deps ann) where
+<span class="lineno">  158 </span>  <span class="decl"><span class="nottickedoff">arbitrary = MkDeps</span>
+<span class="lineno">  159 </span><span class="spaces">              </span><span class="nottickedoff">&lt;$&gt; QC.arbitrary</span>
+<span class="lineno">  160 </span><span class="spaces">              </span><span class="nottickedoff">&lt;*&gt; QC.arbitrary</span>
+<span class="lineno">  161 </span><span class="spaces">              </span><span class="nottickedoff">&lt;*&gt; QC.arbitrary</span>
+<span class="lineno">  162 </span><span class="spaces">              </span><span class="nottickedoff">&lt;*&gt; QC.arbitrary</span></span>
+<span class="lineno">  163 </span>
+<span class="lineno">  164 </span>-- | Default 'Hashable' instance via 'Generic'.
+<span class="lineno">  165 </span>--
+<span class="lineno">  166 </span>--   @since 0.1.0
+<span class="lineno">  167 </span>instance (Hashable ann) =&gt; Hashable (Deps ann)
+<span class="lineno">  168 </span>
+<span class="lineno">  169 </span>-- | Default 'NFData' instance via 'Generic'.
+<span class="lineno">  170 </span>--
+<span class="lineno">  171 </span>--   @since 0.1.0
+<span class="lineno">  172 </span>instance (NFData ann) =&gt; NFData (Deps ann)
+<span class="lineno">  173 </span>
+<span class="lineno">  174 </span>-- | Default 'SC.Serial' instance via 'Generic'.
+<span class="lineno">  175 </span>--
+<span class="lineno">  176 </span>--   @since 0.1.0
+<span class="lineno">  177 </span>instance ( Monad m, DepsConstraint (SC.Serial m) ann
+<span class="lineno">  178 </span>         ) =&gt; SC.Serial m (Deps ann)
+<span class="lineno">  179 </span>
+<span class="lineno">  180 </span>-- | Default 'SC.CoSerial' instance via 'Generic'.
+<span class="lineno">  181 </span>--
+<span class="lineno">  182 </span>--   @since 0.1.0
+<span class="lineno">  183 </span>instance ( Monad m, DepsConstraint (SC.CoSerial m) ann
+<span class="lineno">  184 </span>         ) =&gt; SC.CoSerial m (Deps ann)
+<span class="lineno">  185 </span>
+<span class="lineno">  186 </span>-- | The set of constraints required for a given constraint to be automatically
+<span class="lineno">  187 </span>--   computed for a 'Ninja'.
+<span class="lineno">  188 </span>--
+<span class="lineno">  189 </span>--   @since 0.1.0
+<span class="lineno">  190 </span>type DepsConstraint (c :: * -&gt; Constraint) (ann :: *)
+<span class="lineno">  191 </span>  = ( c (HashSet Text)
+<span class="lineno">  192 </span>    , c ann
+<span class="lineno">  193 </span>    )
+<span class="lineno">  194 </span>
+<span class="lineno">  195 </span>--------------------------------------------------------------------------------
+
+</pre>
+</body>
+</html>

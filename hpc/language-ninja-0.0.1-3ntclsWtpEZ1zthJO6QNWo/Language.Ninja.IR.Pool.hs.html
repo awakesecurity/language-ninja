@@ -1,0 +1,462 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style type="text/css">
+span.lineno { color: white; background: #aaaaaa; border-right: solid white 12px }
+span.nottickedoff { background: yellow}
+span.istickedoff { background: white }
+span.tickonlyfalse { margin: -1px; border: 1px solid #f20913; background: #f20913 }
+span.tickonlytrue  { margin: -1px; border: 1px solid #60de51; background: #60de51 }
+span.funcount { font-size: small; color: orange; z-index: 2; position: absolute; right: 20 }
+span.decl { font-weight: bold }
+span.spaces    { background: white }
+</style>
+</head>
+<body>
+<pre>
+<span class="lineno">    1 </span>-- -*- coding: utf-8; mode: haskell; -*-
+<span class="lineno">    2 </span>
+<span class="lineno">    3 </span>-- File: library/Language/Ninja/IR/Pool.hs
+<span class="lineno">    4 </span>--
+<span class="lineno">    5 </span>-- License:
+<span class="lineno">    6 </span>--     Copyright 2017 Awake Security
+<span class="lineno">    7 </span>--
+<span class="lineno">    8 </span>--     Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<span class="lineno">    9 </span>--     you may not use this file except in compliance with the License.
+<span class="lineno">   10 </span>--     You may obtain a copy of the License at
+<span class="lineno">   11 </span>--
+<span class="lineno">   12 </span>--       http://www.apache.org/licenses/LICENSE-2.0
+<span class="lineno">   13 </span>--
+<span class="lineno">   14 </span>--     Unless required by applicable law or agreed to in writing, software
+<span class="lineno">   15 </span>--     distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<span class="lineno">   16 </span>--     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<span class="lineno">   17 </span>--     See the License for the specific language governing permissions and
+<span class="lineno">   18 </span>--     limitations under the License.
+<span class="lineno">   19 </span>
+<span class="lineno">   20 </span>{-# LANGUAGE DeriveGeneric         #-}
+<span class="lineno">   21 </span>{-# LANGUAGE FlexibleContexts      #-}
+<span class="lineno">   22 </span>{-# LANGUAGE FlexibleInstances     #-}
+<span class="lineno">   23 </span>{-# LANGUAGE InstanceSigs          #-}
+<span class="lineno">   24 </span>{-# LANGUAGE LambdaCase            #-}
+<span class="lineno">   25 </span>{-# LANGUAGE MultiParamTypeClasses #-}
+<span class="lineno">   26 </span>{-# LANGUAGE OverloadedStrings     #-}
+<span class="lineno">   27 </span>{-# LANGUAGE RecordWildCards       #-}
+<span class="lineno">   28 </span>{-# LANGUAGE ScopedTypeVariables   #-}
+<span class="lineno">   29 </span>{-# LANGUAGE UndecidableInstances  #-}
+<span class="lineno">   30 </span>
+<span class="lineno">   31 </span>-- |
+<span class="lineno">   32 </span>--   Module      : Language.Ninja.IR.Pool
+<span class="lineno">   33 </span>--   Copyright   : Copyright 2017 Awake Security
+<span class="lineno">   34 </span>--   License     : Apache-2.0
+<span class="lineno">   35 </span>--   Maintainer  : opensource@awakesecurity.com
+<span class="lineno">   36 </span>--   Stability   : experimental
+<span class="lineno">   37 </span>--
+<span class="lineno">   38 </span>--   Types relating to Ninja @pool@s.
+<span class="lineno">   39 </span>--
+<span class="lineno">   40 </span>--   @since 0.1.0
+<span class="lineno">   41 </span>module Language.Ninja.IR.Pool
+<span class="lineno">   42 </span>  ( -- * @Pool@
+<span class="lineno">   43 </span>    Pool, makePool, makePoolDefault, makePoolConsole, makePoolCustom
+<span class="lineno">   44 </span>  , poolName, poolDepth
+<span class="lineno">   45 </span>
+<span class="lineno">   46 </span>    -- * @PoolName@
+<span class="lineno">   47 </span>  , PoolName, makePoolNameDefault, makePoolNameConsole, makePoolNameCustom
+<span class="lineno">   48 </span>  , _PoolNameDefault, _PoolNameConsole, _PoolNameCustom
+<span class="lineno">   49 </span>  , poolNameText, printPoolName, parsePoolName
+<span class="lineno">   50 </span>
+<span class="lineno">   51 </span>    -- * @PoolDepth@
+<span class="lineno">   52 </span>  , PoolDepth
+<span class="lineno">   53 </span>  , makePoolDepth, makePoolInfinite
+<span class="lineno">   54 </span>  , poolDepthPositive
+<span class="lineno">   55 </span>  ) where
+<span class="lineno">   56 </span>
+<span class="lineno">   57 </span>import           Control.Applicative          (empty)
+<span class="lineno">   58 </span>
+<span class="lineno">   59 </span>import qualified Control.Lens                 as Lens
+<span class="lineno">   60 </span>
+<span class="lineno">   61 </span>import           Data.Aeson                   ((.:), (.=))
+<span class="lineno">   62 </span>import qualified Data.Aeson                   as Aeson
+<span class="lineno">   63 </span>import qualified Data.Aeson.Types             as Aeson
+<span class="lineno">   64 </span>
+<span class="lineno">   65 </span>import           Data.Text                    (Text)
+<span class="lineno">   66 </span>import qualified Data.Text                    as Text
+<span class="lineno">   67 </span>
+<span class="lineno">   68 </span>import           Control.DeepSeq              (NFData)
+<span class="lineno">   69 </span>import           Data.Hashable                (Hashable)
+<span class="lineno">   70 </span>import           Data.String                  (IsString (fromString))
+<span class="lineno">   71 </span>import           GHC.Generics                 (Generic)
+<span class="lineno">   72 </span>
+<span class="lineno">   73 </span>import           Test.SmallCheck.Series       ((&lt;~&gt;), (\/))
+<span class="lineno">   74 </span>import qualified Test.SmallCheck.Series       as SC
+<span class="lineno">   75 </span>
+<span class="lineno">   76 </span>import qualified Language.Ninja.Misc.Positive as Misc
+<span class="lineno">   77 </span>
+<span class="lineno">   78 </span>import           Flow                         ((.&gt;), (|&gt;))
+<span class="lineno">   79 </span>
+<span class="lineno">   80 </span>--------------------------------------------------------------------------------
+<span class="lineno">   81 </span>
+<span class="lineno">   82 </span>-- | A Ninja @pool@ declaration, as documented
+<span class="lineno">   83 </span>--   &lt;https://ninja-build.org/manual.html#ref_pool here&gt;.
+<span class="lineno">   84 </span>--
+<span class="lineno">   85 </span>--   @since 0.1.0
+<span class="lineno">   86 </span>data Pool
+<span class="lineno">   87 </span>  = MkPool
+<span class="lineno">   88 </span>    { <span class="nottickedoff"><span class="decl"><span class="nottickedoff">_poolName</span></span></span>  :: !PoolName
+<span class="lineno">   89 </span>    , <span class="nottickedoff"><span class="decl"><span class="nottickedoff">_poolDepth</span></span></span> :: !PoolDepth
+<span class="lineno">   90 </span>    }
+<span class="lineno">   91 </span>  deriving (<span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Ord</span></span></span></span></span></span></span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Read</span></span></span></span></span></span>, Generic)
+<span class="lineno">   92 </span>
+<span class="lineno">   93 </span>-- | Construct a 'Pool', given its name and depth.
+<span class="lineno">   94 </span>--
+<span class="lineno">   95 </span>--   @since 0.1.0
+<span class="lineno">   96 </span>{-# INLINEABLE makePool #-}
+<span class="lineno">   97 </span>makePool :: PoolName -&gt; PoolDepth -&gt; Maybe Pool
+<span class="lineno">   98 </span><span class="decl"><span class="nottickedoff">makePool PoolNameDefault    PoolInfinite  = Just makePoolDefault</span>
+<span class="lineno">   99 </span><span class="spaces"></span><span class="nottickedoff">makePool PoolNameConsole    (PoolDepth 1) = Just makePoolConsole</span>
+<span class="lineno">  100 </span><span class="spaces"></span><span class="nottickedoff">makePool (PoolNameCustom t) (PoolDepth d) = if d &gt;= 1</span>
+<span class="lineno">  101 </span><span class="spaces">                                            </span><span class="nottickedoff">then Just (makePoolCustom t d)</span>
+<span class="lineno">  102 </span><span class="spaces">                                            </span><span class="nottickedoff">else Nothing</span>
+<span class="lineno">  103 </span><span class="spaces"></span><span class="nottickedoff">makePool _                  _             = Nothing</span></span>
+<span class="lineno">  104 </span>
+<span class="lineno">  105 </span>-- | The default pool, i.e.: the one whose name is the empty string.
+<span class="lineno">  106 </span>--
+<span class="lineno">  107 </span>--   @since 0.1.0
+<span class="lineno">  108 </span>{-# INLINE makePoolDefault #-}
+<span class="lineno">  109 </span>makePoolDefault :: Pool
+<span class="lineno">  110 </span><span class="decl"><span class="istickedoff">makePoolDefault = MkPool makePoolNameDefault PoolInfinite</span></span>
+<span class="lineno">  111 </span>
+<span class="lineno">  112 </span>-- | The @console@ pool.
+<span class="lineno">  113 </span>--
+<span class="lineno">  114 </span>--   @since 0.1.0
+<span class="lineno">  115 </span>{-# INLINE makePoolConsole #-}
+<span class="lineno">  116 </span>makePoolConsole :: Pool
+<span class="lineno">  117 </span><span class="decl"><span class="istickedoff">makePoolConsole = MkPool makePoolNameConsole (PoolDepth 1)</span></span>
+<span class="lineno">  118 </span>
+<span class="lineno">  119 </span>-- | Create a pool with the given name and depth.
+<span class="lineno">  120 </span>--
+<span class="lineno">  121 </span>--   @since 0.1.0
+<span class="lineno">  122 </span>{-# INLINE makePoolCustom #-}
+<span class="lineno">  123 </span>makePoolCustom :: Text          -- ^ The pool name.
+<span class="lineno">  124 </span>               -&gt; Misc.Positive -- ^ The pool depth.
+<span class="lineno">  125 </span>               -&gt; Pool
+<span class="lineno">  126 </span><span class="decl"><span class="istickedoff">makePoolCustom name depth = MkPool (makePoolNameCustom name) (PoolDepth depth)</span></span>
+<span class="lineno">  127 </span>
+<span class="lineno">  128 </span>-- | A 'Getter' that gives the name of a pool.
+<span class="lineno">  129 </span>--
+<span class="lineno">  130 </span>--   @since 0.1.0
+<span class="lineno">  131 </span>{-# INLINE poolName #-}
+<span class="lineno">  132 </span>poolName :: Lens.Getter Pool PoolName
+<span class="lineno">  133 </span><span class="decl"><span class="nottickedoff">poolName = Lens.to _poolName</span></span>
+<span class="lineno">  134 </span>
+<span class="lineno">  135 </span>-- | A 'Getter' that gives the depth of a pool.
+<span class="lineno">  136 </span>--
+<span class="lineno">  137 </span>--   @since 0.1.0
+<span class="lineno">  138 </span>{-# INLINE poolDepth #-}
+<span class="lineno">  139 </span>poolDepth :: Lens.Getter Pool PoolDepth
+<span class="lineno">  140 </span><span class="decl"><span class="nottickedoff">poolDepth = Lens.to _poolDepth</span></span>
+<span class="lineno">  141 </span>
+<span class="lineno">  142 </span>-- | Converts to @{name: …, depth: …}@.
+<span class="lineno">  143 </span>--
+<span class="lineno">  144 </span>--   @since 0.1.0
+<span class="lineno">  145 </span>instance Aeson.ToJSON Pool where
+<span class="lineno">  146 </span>  <span class="decl"><span class="istickedoff">toJSON (MkPool {..})</span>
+<span class="lineno">  147 </span><span class="spaces">    </span><span class="istickedoff">= [ &quot;name&quot;  .= _poolName</span>
+<span class="lineno">  148 </span><span class="spaces">      </span><span class="istickedoff">, &quot;depth&quot; .= _poolDepth</span>
+<span class="lineno">  149 </span><span class="spaces">      </span><span class="istickedoff">] |&gt; Aeson.object</span></span>
+<span class="lineno">  150 </span>
+<span class="lineno">  151 </span>-- | Inverse of the 'Aeson.ToJSON' instance.
+<span class="lineno">  152 </span>--
+<span class="lineno">  153 </span>--   @since 0.1.0
+<span class="lineno">  154 </span>instance Aeson.FromJSON Pool where
+<span class="lineno">  155 </span>  <span class="decl"><span class="istickedoff">parseJSON = (Aeson.withObject <span class="nottickedoff">&quot;Pool&quot;</span> $ \o -&gt; do</span>
+<span class="lineno">  156 </span><span class="spaces">                  </span><span class="istickedoff">_poolName  &lt;- (o .: &quot;name&quot;)  &gt;&gt;= pure</span>
+<span class="lineno">  157 </span><span class="spaces">                  </span><span class="istickedoff">_poolDepth &lt;- (o .: &quot;depth&quot;) &gt;&gt;= pure</span>
+<span class="lineno">  158 </span><span class="spaces">                  </span><span class="istickedoff">pure (MkPool {..}))</span></span>
+<span class="lineno">  159 </span>
+<span class="lineno">  160 </span>-- | Uses the underlying instances.
+<span class="lineno">  161 </span>--
+<span class="lineno">  162 </span>--   @since 0.1.0
+<span class="lineno">  163 </span>instance forall m. (Monad m, SC.Serial m Text) =&gt; SC.Serial m Pool where
+<span class="lineno">  164 </span>  <span class="decl"><span class="istickedoff">series = pure makePoolDefault</span>
+<span class="lineno">  165 </span><span class="spaces">           </span><span class="istickedoff">\/ pure makePoolConsole</span>
+<span class="lineno">  166 </span><span class="spaces">           </span><span class="istickedoff">\/ (let nameSeries :: SC.Series m Text</span>
+<span class="lineno">  167 </span><span class="spaces">                   </span><span class="istickedoff">nameSeries = SC.series &gt;&gt;= (\case &quot;&quot;        -&gt; empty</span>
+<span class="lineno">  168 </span><span class="spaces">                                                     </span><span class="istickedoff">&quot;console&quot; -&gt; <span class="nottickedoff">empty</span></span>
+<span class="lineno">  169 </span><span class="spaces">                                                     </span><span class="istickedoff">x         -&gt; pure x)</span>
+<span class="lineno">  170 </span><span class="spaces">               </span><span class="istickedoff">in makePoolCustom &lt;$&gt; nameSeries &lt;~&gt; SC.series)</span></span>
+<span class="lineno">  171 </span>
+<span class="lineno">  172 </span>-- | Uses the underlying instances.
+<span class="lineno">  173 </span>--
+<span class="lineno">  174 </span>--   @since 0.1.0
+<span class="lineno">  175 </span>instance (Monad m, SC.CoSerial m Text) =&gt; SC.CoSerial m Pool where
+<span class="lineno">  176 </span>  <span class="decl"><span class="nottickedoff">coseries = SC.coseries .&gt; fmap (\f -&gt; convert .&gt; f)</span>
+<span class="lineno">  177 </span><span class="spaces">    </span><span class="nottickedoff">where</span>
+<span class="lineno">  178 </span><span class="spaces">      </span><span class="nottickedoff">convert :: Pool -&gt; (PoolName, PoolDepth)</span>
+<span class="lineno">  179 </span><span class="spaces">      </span><span class="nottickedoff">convert pool = (Lens.view poolName pool, Lens.view poolDepth pool)</span></span>
+<span class="lineno">  180 </span>
+<span class="lineno">  181 </span>-- | Default 'Hashable' instance via 'Generic'.
+<span class="lineno">  182 </span>--
+<span class="lineno">  183 </span>--   @since 0.1.0
+<span class="lineno">  184 </span>instance Hashable Pool
+<span class="lineno">  185 </span>
+<span class="lineno">  186 </span>-- | Default 'NFData' instance via 'Generic'.
+<span class="lineno">  187 </span>--
+<span class="lineno">  188 </span>--   @since 0.1.0
+<span class="lineno">  189 </span>instance NFData Pool
+<span class="lineno">  190 </span>
+<span class="lineno">  191 </span>--------------------------------------------------------------------------------
+<span class="lineno">  192 </span>
+<span class="lineno">  193 </span>-- | The name of a Ninja pool.
+<span class="lineno">  194 </span>--
+<span class="lineno">  195 </span>--   More information is available
+<span class="lineno">  196 </span>--   &lt;https://ninja-build.org/manual.html#ref_pool here&gt;.
+<span class="lineno">  197 </span>--
+<span class="lineno">  198 </span>--   @since 0.1.0
+<span class="lineno">  199 </span>data PoolName
+<span class="lineno">  200 </span>  = PoolNameDefault
+<span class="lineno">  201 </span>  | PoolNameConsole
+<span class="lineno">  202 </span>  | PoolNameCustom !Text
+<span class="lineno">  203 </span>  deriving (<span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Ord</span></span></span></span></span></span></span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Read</span></span></span></span></span></span>, Generic)
+<span class="lineno">  204 </span>
+<span class="lineno">  205 </span>-- | Create a 'PoolName' corresponding to the built-in default pool, i.e.: the
+<span class="lineno">  206 </span>--   pool that is selected if the @pool@ attribute is set to the empty string.
+<span class="lineno">  207 </span>--
+<span class="lineno">  208 </span>--   @since 0.1.0
+<span class="lineno">  209 </span>{-# INLINE makePoolNameDefault #-}
+<span class="lineno">  210 </span>makePoolNameDefault :: PoolName
+<span class="lineno">  211 </span><span class="decl"><span class="istickedoff">makePoolNameDefault = PoolNameDefault</span></span>
+<span class="lineno">  212 </span>
+<span class="lineno">  213 </span>-- | Create a 'PoolName' corresponding to the built-in @console@ pool.
+<span class="lineno">  214 </span>--
+<span class="lineno">  215 </span>--   @since 0.1.0
+<span class="lineno">  216 </span>{-# INLINE makePoolNameConsole #-}
+<span class="lineno">  217 </span>makePoolNameConsole :: PoolName
+<span class="lineno">  218 </span><span class="decl"><span class="istickedoff">makePoolNameConsole = PoolNameConsole</span></span>
+<span class="lineno">  219 </span>
+<span class="lineno">  220 </span>-- | Create a 'PoolName' corresponding to a custom pool.
+<span class="lineno">  221 </span>--   Note: this can fail at runtime if given the empty string or @&quot;console&quot;@,
+<span class="lineno">  222 </span>--   so you should consider 'parsePoolName' as a safer alternative.
+<span class="lineno">  223 </span>--
+<span class="lineno">  224 </span>--   @since 0.1.0
+<span class="lineno">  225 </span>{-# INLINEABLE makePoolNameCustom #-}
+<span class="lineno">  226 </span>makePoolNameCustom :: Text -&gt; PoolName
+<span class="lineno">  227 </span><span class="decl"><span class="istickedoff">makePoolNameCustom &quot;&quot;        = <span class="nottickedoff">error &quot;Invalid pool name: \&quot;\&quot;&quot;</span></span>
+<span class="lineno">  228 </span><span class="spaces"></span><span class="istickedoff">makePoolNameCustom &quot;console&quot; = <span class="nottickedoff">error &quot;Invalid pool name: \&quot;console\&quot;&quot;</span></span>
+<span class="lineno">  229 </span><span class="spaces"></span><span class="istickedoff">makePoolNameCustom text      = PoolNameCustom text</span></span>
+<span class="lineno">  230 </span>
+<span class="lineno">  231 </span>-- | A one-way prism corresponding to the 'poolNameDefault' constructor.
+<span class="lineno">  232 </span>--
+<span class="lineno">  233 </span>--   @since 0.1.0
+<span class="lineno">  234 </span>{-# INLINE _PoolNameDefault #-}
+<span class="lineno">  235 </span>_PoolNameDefault :: Lens.Getter PoolName (Maybe ())
+<span class="lineno">  236 </span><span class="decl"><span class="nottickedoff">_PoolNameDefault = Lens.to (\case PoolNameDefault -&gt; Just ()</span>
+<span class="lineno">  237 </span><span class="spaces">                                  </span><span class="nottickedoff">_               -&gt; Nothing)</span></span>
+<span class="lineno">  238 </span>
+<span class="lineno">  239 </span>-- | A one-way prism corresponding to the 'poolNameConsole' constructor.
+<span class="lineno">  240 </span>--
+<span class="lineno">  241 </span>--   @since 0.1.0
+<span class="lineno">  242 </span>{-# INLINE _PoolNameConsole #-}
+<span class="lineno">  243 </span>_PoolNameConsole :: Lens.Getter PoolName (Maybe ())
+<span class="lineno">  244 </span><span class="decl"><span class="nottickedoff">_PoolNameConsole = Lens.to (\case PoolNameConsole -&gt; Just ()</span>
+<span class="lineno">  245 </span><span class="spaces">                                  </span><span class="nottickedoff">_               -&gt; Nothing)</span></span>
+<span class="lineno">  246 </span>
+<span class="lineno">  247 </span>-- | A one-way prism corresponding to the 'poolNameConsole' constructor.
+<span class="lineno">  248 </span>--
+<span class="lineno">  249 </span>--   @since 0.1.0
+<span class="lineno">  250 </span>{-# INLINE _PoolNameCustom #-}
+<span class="lineno">  251 </span>_PoolNameCustom :: Lens.Getter PoolName (Maybe Text)
+<span class="lineno">  252 </span><span class="decl"><span class="nottickedoff">_PoolNameCustom = Lens.to (\case (PoolNameCustom t) -&gt; Just t</span>
+<span class="lineno">  253 </span><span class="spaces">                                 </span><span class="nottickedoff">_                  -&gt; Nothing)</span></span>
+<span class="lineno">  254 </span>
+<span class="lineno">  255 </span>-- | An isomorphism between a 'PoolName' and the corresponding 'Text'.
+<span class="lineno">  256 </span>--   Equivalent to @'Lens.iso' 'printPoolName' 'parsePoolName'@.
+<span class="lineno">  257 </span>--
+<span class="lineno">  258 </span>--   @since 0.1.0
+<span class="lineno">  259 </span>{-# INLINE poolNameText #-}
+<span class="lineno">  260 </span>poolNameText :: Lens.Iso' PoolName Text
+<span class="lineno">  261 </span><span class="decl"><span class="istickedoff">poolNameText = Lens.iso printPoolName parsePoolName</span></span>
+<span class="lineno">  262 </span>
+<span class="lineno">  263 </span>-- | Convert a 'PoolName' to the string that, if the @pool@ attribute is set to
+<span class="lineno">  264 </span>--   it, will cause the given 'PoolName' to be parsed.
+<span class="lineno">  265 </span>--
+<span class="lineno">  266 </span>--   &gt;&gt;&gt; printPoolName poolNameDefault
+<span class="lineno">  267 </span>--   &quot;&quot;
+<span class="lineno">  268 </span>--
+<span class="lineno">  269 </span>--   &gt;&gt;&gt; printPoolName poolNameConsole
+<span class="lineno">  270 </span>--   &quot;console&quot;
+<span class="lineno">  271 </span>--
+<span class="lineno">  272 </span>--   &gt;&gt;&gt; printPoolName (poolNameCustom &quot;foobar&quot;)
+<span class="lineno">  273 </span>--   &quot;foobar&quot;
+<span class="lineno">  274 </span>--
+<span class="lineno">  275 </span>--   @since 0.1.0
+<span class="lineno">  276 </span>{-# INLINEABLE printPoolName #-}
+<span class="lineno">  277 </span>printPoolName :: PoolName -&gt; Text
+<span class="lineno">  278 </span><span class="decl"><span class="istickedoff">printPoolName PoolNameDefault    = &quot;&quot;</span>
+<span class="lineno">  279 </span><span class="spaces"></span><span class="istickedoff">printPoolName PoolNameConsole    = &quot;console&quot;</span>
+<span class="lineno">  280 </span><span class="spaces"></span><span class="istickedoff">printPoolName (PoolNameCustom t) = t</span></span>
+<span class="lineno">  281 </span>
+<span class="lineno">  282 </span>-- | Inverse of 'printPoolName'.
+<span class="lineno">  283 </span>--
+<span class="lineno">  284 </span>--   &gt;&gt;&gt; parsePoolName &quot;&quot;
+<span class="lineno">  285 </span>--   PoolNameDefault
+<span class="lineno">  286 </span>--
+<span class="lineno">  287 </span>--   &gt;&gt;&gt; parsePoolName &quot;console&quot;
+<span class="lineno">  288 </span>--   PoolNameConsole
+<span class="lineno">  289 </span>--
+<span class="lineno">  290 </span>--   &gt;&gt;&gt; parsePoolName &quot;foobar&quot;
+<span class="lineno">  291 </span>--   PoolNameCustom &quot;foobar&quot;
+<span class="lineno">  292 </span>--
+<span class="lineno">  293 </span>--   @since 0.1.0
+<span class="lineno">  294 </span>{-# INLINEABLE parsePoolName #-}
+<span class="lineno">  295 </span>parsePoolName :: Text -&gt; PoolName
+<span class="lineno">  296 </span><span class="decl"><span class="istickedoff">parsePoolName &quot;&quot;        = makePoolNameDefault</span>
+<span class="lineno">  297 </span><span class="spaces"></span><span class="istickedoff">parsePoolName &quot;console&quot; = makePoolNameConsole</span>
+<span class="lineno">  298 </span><span class="spaces"></span><span class="istickedoff">parsePoolName t         = makePoolNameCustom t</span></span>
+<span class="lineno">  299 </span>
+<span class="lineno">  300 </span>-- | Converts from string via 'parsePoolName'.
+<span class="lineno">  301 </span>--
+<span class="lineno">  302 </span>--   @since 0.1.0
+<span class="lineno">  303 </span>instance IsString PoolName where
+<span class="lineno">  304 </span>  <span class="decl"><span class="nottickedoff">fromString = Text.pack .&gt; parsePoolName</span></span>
+<span class="lineno">  305 </span>
+<span class="lineno">  306 </span>-- | Converts to JSON string via 'printPoolName'.
+<span class="lineno">  307 </span>--
+<span class="lineno">  308 </span>--   @since 0.1.0
+<span class="lineno">  309 </span>instance Aeson.ToJSON PoolName where
+<span class="lineno">  310 </span>  <span class="decl"><span class="istickedoff">toJSON = printPoolName .&gt; Aeson.String</span></span>
+<span class="lineno">  311 </span>
+<span class="lineno">  312 </span>-- | Inverse of the 'Aeson.ToJSON' instance.
+<span class="lineno">  313 </span>--
+<span class="lineno">  314 </span>--   @since 0.1.0
+<span class="lineno">  315 </span>instance Aeson.FromJSON PoolName where
+<span class="lineno">  316 </span>  <span class="decl"><span class="istickedoff">parseJSON = Aeson.withText <span class="nottickedoff">&quot;PoolName&quot;</span> (parsePoolName .&gt; pure)</span></span>
+<span class="lineno">  317 </span>
+<span class="lineno">  318 </span>-- | Converts to JSON string via 'printPoolName'.
+<span class="lineno">  319 </span>--
+<span class="lineno">  320 </span>--   @since 0.1.0
+<span class="lineno">  321 </span>instance Aeson.ToJSONKey PoolName where
+<span class="lineno">  322 </span>  <span class="decl"><span class="nottickedoff">toJSONKey = Aeson.toJSONKeyText printPoolName</span></span>
+<span class="lineno">  323 </span>
+<span class="lineno">  324 </span>-- | Inverse of the 'Aeson.ToJSONKey' instance.
+<span class="lineno">  325 </span>--
+<span class="lineno">  326 </span>--   @since 0.1.0
+<span class="lineno">  327 </span>instance Aeson.FromJSONKey PoolName where
+<span class="lineno">  328 </span>  <span class="decl"><span class="nottickedoff">fromJSONKey = Aeson.mapFromJSONKeyFunction parsePoolName Aeson.fromJSONKey</span></span>
+<span class="lineno">  329 </span>
+<span class="lineno">  330 </span>-- | Uses the underlying 'Text' instance.
+<span class="lineno">  331 </span>--
+<span class="lineno">  332 </span>--   @since 0.1.0
+<span class="lineno">  333 </span>instance (Monad m, SC.Serial m Text) =&gt; SC.Serial m PoolName where
+<span class="lineno">  334 </span>  <span class="decl"><span class="istickedoff">series = parsePoolName &lt;$&gt; (pure &quot;&quot; \/ pure &quot;console&quot; \/ SC.series)</span></span>
+<span class="lineno">  335 </span>
+<span class="lineno">  336 </span>-- | Uses the underlying 'Text' instance.
+<span class="lineno">  337 </span>--
+<span class="lineno">  338 </span>--   @since 0.1.0
+<span class="lineno">  339 </span>instance (Monad m, SC.CoSerial m Text) =&gt; SC.CoSerial m PoolName where
+<span class="lineno">  340 </span>  <span class="decl"><span class="istickedoff">coseries = SC.coseries</span>
+<span class="lineno">  341 </span><span class="spaces">             </span><span class="istickedoff">.&gt; fmap (\f -&gt; printPoolName .&gt; f)</span></span>
+<span class="lineno">  342 </span>
+<span class="lineno">  343 </span>-- | Default 'Hashable' instance via 'Generic'.
+<span class="lineno">  344 </span>--
+<span class="lineno">  345 </span>--   @since 0.1.0
+<span class="lineno">  346 </span>instance Hashable PoolName
+<span class="lineno">  347 </span>
+<span class="lineno">  348 </span>-- | Default 'NFData' instance via 'Generic'.
+<span class="lineno">  349 </span>--
+<span class="lineno">  350 </span>--   @since 0.1.0
+<span class="lineno">  351 </span>instance NFData PoolName
+<span class="lineno">  352 </span>
+<span class="lineno">  353 </span>--------------------------------------------------------------------------------
+<span class="lineno">  354 </span>
+<span class="lineno">  355 </span>-- | The depth of a Ninja pool.
+<span class="lineno">  356 </span>--
+<span class="lineno">  357 </span>--   More information is available
+<span class="lineno">  358 </span>--   &lt;https://ninja-build.org/manual.html#ref_pool here&gt;.
+<span class="lineno">  359 </span>--
+<span class="lineno">  360 </span>--   @since 0.1.0
+<span class="lineno">  361 </span>data PoolDepth
+<span class="lineno">  362 </span>  = PoolDepth !Misc.Positive
+<span class="lineno">  363 </span>  | PoolInfinite
+<span class="lineno">  364 </span>  deriving (<span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Ord</span></span></span></span></span></span></span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Read</span></span></span></span></span></span>, Generic)
+<span class="lineno">  365 </span>
+<span class="lineno">  366 </span>-- | Construct a finite 'PoolDepth' from an integer, which should be a number
+<span class="lineno">  367 </span>--   greater than or equal to 1.
+<span class="lineno">  368 </span>--
+<span class="lineno">  369 </span>--   @since 0.1.0
+<span class="lineno">  370 </span>{-# INLINE makePoolDepth #-}
+<span class="lineno">  371 </span>makePoolDepth :: Misc.Positive -&gt; PoolDepth
+<span class="lineno">  372 </span><span class="decl"><span class="nottickedoff">makePoolDepth = PoolDepth</span></span>
+<span class="lineno">  373 </span>
+<span class="lineno">  374 </span>-- | Construct an infinite 'PoolDepth'. This constructor is needed for the
+<span class="lineno">  375 </span>--   default pool (@pool = &quot;&quot;@), which has an infinite depth.
+<span class="lineno">  376 </span>--
+<span class="lineno">  377 </span>--   @since 0.1.0
+<span class="lineno">  378 </span>{-# INLINE makePoolInfinite #-}
+<span class="lineno">  379 </span>makePoolInfinite :: PoolDepth
+<span class="lineno">  380 </span><span class="decl"><span class="nottickedoff">makePoolInfinite = PoolInfinite</span></span>
+<span class="lineno">  381 </span>
+<span class="lineno">  382 </span>-- | An isomorphism between a 'PoolDepth' and a @'Maybe' 'Misc.Positive'@;
+<span class="lineno">  383 </span>--   the 'Nothing' case maps to 'makePoolInfinite' and the 'Just' case
+<span class="lineno">  384 </span>--   maps to 'makePoolDepth'.
+<span class="lineno">  385 </span>--
+<span class="lineno">  386 </span>--   @since 0.1.0
+<span class="lineno">  387 </span>{-# INLINE poolDepthPositive #-}
+<span class="lineno">  388 </span>poolDepthPositive :: Lens.Iso' PoolDepth (Maybe Misc.Positive)
+<span class="lineno">  389 </span><span class="decl"><span class="istickedoff">poolDepthPositive = Lens.iso fromPD toPD</span>
+<span class="lineno">  390 </span><span class="spaces">  </span><span class="istickedoff">where</span>
+<span class="lineno">  391 </span><span class="spaces">    </span><span class="istickedoff">{-# INLINE fromPD #-}</span>
+<span class="lineno">  392 </span><span class="spaces">    </span><span class="istickedoff">fromPD :: PoolDepth -&gt; Maybe Misc.Positive</span>
+<span class="lineno">  393 </span><span class="spaces">    </span><span class="istickedoff">fromPD (PoolDepth p) = Just p</span>
+<span class="lineno">  394 </span><span class="spaces">    </span><span class="istickedoff">fromPD PoolInfinite  = Nothing</span>
+<span class="lineno">  395 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  396 </span><span class="spaces">    </span><span class="istickedoff">{-# INLINE toPD #-}</span>
+<span class="lineno">  397 </span><span class="spaces">    </span><span class="istickedoff">toPD :: Maybe Misc.Positive -&gt; PoolDepth</span>
+<span class="lineno">  398 </span><span class="spaces">    </span><span class="istickedoff">toPD (Just p) = PoolDepth p</span>
+<span class="lineno">  399 </span><span class="spaces">    </span><span class="istickedoff">toPD Nothing  = PoolInfinite</span></span>
+<span class="lineno">  400 </span>
+<span class="lineno">  401 </span>-- | Converts 'makePoolInfinite' to @&quot;infinite&quot;@ and 'makePoolDepth' to the
+<span class="lineno">  402 </span>--   corresponding JSON number.
+<span class="lineno">  403 </span>--
+<span class="lineno">  404 </span>--   @since 0.1.0
+<span class="lineno">  405 </span>instance Aeson.ToJSON PoolDepth where
+<span class="lineno">  406 </span>  <span class="decl"><span class="istickedoff">toJSON (PoolDepth i) = Aeson.toJSON i</span>
+<span class="lineno">  407 </span><span class="spaces">  </span><span class="istickedoff">toJSON PoolInfinite  = &quot;infinite&quot;</span></span>
+<span class="lineno">  408 </span>
+<span class="lineno">  409 </span>-- | Inverse of the 'Aeson.ToJSON' instance.
+<span class="lineno">  410 </span>--
+<span class="lineno">  411 </span>--   @since 0.1.0
+<span class="lineno">  412 </span>instance Aeson.FromJSON PoolDepth where
+<span class="lineno">  413 </span>  <span class="decl"><span class="istickedoff">parseJSON (v@(Aeson.Number _))      = PoolDepth &lt;$&gt; Aeson.parseJSON v</span>
+<span class="lineno">  414 </span><span class="spaces">  </span><span class="istickedoff">parseJSON (Aeson.String &quot;infinite&quot;) = pure PoolInfinite</span>
+<span class="lineno">  415 </span><span class="spaces">  </span><span class="istickedoff">parseJSON owise                     = <span class="nottickedoff">Aeson.typeMismatch &quot;PoolDepth&quot; owise</span></span></span>
+<span class="lineno">  416 </span>
+<span class="lineno">  417 </span>-- | Default 'SC.Serial' instance via 'Generic'.
+<span class="lineno">  418 </span>--
+<span class="lineno">  419 </span>--   @since 0.1.0
+<span class="lineno">  420 </span>instance (Monad m) =&gt; SC.Serial m PoolDepth where
+<span class="lineno">  421 </span>  <span class="decl"><span class="istickedoff">series = pure PoolInfinite</span>
+<span class="lineno">  422 </span><span class="spaces">           </span><span class="istickedoff">\/ (SC.series |&gt; fmap PoolDepth)</span></span>
+<span class="lineno">  423 </span>
+<span class="lineno">  424 </span>-- | Default 'SC.CoSerial' instance via 'Generic'.
+<span class="lineno">  425 </span>--
+<span class="lineno">  426 </span>--   @since 0.1.0
+<span class="lineno">  427 </span>instance (Monad m) =&gt; SC.CoSerial m PoolDepth where
+<span class="lineno">  428 </span>  <span class="decl"><span class="istickedoff">coseries = SC.coseries</span>
+<span class="lineno">  429 </span><span class="spaces">             </span><span class="istickedoff">.&gt; fmap (\f -&gt; \case (PoolDepth i) -&gt; f (Just i)</span>
+<span class="lineno">  430 </span><span class="spaces">                                  </span><span class="istickedoff">PoolInfinite  -&gt; f Nothing)</span></span>
+<span class="lineno">  431 </span>
+<span class="lineno">  432 </span>-- | Default 'Hashable' instance via 'Generic'.
+<span class="lineno">  433 </span>--
+<span class="lineno">  434 </span>--   @since 0.1.0
+<span class="lineno">  435 </span>instance Hashable PoolDepth
+<span class="lineno">  436 </span>
+<span class="lineno">  437 </span>-- | Default 'NFData' instance via 'Generic'.
+<span class="lineno">  438 </span>--
+<span class="lineno">  439 </span>--   @since 0.1.0
+<span class="lineno">  440 </span>instance NFData PoolDepth
+<span class="lineno">  441 </span>
+<span class="lineno">  442 </span>--------------------------------------------------------------------------------
+
+</pre>
+</body>
+</html>

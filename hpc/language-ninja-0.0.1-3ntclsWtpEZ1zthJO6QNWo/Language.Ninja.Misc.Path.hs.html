@@ -1,0 +1,147 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style type="text/css">
+span.lineno { color: white; background: #aaaaaa; border-right: solid white 12px }
+span.nottickedoff { background: yellow}
+span.istickedoff { background: white }
+span.tickonlyfalse { margin: -1px; border: 1px solid #f20913; background: #f20913 }
+span.tickonlytrue  { margin: -1px; border: 1px solid #60de51; background: #60de51 }
+span.funcount { font-size: small; color: orange; z-index: 2; position: absolute; right: 20 }
+span.decl { font-weight: bold }
+span.spaces    { background: white }
+</style>
+</head>
+<body>
+<pre>
+<span class="lineno">    1 </span>-- -*- coding: utf-8; mode: haskell; -*-
+<span class="lineno">    2 </span>
+<span class="lineno">    3 </span>-- File: library/Language/Ninja/Misc/Path.hs
+<span class="lineno">    4 </span>--
+<span class="lineno">    5 </span>-- License:
+<span class="lineno">    6 </span>--     Copyright 2017 Awake Security
+<span class="lineno">    7 </span>--
+<span class="lineno">    8 </span>--     Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<span class="lineno">    9 </span>--     you may not use this file except in compliance with the License.
+<span class="lineno">   10 </span>--     You may obtain a copy of the License at
+<span class="lineno">   11 </span>--
+<span class="lineno">   12 </span>--       http://www.apache.org/licenses/LICENSE-2.0
+<span class="lineno">   13 </span>--
+<span class="lineno">   14 </span>--     Unless required by applicable law or agreed to in writing, software
+<span class="lineno">   15 </span>--     distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<span class="lineno">   16 </span>--     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<span class="lineno">   17 </span>--     See the License for the specific language governing permissions and
+<span class="lineno">   18 </span>--     limitations under the License.
+<span class="lineno">   19 </span>
+<span class="lineno">   20 </span>{-# LANGUAGE DeriveGeneric              #-}
+<span class="lineno">   21 </span>{-# LANGUAGE FlexibleContexts           #-}
+<span class="lineno">   22 </span>{-# LANGUAGE FlexibleInstances          #-}
+<span class="lineno">   23 </span>{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+<span class="lineno">   24 </span>{-# LANGUAGE MultiParamTypeClasses      #-}
+<span class="lineno">   25 </span>{-# LANGUAGE UndecidableInstances       #-}
+<span class="lineno">   26 </span>
+<span class="lineno">   27 </span>-- |
+<span class="lineno">   28 </span>--   Module      : Language.Ninja.Misc.Path
+<span class="lineno">   29 </span>--   Copyright   : Copyright 2017 Awake Security
+<span class="lineno">   30 </span>--   License     : Apache-2.0
+<span class="lineno">   31 </span>--   Maintainer  : opensource@awakesecurity.com
+<span class="lineno">   32 </span>--   Stability   : experimental
+<span class="lineno">   33 </span>--
+<span class="lineno">   34 </span>--   A datatype for Unix path strings.
+<span class="lineno">   35 </span>--
+<span class="lineno">   36 </span>--   @since 0.1.0
+<span class="lineno">   37 </span>module Language.Ninja.Misc.Path
+<span class="lineno">   38 </span>  ( Path, makePath, pathIText, pathText, pathString, pathFP
+<span class="lineno">   39 </span>  ) where
+<span class="lineno">   40 </span>
+<span class="lineno">   41 </span>import           Language.Ninja.Misc.IText (IText)
+<span class="lineno">   42 </span>import qualified Language.Ninja.Misc.IText as Ninja
+<span class="lineno">   43 </span>
+<span class="lineno">   44 </span>import           Data.Text                 (Text)
+<span class="lineno">   45 </span>import qualified Data.Text                 as Text
+<span class="lineno">   46 </span>
+<span class="lineno">   47 </span>import qualified Filesystem.Path.CurrentOS as FP
+<span class="lineno">   48 </span>
+<span class="lineno">   49 </span>import qualified Data.Aeson                as Aeson
+<span class="lineno">   50 </span>
+<span class="lineno">   51 </span>import           Control.DeepSeq           (NFData)
+<span class="lineno">   52 </span>import           Data.Hashable             (Hashable)
+<span class="lineno">   53 </span>import           Data.String               (IsString)
+<span class="lineno">   54 </span>import           GHC.Generics              (Generic)
+<span class="lineno">   55 </span>import           Test.SmallCheck.Series    ((&gt;&gt;-))
+<span class="lineno">   56 </span>import qualified Test.SmallCheck.Series    as SC
+<span class="lineno">   57 </span>
+<span class="lineno">   58 </span>import qualified Control.Lens              as Lens
+<span class="lineno">   59 </span>
+<span class="lineno">   60 </span>import           Flow                      ((.&gt;))
+<span class="lineno">   61 </span>
+<span class="lineno">   62 </span>--------------------------------------------------------------------------------
+<span class="lineno">   63 </span>
+<span class="lineno">   64 </span>-- | This type represents a Unix path string.
+<span class="lineno">   65 </span>--
+<span class="lineno">   66 </span>--   @since 0.1.0
+<span class="lineno">   67 </span>newtype Path
+<span class="lineno">   68 </span>  = MkPath
+<span class="lineno">   69 </span>    { <span class="istickedoff"><span class="decl"><span class="istickedoff">_pathIText</span></span></span> :: IText
+<span class="lineno">   70 </span>    }
+<span class="lineno">   71 </span>  deriving ( <span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Ord</span></span></span></span></span></span></span></span></span></span></span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Read</span></span></span></span></span></span>, <span class="decl"><span class="nottickedoff">IsString</span></span>, Generic, <span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Hashable</span></span></span></span>, <span class="decl"><span class="nottickedoff">NFData</span></span>
+<span class="lineno">   72 </span>           , <span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Aeson.ToJSON</span></span></span></span></span></span></span></span>, <span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Aeson.FromJSON</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Aeson.ToJSONKey</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Aeson.FromJSONKey</span></span></span></span> )
+<span class="lineno">   73 </span>
+<span class="lineno">   74 </span>-- | Construct a 'Path' from some 'Text'.
+<span class="lineno">   75 </span>--
+<span class="lineno">   76 </span>--   @since 0.1.0
+<span class="lineno">   77 </span>{-# INLINE makePath #-}
+<span class="lineno">   78 </span>makePath :: Text -&gt; Path
+<span class="lineno">   79 </span><span class="decl"><span class="nottickedoff">makePath = Lens.view Ninja.itext .&gt; MkPath</span></span>
+<span class="lineno">   80 </span>
+<span class="lineno">   81 </span>-- | An isomorphism between a 'Path' and its underlying 'IText'.
+<span class="lineno">   82 </span>--
+<span class="lineno">   83 </span>--   @since 0.1.0
+<span class="lineno">   84 </span>{-# INLINE pathIText #-}
+<span class="lineno">   85 </span>pathIText :: Lens.Iso' Path IText
+<span class="lineno">   86 </span><span class="decl"><span class="istickedoff">pathIText = Lens.iso _pathIText MkPath</span></span>
+<span class="lineno">   87 </span>
+<span class="lineno">   88 </span>-- | An isomorphism that gives access to a 'Text'-typed view of a 'Path',
+<span class="lineno">   89 </span>--   even though the underlying data has type 'IText'.
+<span class="lineno">   90 </span>--
+<span class="lineno">   91 </span>--   This is equivalent to @pathIText . from Ninja.itext@.
+<span class="lineno">   92 </span>--
+<span class="lineno">   93 </span>--   @since 0.1.0
+<span class="lineno">   94 </span>{-# INLINE pathText #-}
+<span class="lineno">   95 </span>pathText :: Lens.Iso' Path Text
+<span class="lineno">   96 </span><span class="decl"><span class="istickedoff">pathText = pathIText . Lens.from Ninja.itext</span></span>
+<span class="lineno">   97 </span>
+<span class="lineno">   98 </span>-- | An isomorphism that gives access to a 'String'-typed view of a 'Path'.
+<span class="lineno">   99 </span>--
+<span class="lineno">  100 </span>--   @since 0.1.0
+<span class="lineno">  101 </span>{-# INLINE pathString #-}
+<span class="lineno">  102 </span>pathString :: Lens.Iso' Path String
+<span class="lineno">  103 </span><span class="decl"><span class="istickedoff">pathString = pathText . Lens.iso Text.unpack Text.pack</span></span>
+<span class="lineno">  104 </span>
+<span class="lineno">  105 </span>-- | An isomorphism between a 'Path' and a 'FP.FilePath' from @system-filepath@.
+<span class="lineno">  106 </span>--   This uses 'FP.decodeString' and 'FP.encodeString', so all the caveats on
+<span class="lineno">  107 </span>--   those functions apply here.
+<span class="lineno">  108 </span>--
+<span class="lineno">  109 </span>--   @since 0.1.0
+<span class="lineno">  110 </span>{-# INLINE pathFP #-}
+<span class="lineno">  111 </span>pathFP :: Lens.Iso' Path FP.FilePath
+<span class="lineno">  112 </span><span class="decl"><span class="istickedoff">pathFP = pathString . Lens.iso FP.decodeString FP.encodeString</span></span>
+<span class="lineno">  113 </span>
+<span class="lineno">  114 </span>-- | Uses the underlying 'IText' instance.
+<span class="lineno">  115 </span>--
+<span class="lineno">  116 </span>--   @since 0.1.0
+<span class="lineno">  117 </span>instance (Monad m, SC.Serial m Text) =&gt; SC.Serial m Path where
+<span class="lineno">  118 </span>  <span class="decl"><span class="istickedoff">series = SC.newtypeCons MkPath</span></span>
+<span class="lineno">  119 </span>
+<span class="lineno">  120 </span>-- | Uses the underlying 'IText' instance.
+<span class="lineno">  121 </span>--
+<span class="lineno">  122 </span>--   @since 0.1.0
+<span class="lineno">  123 </span>instance (Monad m, SC.CoSerial m Text) =&gt; SC.CoSerial m Path where
+<span class="lineno">  124 </span>  <span class="decl"><span class="istickedoff">coseries rs = SC.newtypeAlts rs</span>
+<span class="lineno">  125 </span><span class="spaces">                </span><span class="istickedoff">&gt;&gt;- \f -&gt; pure (_pathIText .&gt; f)</span></span>
+<span class="lineno">  126 </span>
+<span class="lineno">  127 </span>--------------------------------------------------------------------------------
+
+</pre>
+</body>
+</html>

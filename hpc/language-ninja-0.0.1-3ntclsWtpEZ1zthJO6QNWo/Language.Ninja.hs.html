@@ -1,0 +1,96 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style type="text/css">
+span.lineno { color: white; background: #aaaaaa; border-right: solid white 12px }
+span.nottickedoff { background: yellow}
+span.istickedoff { background: white }
+span.tickonlyfalse { margin: -1px; border: 1px solid #f20913; background: #f20913 }
+span.tickonlytrue  { margin: -1px; border: 1px solid #60de51; background: #60de51 }
+span.funcount { font-size: small; color: orange; z-index: 2; position: absolute; right: 20 }
+span.decl { font-weight: bold }
+span.spaces    { background: white }
+</style>
+</head>
+<body>
+<pre>
+<span class="lineno">    1 </span>-- -*- coding: utf-8; mode: haskell; -*-
+<span class="lineno">    2 </span>
+<span class="lineno">    3 </span>-- File: library/Language/Ninja.hs
+<span class="lineno">    4 </span>--
+<span class="lineno">    5 </span>-- License:
+<span class="lineno">    6 </span>--     Copyright 2017 Awake Security
+<span class="lineno">    7 </span>--
+<span class="lineno">    8 </span>--     Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<span class="lineno">    9 </span>--     you may not use this file except in compliance with the License.
+<span class="lineno">   10 </span>--     You may obtain a copy of the License at
+<span class="lineno">   11 </span>--
+<span class="lineno">   12 </span>--       http://www.apache.org/licenses/LICENSE-2.0
+<span class="lineno">   13 </span>--
+<span class="lineno">   14 </span>--     Unless required by applicable law or agreed to in writing, software
+<span class="lineno">   15 </span>--     distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<span class="lineno">   16 </span>--     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<span class="lineno">   17 </span>--     See the License for the specific language governing permissions and
+<span class="lineno">   18 </span>--     limitations under the License.
+<span class="lineno">   19 </span>
+<span class="lineno">   20 </span>{-# OPTIONS_GHC -fno-warn-missing-import-lists #-}
+<span class="lineno">   21 </span>
+<span class="lineno">   22 </span>-- |
+<span class="lineno">   23 </span>--   Module      : Language.Ninja
+<span class="lineno">   24 </span>--   Copyright   : Copyright 2017 Awake Security
+<span class="lineno">   25 </span>--   License     : Apache-2.0
+<span class="lineno">   26 </span>--   Maintainer  : opensource@awakesecurity.com
+<span class="lineno">   27 </span>--   Stability   : experimental
+<span class="lineno">   28 </span>--
+<span class="lineno">   29 </span>--   Tools for parsing, pretty-printing, and compiling the Ninja build language.
+<span class="lineno">   30 </span>--
+<span class="lineno">   31 </span>--   This module re-exports some of the modules under the &quot;Language.Ninja&quot;
+<span class="lineno">   32 </span>--   namespace for convenience.
+<span class="lineno">   33 </span>--
+<span class="lineno">   34 </span>--   Take a look at &quot;Language.Ninja.Tutorial&quot; for a tutorial on how to use this
+<span class="lineno">   35 </span>--   library. If you just want to dive in, I recommend reading these modules
+<span class="lineno">   36 </span>--   in the following order:
+<span class="lineno">   37 </span>--
+<span class="lineno">   38 </span>--   1. Skim &quot;Language.Ninja.Misc&quot;, &quot;Language.Ninja.Mock&quot;,
+<span class="lineno">   39 </span>--      and &quot;Language.Ninja.Errors&quot; for familiarity with types and values
+<span class="lineno">   40 </span>--      that are used all over this library.
+<span class="lineno">   41 </span>--   2. Check out &quot;Language.Ninja.Lexer&quot; and then &quot;Language.Ninja.Parser&quot; to
+<span class="lineno">   42 </span>--      get an idea for what is possible with the lexer/parser API.
+<span class="lineno">   43 </span>--   3. Read &quot;Language.Ninja.AST&quot; to understand what the parsed AST looks like.
+<span class="lineno">   44 </span>--   4. Read &quot;Language.Ninja.Compile&quot; to see what the AST-to-IR compiler does.
+<span class="lineno">   45 </span>--   5. Read &quot;Language.Ninja.IR&quot; to understand what the compiled IR looks like.
+<span class="lineno">   46 </span>--   6. Read &quot;Language.Ninja.Pretty&quot; to see what the pretty-printer is capable
+<span class="lineno">   47 </span>--      of (spoiler: not very much).
+<span class="lineno">   48 </span>--
+<span class="lineno">   49 </span>--   If you are not already well-versed in the Ninja build language, it is also
+<span class="lineno">   50 </span>--   probably worth reading the Ninja
+<span class="lineno">   51 </span>--   &lt;https://ninja-build.org/manual.html manual&gt;.
+<span class="lineno">   52 </span>--
+<span class="lineno">   53 </span>--   When importing from this library, I recommend the following style:
+<span class="lineno">   54 </span>--
+<span class="lineno">   55 </span>--   &gt; import qualified Language.Ninja     as Ninja
+<span class="lineno">   56 </span>--   &gt; import qualified Language.Ninja.AST as Ninja.AST
+<span class="lineno">   57 </span>--   &gt; import qualified Language.Ninja.IR  as Ninja.IR
+<span class="lineno">   58 </span>--
+<span class="lineno">   59 </span>--   Happy hacking!
+<span class="lineno">   60 </span>--
+<span class="lineno">   61 </span>--   @since 0.1.0
+<span class="lineno">   62 </span>module Language.Ninja
+<span class="lineno">   63 </span>  ( module Language.Ninja.Compile
+<span class="lineno">   64 </span>  , module Language.Ninja.Lexer
+<span class="lineno">   65 </span>  , module Language.Ninja.Parser
+<span class="lineno">   66 </span>  , module Language.Ninja.Pretty
+<span class="lineno">   67 </span>  , module Language.Ninja.Misc
+<span class="lineno">   68 </span>  , module Language.Ninja.Mock
+<span class="lineno">   69 </span>  ) where
+<span class="lineno">   70 </span>
+<span class="lineno">   71 </span>import           Language.Ninja.Compile
+<span class="lineno">   72 </span>import           Language.Ninja.Lexer
+<span class="lineno">   73 </span>import           Language.Ninja.Misc
+<span class="lineno">   74 </span>import           Language.Ninja.Mock
+<span class="lineno">   75 </span>import           Language.Ninja.Parser
+<span class="lineno">   76 </span>import           Language.Ninja.Pretty
+
+</pre>
+</body>
+</html>

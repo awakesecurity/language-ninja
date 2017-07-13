@@ -1,0 +1,368 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style type="text/css">
+span.lineno { color: white; background: #aaaaaa; border-right: solid white 12px }
+span.nottickedoff { background: yellow}
+span.istickedoff { background: white }
+span.tickonlyfalse { margin: -1px; border: 1px solid #f20913; background: #f20913 }
+span.tickonlytrue  { margin: -1px; border: 1px solid #60de51; background: #60de51 }
+span.funcount { font-size: small; color: orange; z-index: 2; position: absolute; right: 20 }
+span.decl { font-weight: bold }
+span.spaces    { background: white }
+</style>
+</head>
+<body>
+<pre>
+<span class="lineno">    1 </span>-- -*- coding: utf-8; mode: haskell; -*-
+<span class="lineno">    2 </span>
+<span class="lineno">    3 </span>-- File: library/Language/Ninja/IR/Target.hs
+<span class="lineno">    4 </span>--
+<span class="lineno">    5 </span>-- License:
+<span class="lineno">    6 </span>--     Copyright 2017 Awake Security
+<span class="lineno">    7 </span>--
+<span class="lineno">    8 </span>--     Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<span class="lineno">    9 </span>--     you may not use this file except in compliance with the License.
+<span class="lineno">   10 </span>--     You may obtain a copy of the License at
+<span class="lineno">   11 </span>--
+<span class="lineno">   12 </span>--       http://www.apache.org/licenses/LICENSE-2.0
+<span class="lineno">   13 </span>--
+<span class="lineno">   14 </span>--     Unless required by applicable law or agreed to in writing, software
+<span class="lineno">   15 </span>--     distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<span class="lineno">   16 </span>--     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<span class="lineno">   17 </span>--     See the License for the specific language governing permissions and
+<span class="lineno">   18 </span>--     limitations under the License.
+<span class="lineno">   19 </span>
+<span class="lineno">   20 </span>{-# LANGUAGE DeriveGeneric              #-}
+<span class="lineno">   21 </span>{-# LANGUAGE FlexibleContexts           #-}
+<span class="lineno">   22 </span>{-# LANGUAGE FlexibleInstances          #-}
+<span class="lineno">   23 </span>{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+<span class="lineno">   24 </span>{-# LANGUAGE LambdaCase                 #-}
+<span class="lineno">   25 </span>{-# LANGUAGE MultiParamTypeClasses      #-}
+<span class="lineno">   26 </span>{-# LANGUAGE OverloadedStrings          #-}
+<span class="lineno">   27 </span>{-# LANGUAGE RecordWildCards            #-}
+<span class="lineno">   28 </span>{-# LANGUAGE UndecidableInstances       #-}
+<span class="lineno">   29 </span>
+<span class="lineno">   30 </span>-- |
+<span class="lineno">   31 </span>--   Module      : Language.Ninja.IR.Target
+<span class="lineno">   32 </span>--   Copyright   : Copyright 2017 Awake Security
+<span class="lineno">   33 </span>--   License     : Apache-2.0
+<span class="lineno">   34 </span>--   Maintainer  : opensource@awakesecurity.com
+<span class="lineno">   35 </span>--   Stability   : experimental
+<span class="lineno">   36 </span>--
+<span class="lineno">   37 </span>--   Types relating to Ninja build targets, outputs, and dependencies.
+<span class="lineno">   38 </span>--
+<span class="lineno">   39 </span>--   @since 0.1.0
+<span class="lineno">   40 </span>module Language.Ninja.IR.Target
+<span class="lineno">   41 </span>  ( -- * @Target@
+<span class="lineno">   42 </span>    Target, makeTarget, targetIText, targetText
+<span class="lineno">   43 </span>
+<span class="lineno">   44 </span>    -- * @Output@
+<span class="lineno">   45 </span>  , Output, makeOutput, outputTarget
+<span class="lineno">   46 </span>
+<span class="lineno">   47 </span>    -- * @Dependency@
+<span class="lineno">   48 </span>  , Dependency, makeDependency, dependencyTarget, dependencyType
+<span class="lineno">   49 </span>  , DependencyType (..), _NormalDependency, _OrderOnlyDependency
+<span class="lineno">   50 </span>  ) where
+<span class="lineno">   51 </span>
+<span class="lineno">   52 </span>import qualified Control.Lens              as Lens
+<span class="lineno">   53 </span>
+<span class="lineno">   54 </span>import           Data.Text                 (Text)
+<span class="lineno">   55 </span>import qualified Data.Text                 as Text
+<span class="lineno">   56 </span>
+<span class="lineno">   57 </span>import           Data.Aeson                ((.:), (.=))
+<span class="lineno">   58 </span>import qualified Data.Aeson                as Aeson
+<span class="lineno">   59 </span>
+<span class="lineno">   60 </span>import           Control.DeepSeq           (NFData)
+<span class="lineno">   61 </span>import           Data.Hashable             (Hashable)
+<span class="lineno">   62 </span>import           Data.String               (IsString)
+<span class="lineno">   63 </span>import           GHC.Generics              (Generic)
+<span class="lineno">   64 </span>
+<span class="lineno">   65 </span>import           Test.SmallCheck.Series    ((&gt;&gt;-))
+<span class="lineno">   66 </span>import qualified Test.SmallCheck.Series    as SC
+<span class="lineno">   67 </span>
+<span class="lineno">   68 </span>import qualified Language.Ninja.Misc.IText as Misc
+<span class="lineno">   69 </span>
+<span class="lineno">   70 </span>import           Flow                      ((.&gt;), (|&gt;))
+<span class="lineno">   71 </span>
+<span class="lineno">   72 </span>--------------------------------------------------------------------------------
+<span class="lineno">   73 </span>
+<span class="lineno">   74 </span>-- | This type represents a Ninja target name.
+<span class="lineno">   75 </span>--
+<span class="lineno">   76 </span>--   @since 0.1.0
+<span class="lineno">   77 </span>newtype Target
+<span class="lineno">   78 </span>  = MkTarget
+<span class="lineno">   79 </span>    { <span class="istickedoff"><span class="decl"><span class="istickedoff">_targetIText</span></span></span> :: Misc.IText
+<span class="lineno">   80 </span>    }
+<span class="lineno">   81 </span>  deriving ( <span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Ord</span></span></span></span></span></span></span></span></span></span></span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Read</span></span></span></span></span></span>, <span class="decl"><span class="nottickedoff">IsString</span></span>, Generic, <span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Hashable</span></span></span></span>, <span class="decl"><span class="nottickedoff">NFData</span></span>
+<span class="lineno">   82 </span>           , <span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Aeson.ToJSON</span></span></span></span></span></span></span></span>, <span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Aeson.FromJSON</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Aeson.ToJSONKey</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Aeson.FromJSONKey</span></span></span></span> )
+<span class="lineno">   83 </span>
+<span class="lineno">   84 </span>-- | Construct a 'Target' from some 'Text'.
+<span class="lineno">   85 </span>--
+<span class="lineno">   86 </span>--   @since 0.1.0
+<span class="lineno">   87 </span>{-# INLINE makeTarget #-}
+<span class="lineno">   88 </span>makeTarget :: Text -&gt; Target
+<span class="lineno">   89 </span><span class="decl"><span class="istickedoff">makeTarget = Lens.view Misc.itext .&gt; MkTarget</span></span>
+<span class="lineno">   90 </span>
+<span class="lineno">   91 </span>-- | An isomorphism between a 'Target' and its underlying 'IText'.
+<span class="lineno">   92 </span>--
+<span class="lineno">   93 </span>--   @since 0.1.0
+<span class="lineno">   94 </span>{-# INLINE targetIText #-}
+<span class="lineno">   95 </span>targetIText :: Lens.Iso' Target Misc.IText
+<span class="lineno">   96 </span><span class="decl"><span class="istickedoff">targetIText = Lens.iso _targetIText MkTarget</span></span>
+<span class="lineno">   97 </span>
+<span class="lineno">   98 </span>-- | An isomorphism that gives access to a 'Text'-typed view of a 'Target',
+<span class="lineno">   99 </span>--   even though the underlying data has type 'IText'.
+<span class="lineno">  100 </span>--
+<span class="lineno">  101 </span>--   This is equivalent to @targetIText . from itext@.
+<span class="lineno">  102 </span>--
+<span class="lineno">  103 </span>--   @since 0.1.0
+<span class="lineno">  104 </span>{-# INLINE targetText #-}
+<span class="lineno">  105 </span>targetText :: Lens.Iso' Target Text
+<span class="lineno">  106 </span><span class="decl"><span class="istickedoff">targetText = targetIText . Lens.from Misc.itext</span></span>
+<span class="lineno">  107 </span>
+<span class="lineno">  108 </span>-- | Uses the underlying 'IText' instance.
+<span class="lineno">  109 </span>--
+<span class="lineno">  110 </span>--   @since 0.1.0
+<span class="lineno">  111 </span>instance (Monad m, SC.Serial m Text) =&gt; SC.Serial m Target where
+<span class="lineno">  112 </span>  <span class="decl"><span class="istickedoff">series = SC.newtypeCons MkTarget</span></span>
+<span class="lineno">  113 </span>
+<span class="lineno">  114 </span>-- | Uses the underlying 'IText' instance.
+<span class="lineno">  115 </span>--
+<span class="lineno">  116 </span>--   @since 0.1.0
+<span class="lineno">  117 </span>instance (Monad m, SC.CoSerial m Text) =&gt; SC.CoSerial m Target where
+<span class="lineno">  118 </span>  <span class="decl"><span class="istickedoff">coseries rs = SC.newtypeAlts rs</span>
+<span class="lineno">  119 </span><span class="spaces">                </span><span class="istickedoff">&gt;&gt;- \f -&gt; pure (_targetIText .&gt; f)</span></span>
+<span class="lineno">  120 </span>
+<span class="lineno">  121 </span>--------------------------------------------------------------------------------
+<span class="lineno">  122 </span>
+<span class="lineno">  123 </span>-- | A Ninja build output.
+<span class="lineno">  124 </span>--
+<span class="lineno">  125 </span>--   More information is available
+<span class="lineno">  126 </span>--   &lt;https://ninja-build.org/manual.html#ref_outputs here&gt;.
+<span class="lineno">  127 </span>--
+<span class="lineno">  128 </span>--   @since 0.1.0
+<span class="lineno">  129 </span>newtype Output
+<span class="lineno">  130 </span>  = MkOutput
+<span class="lineno">  131 </span>    { <span class="istickedoff"><span class="decl"><span class="istickedoff">_outputTarget</span></span></span> :: Target
+<span class="lineno">  132 </span>    }
+<span class="lineno">  133 </span>  deriving (<span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Ord</span></span></span></span></span></span></span></span></span></span></span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Read</span></span></span></span></span></span>, Generic)
+<span class="lineno">  134 </span>
+<span class="lineno">  135 </span>-- | Construct an 'Output'.
+<span class="lineno">  136 </span>--
+<span class="lineno">  137 </span>--   @since 0.1.0
+<span class="lineno">  138 </span>{-# INLINE makeOutput #-}
+<span class="lineno">  139 </span>makeOutput :: Target
+<span class="lineno">  140 </span>           -- ^ The underlying target.
+<span class="lineno">  141 </span>           -&gt; Output
+<span class="lineno">  142 </span><span class="decl"><span class="istickedoff">makeOutput = MkOutput</span></span>
+<span class="lineno">  143 </span>
+<span class="lineno">  144 </span>-- | A lens for the 'Target' of an 'Output'.
+<span class="lineno">  145 </span>--
+<span class="lineno">  146 </span>--   @since 0.1.0
+<span class="lineno">  147 </span>{-# INLINE outputTarget #-}
+<span class="lineno">  148 </span>outputTarget :: Lens.Lens' Output Target
+<span class="lineno">  149 </span><span class="decl"><span class="istickedoff">outputTarget = Lens.lens _outputTarget</span>
+<span class="lineno">  150 </span><span class="spaces">               </span><span class="istickedoff">$ \(MkOutput {..}) new -&gt; MkOutput { _outputTarget = new, .. }</span></span>
+<span class="lineno">  151 </span>
+<span class="lineno">  152 </span>-- | Converts to @{target: …, type: …}@.
+<span class="lineno">  153 </span>--
+<span class="lineno">  154 </span>--   @since 0.1.0
+<span class="lineno">  155 </span>instance Aeson.ToJSON Output where
+<span class="lineno">  156 </span>  <span class="decl"><span class="istickedoff">toJSON (MkOutput {..})</span>
+<span class="lineno">  157 </span><span class="spaces">    </span><span class="istickedoff">= [ &quot;target&quot; .= _outputTarget</span>
+<span class="lineno">  158 </span><span class="spaces">      </span><span class="istickedoff">] |&gt; Aeson.object</span></span>
+<span class="lineno">  159 </span>
+<span class="lineno">  160 </span>-- | Inverse of the 'Aeson.ToJSON' instance.
+<span class="lineno">  161 </span>--
+<span class="lineno">  162 </span>--   @since 0.1.0
+<span class="lineno">  163 </span>instance Aeson.FromJSON Output where
+<span class="lineno">  164 </span>  <span class="decl"><span class="istickedoff">parseJSON = (Aeson.withObject <span class="nottickedoff">&quot;Output&quot;</span> $ \o -&gt; do</span>
+<span class="lineno">  165 </span><span class="spaces">                  </span><span class="istickedoff">_outputTarget &lt;- (o .: &quot;target&quot;) &gt;&gt;= pure</span>
+<span class="lineno">  166 </span><span class="spaces">                  </span><span class="istickedoff">pure (MkOutput {..}))</span></span>
+<span class="lineno">  167 </span>
+<span class="lineno">  168 </span>-- | Default 'Hashable' instance via 'Generic'.
+<span class="lineno">  169 </span>--
+<span class="lineno">  170 </span>--   @since 0.1.0
+<span class="lineno">  171 </span>instance Hashable Output
+<span class="lineno">  172 </span>
+<span class="lineno">  173 </span>-- | Default 'NFData' instance via 'Generic'.
+<span class="lineno">  174 </span>--
+<span class="lineno">  175 </span>--   @since 0.1.0
+<span class="lineno">  176 </span>instance NFData Output
+<span class="lineno">  177 </span>
+<span class="lineno">  178 </span>-- | Default 'SC.Serial' instance via 'Generic'.
+<span class="lineno">  179 </span>--
+<span class="lineno">  180 </span>--   @since 0.1.0
+<span class="lineno">  181 </span>instance (Monad m, SC.Serial m Text) =&gt; SC.Serial m Output
+<span class="lineno">  182 </span>
+<span class="lineno">  183 </span>-- | Default 'SC.CoSerial' instance via 'Generic'.
+<span class="lineno">  184 </span>--
+<span class="lineno">  185 </span>--   @since 0.1.0
+<span class="lineno">  186 </span>instance (Monad m, SC.CoSerial m Text) =&gt; SC.CoSerial m Output
+<span class="lineno">  187 </span>
+<span class="lineno">  188 </span>--------------------------------------------------------------------------------
+<span class="lineno">  189 </span>
+<span class="lineno">  190 </span>-- | A build dependency.
+<span class="lineno">  191 </span>--
+<span class="lineno">  192 </span>--   More information is available
+<span class="lineno">  193 </span>--   &lt;https://ninja-build.org/manual.html#ref_dependencies here&gt;.
+<span class="lineno">  194 </span>--
+<span class="lineno">  195 </span>--   @since 0.1.0
+<span class="lineno">  196 </span>data Dependency
+<span class="lineno">  197 </span>  = MkDependency
+<span class="lineno">  198 </span>    { <span class="istickedoff"><span class="decl"><span class="istickedoff">_dependencyTarget</span></span></span> :: !Target
+<span class="lineno">  199 </span>    , <span class="istickedoff"><span class="decl"><span class="istickedoff">_dependencyType</span></span></span>   :: !DependencyType
+<span class="lineno">  200 </span>    }
+<span class="lineno">  201 </span>  deriving (<span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Ord</span></span></span></span></span></span></span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Read</span></span></span></span></span></span>, Generic)
+<span class="lineno">  202 </span>
+<span class="lineno">  203 </span>-- | Construct a 'Dependency'.
+<span class="lineno">  204 </span>--
+<span class="lineno">  205 </span>--   @since 0.1.0
+<span class="lineno">  206 </span>{-# INLINE makeDependency #-}
+<span class="lineno">  207 </span>makeDependency :: Target
+<span class="lineno">  208 </span>               -- ^ The underlying target.
+<span class="lineno">  209 </span>               -&gt; DependencyType
+<span class="lineno">  210 </span>               -- ^ The dependency type (normal, implicit, or order-only).
+<span class="lineno">  211 </span>               -&gt; Dependency
+<span class="lineno">  212 </span><span class="decl"><span class="nottickedoff">makeDependency = MkDependency</span></span>
+<span class="lineno">  213 </span>
+<span class="lineno">  214 </span>-- | A lens for the 'Target' of a 'Dependency'.
+<span class="lineno">  215 </span>--
+<span class="lineno">  216 </span>--   @since 0.1.0
+<span class="lineno">  217 </span>{-# INLINE dependencyTarget #-}
+<span class="lineno">  218 </span>dependencyTarget :: Lens.Lens' Dependency Target
+<span class="lineno">  219 </span><span class="decl"><span class="istickedoff">dependencyTarget</span>
+<span class="lineno">  220 </span><span class="spaces">  </span><span class="istickedoff">= Lens.lens _dependencyTarget</span>
+<span class="lineno">  221 </span><span class="spaces">    </span><span class="istickedoff">$ \(MkDependency {..}) new -&gt; MkDependency { _dependencyTarget = new, .. }</span></span>
+<span class="lineno">  222 </span>
+<span class="lineno">  223 </span>-- | A lens for the 'DependencyType' of a 'Dependency'.
+<span class="lineno">  224 </span>--
+<span class="lineno">  225 </span>--   @since 0.1.0
+<span class="lineno">  226 </span>{-# INLINE dependencyType #-}
+<span class="lineno">  227 </span>dependencyType :: Lens.Lens' Dependency DependencyType
+<span class="lineno">  228 </span><span class="decl"><span class="istickedoff">dependencyType</span>
+<span class="lineno">  229 </span><span class="spaces">  </span><span class="istickedoff">= Lens.lens _dependencyType</span>
+<span class="lineno">  230 </span><span class="spaces">    </span><span class="istickedoff">$ \(MkDependency {..}) new -&gt; MkDependency { _dependencyType = new, .. }</span></span>
+<span class="lineno">  231 </span>
+<span class="lineno">  232 </span>-- | Converts to @{target: …, type: …}@.
+<span class="lineno">  233 </span>--
+<span class="lineno">  234 </span>--   @since 0.1.0
+<span class="lineno">  235 </span>instance Aeson.ToJSON Dependency where
+<span class="lineno">  236 </span>  <span class="decl"><span class="istickedoff">toJSON (MkDependency {..})</span>
+<span class="lineno">  237 </span><span class="spaces">    </span><span class="istickedoff">= [ &quot;target&quot; .= _dependencyTarget</span>
+<span class="lineno">  238 </span><span class="spaces">      </span><span class="istickedoff">, &quot;type&quot;   .= _dependencyType</span>
+<span class="lineno">  239 </span><span class="spaces">      </span><span class="istickedoff">] |&gt; Aeson.object</span></span>
+<span class="lineno">  240 </span>
+<span class="lineno">  241 </span>-- | Inverse of the 'Aeson.ToJSON' instance.
+<span class="lineno">  242 </span>--
+<span class="lineno">  243 </span>--   @since 0.1.0
+<span class="lineno">  244 </span>instance Aeson.FromJSON Dependency where
+<span class="lineno">  245 </span>  <span class="decl"><span class="istickedoff">parseJSON = (Aeson.withObject <span class="nottickedoff">&quot;Dependency&quot;</span> $ \o -&gt; do</span>
+<span class="lineno">  246 </span><span class="spaces">                  </span><span class="istickedoff">_dependencyTarget &lt;- (o .: &quot;target&quot;) &gt;&gt;= pure</span>
+<span class="lineno">  247 </span><span class="spaces">                  </span><span class="istickedoff">_dependencyType   &lt;- (o .: &quot;type&quot;)   &gt;&gt;= pure</span>
+<span class="lineno">  248 </span><span class="spaces">                  </span><span class="istickedoff">pure (MkDependency {..}))</span></span>
+<span class="lineno">  249 </span>
+<span class="lineno">  250 </span>-- | Default 'Hashable' instance via 'Generic'.
+<span class="lineno">  251 </span>--
+<span class="lineno">  252 </span>--   @since 0.1.0
+<span class="lineno">  253 </span>instance Hashable Dependency
+<span class="lineno">  254 </span>
+<span class="lineno">  255 </span>-- | Default 'NFData' instance via 'Generic'.
+<span class="lineno">  256 </span>--
+<span class="lineno">  257 </span>--   @since 0.1.0
+<span class="lineno">  258 </span>instance NFData Dependency
+<span class="lineno">  259 </span>
+<span class="lineno">  260 </span>-- | Default 'SC.Serial' instance via 'Generic'.
+<span class="lineno">  261 </span>--
+<span class="lineno">  262 </span>--   @since 0.1.0
+<span class="lineno">  263 </span>instance (Monad m, SC.Serial m Text) =&gt; SC.Serial m Dependency
+<span class="lineno">  264 </span>
+<span class="lineno">  265 </span>-- | Default 'SC.CoSerial' instance via 'Generic'.
+<span class="lineno">  266 </span>--
+<span class="lineno">  267 </span>--   @since 0.1.0
+<span class="lineno">  268 </span>instance (Monad m, SC.CoSerial m Text) =&gt; SC.CoSerial m Dependency
+<span class="lineno">  269 </span>
+<span class="lineno">  270 </span>--------------------------------------------------------------------------------
+<span class="lineno">  271 </span>
+<span class="lineno">  272 </span>-- | The type of a 'Dependency': normal, implicit, or order-only.
+<span class="lineno">  273 </span>--
+<span class="lineno">  274 </span>--   @since 0.1.0
+<span class="lineno">  275 </span>data DependencyType
+<span class="lineno">  276 </span>  = -- | A normal dependency. These are listed in the @$in@ variable and changes
+<span class="lineno">  277 </span>    --   in the relevant target result in a rule execution.
+<span class="lineno">  278 </span>    --
+<span class="lineno">  279 </span>    --   @since 0.1.0
+<span class="lineno">  280 </span>    NormalDependency
+<span class="lineno">  281 </span>  | -- | An order-only dependency. These are listed in the @$in@ variable, but
+<span class="lineno">  282 </span>    --   are only rebuilt if there is at least one non-order-only dependency
+<span class="lineno">  283 </span>    --   that is out of date.
+<span class="lineno">  284 </span>    --
+<span class="lineno">  285 </span>    --   FIXME: double check this interpretation of the Ninja manual
+<span class="lineno">  286 </span>    --
+<span class="lineno">  287 </span>    --   @since 0.1.0
+<span class="lineno">  288 </span>    OrderOnlyDependency
+<span class="lineno">  289 </span>  deriving (<span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Ord</span></span></span></span></span></span></span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Read</span></span></span></span></span></span>, Generic)
+<span class="lineno">  290 </span>
+<span class="lineno">  291 </span>-- | A prism for the 'NormalDependency' constructor.
+<span class="lineno">  292 </span>--
+<span class="lineno">  293 </span>--   @since 0.1.0
+<span class="lineno">  294 </span>{-# INLINE _NormalDependency #-}
+<span class="lineno">  295 </span>_NormalDependency :: Lens.Prism' DependencyType ()
+<span class="lineno">  296 </span><span class="decl"><span class="istickedoff">_NormalDependency = Lens.prism' (const NormalDependency)</span>
+<span class="lineno">  297 </span><span class="spaces">                    </span><span class="istickedoff">$ \case NormalDependency -&gt; Just ()</span>
+<span class="lineno">  298 </span><span class="spaces">                            </span><span class="istickedoff">_                -&gt; Nothing</span></span>
+<span class="lineno">  299 </span>
+<span class="lineno">  300 </span>-- | A prism for the 'OrderOnlyDependency' constructor.
+<span class="lineno">  301 </span>--
+<span class="lineno">  302 </span>--   @since 0.1.0
+<span class="lineno">  303 </span>{-# INLINE _OrderOnlyDependency #-}
+<span class="lineno">  304 </span>_OrderOnlyDependency :: Lens.Prism' DependencyType ()
+<span class="lineno">  305 </span><span class="decl"><span class="istickedoff">_OrderOnlyDependency = Lens.prism' (const OrderOnlyDependency)</span>
+<span class="lineno">  306 </span><span class="spaces">                       </span><span class="istickedoff">$ \case OrderOnlyDependency -&gt; Just ()</span>
+<span class="lineno">  307 </span><span class="spaces">                               </span><span class="istickedoff">_                   -&gt; Nothing</span></span>
+<span class="lineno">  308 </span>
+<span class="lineno">  309 </span>-- | Converts to @&quot;normal&quot;@, @&quot;implicit&quot;@, and @&quot;order-only&quot;@ respectively.
+<span class="lineno">  310 </span>--
+<span class="lineno">  311 </span>--   @since 0.1.0
+<span class="lineno">  312 </span>instance Aeson.ToJSON DependencyType where
+<span class="lineno">  313 </span>  <span class="decl"><span class="istickedoff">toJSON NormalDependency    = &quot;normal&quot;</span>
+<span class="lineno">  314 </span><span class="spaces">  </span><span class="istickedoff">toJSON OrderOnlyDependency = &quot;order-only&quot;</span></span>
+<span class="lineno">  315 </span>
+<span class="lineno">  316 </span>-- | Inverse of the 'Aeson.ToJSON' instance.
+<span class="lineno">  317 </span>--
+<span class="lineno">  318 </span>--   @since 0.1.0
+<span class="lineno">  319 </span>instance Aeson.FromJSON DependencyType where
+<span class="lineno">  320 </span>  <span class="decl"><span class="istickedoff">parseJSON = (Aeson.withText <span class="nottickedoff">&quot;DependencyType&quot;</span> $ \case</span>
+<span class="lineno">  321 </span><span class="spaces">                  </span><span class="istickedoff">&quot;normal&quot;     -&gt; pure NormalDependency</span>
+<span class="lineno">  322 </span><span class="spaces">                  </span><span class="istickedoff">&quot;order-only&quot; -&gt; pure OrderOnlyDependency</span>
+<span class="lineno">  323 </span><span class="spaces">                  </span><span class="istickedoff">owise        -&gt; <span class="nottickedoff">[ &quot;Invalid dependency type &quot;</span></span>
+<span class="lineno">  324 </span><span class="spaces">                                  </span><span class="istickedoff"><span class="nottickedoff">, &quot;\&quot;&quot;, owise, &quot;\&quot;; should be one of &quot;</span></span>
+<span class="lineno">  325 </span><span class="spaces">                                  </span><span class="istickedoff"><span class="nottickedoff">, &quot;[\&quot;normal\&quot;, \&quot;order-only\&quot;]&quot;</span></span>
+<span class="lineno">  326 </span><span class="spaces">                                  </span><span class="istickedoff"><span class="nottickedoff">] |&gt; mconcat |&gt; Text.unpack |&gt; fail</span>)</span></span>
+<span class="lineno">  327 </span>
+<span class="lineno">  328 </span>-- | Default 'Hashable' instance via 'Generic'.
+<span class="lineno">  329 </span>--
+<span class="lineno">  330 </span>--   @since 0.1.0
+<span class="lineno">  331 </span>instance Hashable DependencyType
+<span class="lineno">  332 </span>
+<span class="lineno">  333 </span>-- | Default 'NFData' instance via 'Generic'.
+<span class="lineno">  334 </span>--
+<span class="lineno">  335 </span>--   @since 0.1.0
+<span class="lineno">  336 </span>instance NFData DependencyType
+<span class="lineno">  337 </span>
+<span class="lineno">  338 </span>-- | Default 'SC.Serial' instance via 'Generic'.
+<span class="lineno">  339 </span>--
+<span class="lineno">  340 </span>--   @since 0.1.0
+<span class="lineno">  341 </span>instance (Monad m) =&gt; SC.Serial m DependencyType
+<span class="lineno">  342 </span>
+<span class="lineno">  343 </span>-- | Default 'SC.CoSerial' instance via 'Generic'.
+<span class="lineno">  344 </span>--
+<span class="lineno">  345 </span>--   @since 0.1.0
+<span class="lineno">  346 </span>instance (Monad m) =&gt; SC.CoSerial m DependencyType
+<span class="lineno">  347 </span>
+<span class="lineno">  348 </span>--------------------------------------------------------------------------------
+
+</pre>
+</body>
+</html>

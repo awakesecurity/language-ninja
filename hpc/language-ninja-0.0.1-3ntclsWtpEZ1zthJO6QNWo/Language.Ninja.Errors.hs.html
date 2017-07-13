@@ -1,0 +1,173 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style type="text/css">
+span.lineno { color: white; background: #aaaaaa; border-right: solid white 12px }
+span.nottickedoff { background: yellow}
+span.istickedoff { background: white }
+span.tickonlyfalse { margin: -1px; border: 1px solid #f20913; background: #f20913 }
+span.tickonlytrue  { margin: -1px; border: 1px solid #60de51; background: #60de51 }
+span.funcount { font-size: small; color: orange; z-index: 2; position: absolute; right: 20 }
+span.decl { font-weight: bold }
+span.spaces    { background: white }
+</style>
+</head>
+<body>
+<pre>
+<span class="lineno">    1 </span>-- -*- coding: utf-8; mode: haskell; -*-
+<span class="lineno">    2 </span>
+<span class="lineno">    3 </span>-- File: library/Language/Ninja/Errors.hs
+<span class="lineno">    4 </span>--
+<span class="lineno">    5 </span>-- License:
+<span class="lineno">    6 </span>--     Copyright 2017 Awake Security
+<span class="lineno">    7 </span>--
+<span class="lineno">    8 </span>--     Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<span class="lineno">    9 </span>--     you may not use this file except in compliance with the License.
+<span class="lineno">   10 </span>--     You may obtain a copy of the License at
+<span class="lineno">   11 </span>--
+<span class="lineno">   12 </span>--       http://www.apache.org/licenses/LICENSE-2.0
+<span class="lineno">   13 </span>--
+<span class="lineno">   14 </span>--     Unless required by applicable law or agreed to in writing, software
+<span class="lineno">   15 </span>--     distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<span class="lineno">   16 </span>--     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<span class="lineno">   17 </span>--     See the License for the specific language governing permissions and
+<span class="lineno">   18 </span>--     limitations under the License.
+<span class="lineno">   19 </span>
+<span class="lineno">   20 </span>{-# OPTIONS_GHC -fno-warn-missing-import-lists #-}
+<span class="lineno">   21 </span>
+<span class="lineno">   22 </span>{-# LANGUAGE DeriveGeneric         #-}
+<span class="lineno">   23 </span>{-# LANGUAGE FlexibleContexts      #-}
+<span class="lineno">   24 </span>{-# LANGUAGE MultiParamTypeClasses #-}
+<span class="lineno">   25 </span>
+<span class="lineno">   26 </span>-- |
+<span class="lineno">   27 </span>--   Module      : Language.Ninja.Errors
+<span class="lineno">   28 </span>--   Copyright   : Copyright 2017 Awake Security
+<span class="lineno">   29 </span>--   License     : Apache-2.0
+<span class="lineno">   30 </span>--   Maintainer  : opensource@awakesecurity.com
+<span class="lineno">   31 </span>--   Stability   : experimental
+<span class="lineno">   32 </span>--
+<span class="lineno">   33 </span>--   This module re-exports all of the modules under the &quot;Language.Ninja.Errors&quot;
+<span class="lineno">   34 </span>--   namespace for convenience.
+<span class="lineno">   35 </span>--
+<span class="lineno">   36 </span>--   It is recommended that you import it with the following style:
+<span class="lineno">   37 </span>--
+<span class="lineno">   38 </span>--   &gt; import qualified Language.Ninja.Errors as Errors
+<span class="lineno">   39 </span>--
+<span class="lineno">   40 </span>--   @since 0.1.0
+<span class="lineno">   41 </span>module Language.Ninja.Errors
+<span class="lineno">   42 </span>  ( -- * &quot;Language.Ninja.Errors&quot;
+<span class="lineno">   43 </span>    NinjaError (..)
+<span class="lineno">   44 </span>  , throwNinjaError
+<span class="lineno">   45 </span>  , throwGenericNinjaError
+<span class="lineno">   46 </span>  , throwNinjaParseError
+<span class="lineno">   47 </span>  , throwNinjaCompileError
+<span class="lineno">   48 </span>
+<span class="lineno">   49 </span>    -- * &quot;Language.Ninja.Errors.Compile&quot;
+<span class="lineno">   50 </span>  , CompileError (..)
+<span class="lineno">   51 </span>  , throwCompileError
+<span class="lineno">   52 </span>  , throwGenericCompileError
+<span class="lineno">   53 </span>
+<span class="lineno">   54 </span>  , CompileMetaError (..)
+<span class="lineno">   55 </span>  , throwCompileMetaError
+<span class="lineno">   56 </span>  , throwGenericCompileMetaError
+<span class="lineno">   57 </span>  , throwVersionParseFailure
+<span class="lineno">   58 </span>
+<span class="lineno">   59 </span>  , CompilePhonyError (..)
+<span class="lineno">   60 </span>  , throwCompilePhonyError
+<span class="lineno">   61 </span>  , throwGenericCompilePhonyError
+<span class="lineno">   62 </span>
+<span class="lineno">   63 </span>  , CompileDefaultError (..)
+<span class="lineno">   64 </span>  , throwCompileDefaultError
+<span class="lineno">   65 </span>  , throwGenericCompileDefaultError
+<span class="lineno">   66 </span>
+<span class="lineno">   67 </span>  , CompileBuildError (..)
+<span class="lineno">   68 </span>  , throwCompileBuildError
+<span class="lineno">   69 </span>  , throwGenericCompileBuildError
+<span class="lineno">   70 </span>  , throwBuildRuleNotFound
+<span class="lineno">   71 </span>
+<span class="lineno">   72 </span>  , CompileRuleError (..)
+<span class="lineno">   73 </span>  , throwCompileRuleError
+<span class="lineno">   74 </span>  , throwGenericCompileRuleError
+<span class="lineno">   75 </span>  , throwRuleLookupFailure
+<span class="lineno">   76 </span>  , throwUnknownDeps
+<span class="lineno">   77 </span>  , throwUnexpectedMSVCPrefix
+<span class="lineno">   78 </span>
+<span class="lineno">   79 </span>  , CompilePoolError (..)
+<span class="lineno">   80 </span>  , throwCompilePoolError
+<span class="lineno">   81 </span>  , throwGenericCompilePoolError
+<span class="lineno">   82 </span>  , throwInvalidPoolDepth
+<span class="lineno">   83 </span>  , throwEmptyPoolName
+<span class="lineno">   84 </span>
+<span class="lineno">   85 </span>    -- * &quot;Language.Ninja.Errors.Parser&quot;
+<span class="lineno">   86 </span>  , ParseError (..)
+<span class="lineno">   87 </span>  , throwParseError
+<span class="lineno">   88 </span>  , throwGenericParseError
+<span class="lineno">   89 </span>  , throwLexBindingFailure
+<span class="lineno">   90 </span>  , throwLexExpectedColon
+<span class="lineno">   91 </span>  , throwLexUnexpectedDollar
+<span class="lineno">   92 </span>  , throwLexUnexpectedSeparator
+<span class="lineno">   93 </span>  , throwLexParsecError
+<span class="lineno">   94 </span>  , throwParseBadDepthField
+<span class="lineno">   95 </span>  , throwParseUnexpectedBinding
+<span class="lineno">   96 </span>  ) where
+<span class="lineno">   97 </span>
+<span class="lineno">   98 </span>import           Language.Ninja.Errors.Compile
+<span class="lineno">   99 </span>import           Language.Ninja.Errors.Parser
+<span class="lineno">  100 </span>
+<span class="lineno">  101 </span>import           Control.Exception             (Exception)
+<span class="lineno">  102 </span>import           Control.Monad.Error.Class     (MonadError (..))
+<span class="lineno">  103 </span>import           Data.Text                     (Text)
+<span class="lineno">  104 </span>import           GHC.Generics                  (Generic)
+<span class="lineno">  105 </span>
+<span class="lineno">  106 </span>--------------------------------------------------------------------------------
+<span class="lineno">  107 </span>
+<span class="lineno">  108 </span>-- | This type subsumes any error that can be thrown during execution of a
+<span class="lineno">  109 </span>--   function defined in @language-ninja@.
+<span class="lineno">  110 </span>--
+<span class="lineno">  111 </span>--   @since 0.1.0
+<span class="lineno">  112 </span>data NinjaError
+<span class="lineno">  113 </span>  = -- | Generic catch-all error constructor. Avoid using this.
+<span class="lineno">  114 </span>    --
+<span class="lineno">  115 </span>    --   @since 0.1.0
+<span class="lineno">  116 </span>    GenericNinjaError !Text
+<span class="lineno">  117 </span>  | -- | Errors encountered during parsing.
+<span class="lineno">  118 </span>    --
+<span class="lineno">  119 </span>    --   @since 0.1.0
+<span class="lineno">  120 </span>    NinjaParseError   !ParseError
+<span class="lineno">  121 </span>  | -- | Errors encountered during compilation.
+<span class="lineno">  122 </span>    --
+<span class="lineno">  123 </span>    --   @since 0.1.0
+<span class="lineno">  124 </span>    NinjaCompileError !CompileError
+<span class="lineno">  125 </span>  deriving (<span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, Generic)
+<span class="lineno">  126 </span>
+<span class="lineno">  127 </span>instance Exception NinjaError
+<span class="lineno">  128 </span>
+<span class="lineno">  129 </span>-- | Throw a 'NinjaError'.
+<span class="lineno">  130 </span>--
+<span class="lineno">  131 </span>--   @since 0.1.0
+<span class="lineno">  132 </span>throwNinjaError :: (MonadError NinjaError m) =&gt; NinjaError -&gt; m a
+<span class="lineno">  133 </span><span class="decl"><span class="nottickedoff">throwNinjaError = throwError</span></span>
+<span class="lineno">  134 </span>
+<span class="lineno">  135 </span>-- | Throw a generic catch-all 'NinjaError'.
+<span class="lineno">  136 </span>--
+<span class="lineno">  137 </span>--   @since 0.1.0
+<span class="lineno">  138 </span>throwGenericNinjaError :: (MonadError NinjaError m) =&gt; Text -&gt; m a
+<span class="lineno">  139 </span><span class="decl"><span class="nottickedoff">throwGenericNinjaError msg = throwNinjaError (GenericNinjaError msg)</span></span>
+<span class="lineno">  140 </span>
+<span class="lineno">  141 </span>-- | Throw a 'ParseError'.
+<span class="lineno">  142 </span>--
+<span class="lineno">  143 </span>--   @since 0.1.0
+<span class="lineno">  144 </span>throwNinjaParseError :: (MonadError NinjaError m) =&gt; ParseError -&gt; m a
+<span class="lineno">  145 </span><span class="decl"><span class="nottickedoff">throwNinjaParseError e = throwNinjaError (NinjaParseError e)</span></span>
+<span class="lineno">  146 </span>
+<span class="lineno">  147 </span>-- | Throw a 'CompileError'.
+<span class="lineno">  148 </span>--
+<span class="lineno">  149 </span>--   @since 0.1.0
+<span class="lineno">  150 </span>throwNinjaCompileError :: (MonadError NinjaError m) =&gt; CompileError -&gt; m a
+<span class="lineno">  151 </span><span class="decl"><span class="nottickedoff">throwNinjaCompileError e = throwNinjaError (NinjaCompileError e)</span></span>
+<span class="lineno">  152 </span>
+<span class="lineno">  153 </span>--------------------------------------------------------------------------------
+
+</pre>
+</body>
+</html>

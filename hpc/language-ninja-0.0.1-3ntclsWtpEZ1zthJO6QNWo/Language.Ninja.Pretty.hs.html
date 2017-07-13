@@ -1,0 +1,188 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style type="text/css">
+span.lineno { color: white; background: #aaaaaa; border-right: solid white 12px }
+span.nottickedoff { background: yellow}
+span.istickedoff { background: white }
+span.tickonlyfalse { margin: -1px; border: 1px solid #f20913; background: #f20913 }
+span.tickonlytrue  { margin: -1px; border: 1px solid #60de51; background: #60de51 }
+span.funcount { font-size: small; color: orange; z-index: 2; position: absolute; right: 20 }
+span.decl { font-weight: bold }
+span.spaces    { background: white }
+</style>
+</head>
+<body>
+<pre>
+<span class="lineno">    1 </span>-- -*- coding: utf-8; mode: haskell; -*-
+<span class="lineno">    2 </span>
+<span class="lineno">    3 </span>-- File: library/Language/Ninja/Pretty.hs
+<span class="lineno">    4 </span>--
+<span class="lineno">    5 </span>-- License:
+<span class="lineno">    6 </span>--     Copyright 2017 Awake Security
+<span class="lineno">    7 </span>--
+<span class="lineno">    8 </span>--     Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<span class="lineno">    9 </span>--     you may not use this file except in compliance with the License.
+<span class="lineno">   10 </span>--     You may obtain a copy of the License at
+<span class="lineno">   11 </span>--
+<span class="lineno">   12 </span>--       http://www.apache.org/licenses/LICENSE-2.0
+<span class="lineno">   13 </span>--
+<span class="lineno">   14 </span>--     Unless required by applicable law or agreed to in writing, software
+<span class="lineno">   15 </span>--     distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<span class="lineno">   16 </span>--     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<span class="lineno">   17 </span>--     See the License for the specific language governing permissions and
+<span class="lineno">   18 </span>--     limitations under the License.
+<span class="lineno">   19 </span>
+<span class="lineno">   20 </span>{-# LANGUAGE OverloadedStrings #-}
+<span class="lineno">   21 </span>
+<span class="lineno">   22 </span>-- |
+<span class="lineno">   23 </span>--   Module      : Language.Ninja.Pretty
+<span class="lineno">   24 </span>--   Copyright   : Copyright 2017 Awake Security
+<span class="lineno">   25 </span>--   License     : Apache-2.0
+<span class="lineno">   26 </span>--   Maintainer  : opensource@awakesecurity.com
+<span class="lineno">   27 </span>--   Stability   : experimental
+<span class="lineno">   28 </span>--
+<span class="lineno">   29 </span>--   A rudimentary pretty-printer for 'AST.Ninja'.
+<span class="lineno">   30 </span>--
+<span class="lineno">   31 </span>--   @since 0.1.0
+<span class="lineno">   32 </span>module Language.Ninja.Pretty
+<span class="lineno">   33 </span>  ( -- * Pretty-printers
+<span class="lineno">   34 </span>    prettyNinja
+<span class="lineno">   35 </span>  , prettyExpr
+<span class="lineno">   36 </span>  , prettyRule
+<span class="lineno">   37 </span>  , prettySingle
+<span class="lineno">   38 </span>  , prettyMultiple
+<span class="lineno">   39 </span>  , prettyPhony
+<span class="lineno">   40 </span>  , prettyDefault
+<span class="lineno">   41 </span>  , prettyPool
+<span class="lineno">   42 </span>  , prettyBind
+<span class="lineno">   43 </span>  ) where
+<span class="lineno">   44 </span>
+<span class="lineno">   45 </span>import           Control.Arrow       (second)
+<span class="lineno">   46 </span>
+<span class="lineno">   47 </span>import qualified Control.Lens        as Lens
+<span class="lineno">   48 </span>
+<span class="lineno">   49 </span>import qualified Language.Ninja.AST  as AST
+<span class="lineno">   50 </span>
+<span class="lineno">   51 </span>import qualified Data.HashMap.Strict as HM
+<span class="lineno">   52 </span>
+<span class="lineno">   53 </span>import           Data.HashSet        (HashSet)
+<span class="lineno">   54 </span>import qualified Data.HashSet        as HS
+<span class="lineno">   55 </span>
+<span class="lineno">   56 </span>import           Data.Text           (Text)
+<span class="lineno">   57 </span>import qualified Data.Text           as Text
+<span class="lineno">   58 </span>
+<span class="lineno">   59 </span>import           Data.Char           (isSpace)
+<span class="lineno">   60 </span>import           Data.Monoid         ((&lt;&gt;))
+<span class="lineno">   61 </span>
+<span class="lineno">   62 </span>import           Flow                ((.&gt;), (|&gt;))
+<span class="lineno">   63 </span>
+<span class="lineno">   64 </span>--------------------------------------------------------------------------------
+<span class="lineno">   65 </span>
+<span class="lineno">   66 </span>-- | Pretty-print a 'AST.Ninja'.
+<span class="lineno">   67 </span>--
+<span class="lineno">   68 </span>--   @since 0.1.0
+<span class="lineno">   69 </span>prettyNinja :: AST.Ninja () -&gt; Text
+<span class="lineno">   70 </span><span class="decl"><span class="istickedoff">prettyNinja ninja</span>
+<span class="lineno">   71 </span><span class="spaces">  </span><span class="istickedoff">= [ map prettyRule     (HM.toList (Lens.view AST.ninjaRules     ninja))</span>
+<span class="lineno">   72 </span><span class="spaces">    </span><span class="istickedoff">, map prettySingle   (HM.toList (Lens.view AST.ninjaSingles   ninja))</span>
+<span class="lineno">   73 </span><span class="spaces">    </span><span class="istickedoff">, map prettyMultiple (HM.toList (Lens.view AST.ninjaMultiples ninja))</span>
+<span class="lineno">   74 </span><span class="spaces">    </span><span class="istickedoff">, map prettyPhony    (HM.toList (Lens.view AST.ninjaPhonys    ninja))</span>
+<span class="lineno">   75 </span><span class="spaces">    </span><span class="istickedoff">, map prettyDefault  (HS.toList (Lens.view AST.ninjaDefaults  ninja))</span>
+<span class="lineno">   76 </span><span class="spaces">    </span><span class="istickedoff">, map <span class="nottickedoff">prettyPool</span>     (HM.toList (Lens.view AST.ninjaPools     ninja))</span>
+<span class="lineno">   77 </span><span class="spaces">    </span><span class="istickedoff">] |&gt; mconcat |&gt; mconcat</span></span>
+<span class="lineno">   78 </span>
+<span class="lineno">   79 </span>-- | Pretty-print an 'AST.Expr'
+<span class="lineno">   80 </span>--
+<span class="lineno">   81 </span>--   @since 0.1.0
+<span class="lineno">   82 </span>prettyExpr :: AST.Expr () -&gt; Text
+<span class="lineno">   83 </span><span class="decl"><span class="istickedoff">prettyExpr = go .&gt; mconcat</span>
+<span class="lineno">   84 </span><span class="spaces">  </span><span class="istickedoff">where</span>
+<span class="lineno">   85 </span><span class="spaces">    </span><span class="istickedoff">go (AST.Exprs _   es) = map prettyExpr es</span>
+<span class="lineno">   86 </span><span class="spaces">    </span><span class="istickedoff">go (AST.Lit   _ text) = [text]</span>
+<span class="lineno">   87 </span><span class="spaces">    </span><span class="istickedoff">go (AST.Var   _ name) = [&quot;${&quot;, name, &quot;}&quot;]</span></span>
+<span class="lineno">   88 </span>
+<span class="lineno">   89 </span>-- | Pretty-print a Ninja @rule@ declaration.
+<span class="lineno">   90 </span>--
+<span class="lineno">   91 </span>--   @since 0.1.0
+<span class="lineno">   92 </span>prettyRule :: (Text, AST.Rule ()) -&gt; Text
+<span class="lineno">   93 </span><span class="decl"><span class="istickedoff">prettyRule (name, rule) = do</span>
+<span class="lineno">   94 </span><span class="spaces">  </span><span class="istickedoff">let binds = Lens.view AST.ruleBind rule</span>
+<span class="lineno">   95 </span><span class="spaces">              </span><span class="istickedoff">|&gt; HM.toList</span>
+<span class="lineno">   96 </span><span class="spaces">              </span><span class="istickedoff">|&gt; map (second prettyExpr .&gt; prettyBind)</span>
+<span class="lineno">   97 </span><span class="spaces">              </span><span class="istickedoff">|&gt; mconcat</span>
+<span class="lineno">   98 </span><span class="spaces">  </span><span class="istickedoff">mconcat [&quot;rule &quot;, name, &quot;\n&quot;, binds]</span></span>
+<span class="lineno">   99 </span>
+<span class="lineno">  100 </span>-- | Pretty-print a Ninja @build@ declaration with one output.
+<span class="lineno">  101 </span>--
+<span class="lineno">  102 </span>--   @since 0.1.0
+<span class="lineno">  103 </span>prettySingle :: (Text, AST.Build ()) -&gt; Text
+<span class="lineno">  104 </span><span class="decl"><span class="istickedoff">prettySingle (output, build) = prettyMultiple (HS.singleton output, build)</span></span>
+<span class="lineno">  105 </span>
+<span class="lineno">  106 </span>-- | Pretty-print a Ninja @build@ declaration with multiple outputs.
+<span class="lineno">  107 </span>--
+<span class="lineno">  108 </span>--   @since 0.1.0
+<span class="lineno">  109 </span>prettyMultiple :: (HashSet Text, AST.Build ()) -&gt; Text
+<span class="lineno">  110 </span><span class="decl"><span class="istickedoff">prettyMultiple (outputs, build) = do</span>
+<span class="lineno">  111 </span><span class="spaces">  </span><span class="istickedoff">let prefixIfThere :: Text -&gt; Text -&gt; Text</span>
+<span class="lineno">  112 </span><span class="spaces">      </span><span class="istickedoff">prefixIfThere pfx rest = if Text.all isSpace rest then &quot;&quot; else pfx &lt;&gt; rest</span>
+<span class="lineno">  113 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  114 </span><span class="spaces">  </span><span class="istickedoff">let unwordsSet :: HashSet Text -&gt; Text</span>
+<span class="lineno">  115 </span><span class="spaces">      </span><span class="istickedoff">unwordsSet = HS.toList .&gt; Text.unwords</span>
+<span class="lineno">  116 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  117 </span><span class="spaces">  </span><span class="istickedoff">let ruleName  = Lens.view AST.buildRule build</span>
+<span class="lineno">  118 </span><span class="spaces">  </span><span class="istickedoff">let deps      = Lens.view AST.buildDeps build</span>
+<span class="lineno">  119 </span><span class="spaces">  </span><span class="istickedoff">let binds     = Lens.view AST.buildBind build</span>
+<span class="lineno">  120 </span><span class="spaces">  </span><span class="istickedoff">let normal    = Lens.view AST.depsNormal    deps</span>
+<span class="lineno">  121 </span><span class="spaces">  </span><span class="istickedoff">let implicit  = Lens.view AST.depsImplicit  deps</span>
+<span class="lineno">  122 </span><span class="spaces">  </span><span class="istickedoff">let orderOnly = Lens.view AST.depsOrderOnly deps</span>
+<span class="lineno">  123 </span><span class="spaces"></span><span class="istickedoff"></span>
+<span class="lineno">  124 </span><span class="spaces">  </span><span class="istickedoff">mconcat</span>
+<span class="lineno">  125 </span><span class="spaces">    </span><span class="istickedoff">[ &quot;build &quot;, Text.unwords (HS.toList outputs), &quot;: &quot;</span>
+<span class="lineno">  126 </span><span class="spaces">    </span><span class="istickedoff">, ruleName, &quot; &quot;, unwordsSet normal</span>
+<span class="lineno">  127 </span><span class="spaces">    </span><span class="istickedoff">, prefixIfThere &quot; | &quot;  (unwordsSet implicit)</span>
+<span class="lineno">  128 </span><span class="spaces">    </span><span class="istickedoff">, prefixIfThere &quot; || &quot; (unwordsSet orderOnly), &quot;\n&quot;</span>
+<span class="lineno">  129 </span><span class="spaces">    </span><span class="istickedoff">, HM.toList binds |&gt; map prettyBind |&gt; mconcat</span>
+<span class="lineno">  130 </span><span class="spaces">    </span><span class="istickedoff">]</span></span>
+<span class="lineno">  131 </span>
+<span class="lineno">  132 </span>-- | Pretty-print a Ninja phony @build@ declaration.
+<span class="lineno">  133 </span>--
+<span class="lineno">  134 </span>--   @since 0.1.0
+<span class="lineno">  135 </span>prettyPhony :: (Text, HashSet Text) -&gt; Text
+<span class="lineno">  136 </span><span class="decl"><span class="istickedoff">prettyPhony (name, inputs)</span>
+<span class="lineno">  137 </span><span class="spaces">  </span><span class="istickedoff">= [ [&quot;build &quot;, name, &quot;: phony &quot;, Text.unwords (HS.toList inputs)]</span>
+<span class="lineno">  138 </span><span class="spaces">    </span><span class="istickedoff">] |&gt; map mconcat |&gt; Text.unlines</span></span>
+<span class="lineno">  139 </span>
+<span class="lineno">  140 </span>-- | Pretty-print a Ninja @default@ declaration.
+<span class="lineno">  141 </span>--
+<span class="lineno">  142 </span>--   @since 0.1.0
+<span class="lineno">  143 </span>prettyDefault :: Text -&gt; Text
+<span class="lineno">  144 </span><span class="decl"><span class="istickedoff">prettyDefault target</span>
+<span class="lineno">  145 </span><span class="spaces">  </span><span class="istickedoff">= [ [&quot;default &quot;, target]</span>
+<span class="lineno">  146 </span><span class="spaces">    </span><span class="istickedoff">] |&gt; map mconcat |&gt; Text.unlines</span></span>
+<span class="lineno">  147 </span>
+<span class="lineno">  148 </span>-- | Pretty-print a Ninja @pool@ declaration.
+<span class="lineno">  149 </span>--
+<span class="lineno">  150 </span>--   @since 0.1.0
+<span class="lineno">  151 </span>prettyPool :: (Text, Int) -&gt; Text
+<span class="lineno">  152 </span><span class="decl"><span class="nottickedoff">prettyPool (name, depth)</span>
+<span class="lineno">  153 </span><span class="spaces">  </span><span class="nottickedoff">= [ [&quot;pool &quot;, name]</span>
+<span class="lineno">  154 </span><span class="spaces">    </span><span class="nottickedoff">, [&quot;    depth = &quot;, tshow depth]</span>
+<span class="lineno">  155 </span><span class="spaces">    </span><span class="nottickedoff">] |&gt; map mconcat |&gt; Text.unlines</span></span>
+<span class="lineno">  156 </span>
+<span class="lineno">  157 </span>-- | Pretty-print a Ninja indented binding.
+<span class="lineno">  158 </span>--
+<span class="lineno">  159 </span>--   @since 0.1.0
+<span class="lineno">  160 </span>prettyBind :: (Text, Text) -&gt; Text
+<span class="lineno">  161 </span><span class="decl"><span class="istickedoff">prettyBind (name, value) = mconcat [&quot;    &quot;, name, &quot; = &quot;, value, &quot;\n&quot;]</span></span>
+<span class="lineno">  162 </span>
+<span class="lineno">  163 </span>--------------------------------------------------------------------------------
+<span class="lineno">  164 </span>
+<span class="lineno">  165 </span>tshow :: (Show s) =&gt; s -&gt; Text
+<span class="lineno">  166 </span><span class="decl"><span class="nottickedoff">tshow = show .&gt; Text.pack</span></span>
+<span class="lineno">  167 </span>
+<span class="lineno">  168 </span>--------------------------------------------------------------------------------
+
+</pre>
+</body>
+</html>

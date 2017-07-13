@@ -1,0 +1,225 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style type="text/css">
+span.lineno { color: white; background: #aaaaaa; border-right: solid white 12px }
+span.nottickedoff { background: yellow}
+span.istickedoff { background: white }
+span.tickonlyfalse { margin: -1px; border: 1px solid #f20913; background: #f20913 }
+span.tickonlytrue  { margin: -1px; border: 1px solid #60de51; background: #60de51 }
+span.funcount { font-size: small; color: orange; z-index: 2; position: absolute; right: 20 }
+span.decl { font-weight: bold }
+span.spaces    { background: white }
+</style>
+</head>
+<body>
+<pre>
+<span class="lineno">    1 </span>-- -*- coding: utf-8; mode: haskell; -*-
+<span class="lineno">    2 </span>
+<span class="lineno">    3 </span>-- File: library/Language/Ninja/IR/Ninja.hs
+<span class="lineno">    4 </span>--
+<span class="lineno">    5 </span>-- License:
+<span class="lineno">    6 </span>--     Copyright 2017 Awake Security
+<span class="lineno">    7 </span>--
+<span class="lineno">    8 </span>--     Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<span class="lineno">    9 </span>--     you may not use this file except in compliance with the License.
+<span class="lineno">   10 </span>--     You may obtain a copy of the License at
+<span class="lineno">   11 </span>--
+<span class="lineno">   12 </span>--       http://www.apache.org/licenses/LICENSE-2.0
+<span class="lineno">   13 </span>--
+<span class="lineno">   14 </span>--     Unless required by applicable law or agreed to in writing, software
+<span class="lineno">   15 </span>--     distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<span class="lineno">   16 </span>--     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<span class="lineno">   17 </span>--     See the License for the specific language governing permissions and
+<span class="lineno">   18 </span>--     limitations under the License.
+<span class="lineno">   19 </span>
+<span class="lineno">   20 </span>{-# LANGUAGE ConstraintKinds       #-}
+<span class="lineno">   21 </span>{-# LANGUAGE DeriveGeneric         #-}
+<span class="lineno">   22 </span>{-# LANGUAGE FlexibleContexts      #-}
+<span class="lineno">   23 </span>{-# LANGUAGE FlexibleInstances     #-}
+<span class="lineno">   24 </span>{-# LANGUAGE KindSignatures        #-}
+<span class="lineno">   25 </span>{-# LANGUAGE MultiParamTypeClasses #-}
+<span class="lineno">   26 </span>{-# LANGUAGE OverloadedStrings     #-}
+<span class="lineno">   27 </span>{-# LANGUAGE RecordWildCards       #-}
+<span class="lineno">   28 </span>{-# LANGUAGE UndecidableInstances  #-}
+<span class="lineno">   29 </span>
+<span class="lineno">   30 </span>-- |
+<span class="lineno">   31 </span>--   Module      : Language.Ninja.IR.Ninja
+<span class="lineno">   32 </span>--   Copyright   : Copyright 2017 Awake Security
+<span class="lineno">   33 </span>--   License     : Apache-2.0
+<span class="lineno">   34 </span>--   Maintainer  : opensource@awakesecurity.com
+<span class="lineno">   35 </span>--   Stability   : experimental
+<span class="lineno">   36 </span>--
+<span class="lineno">   37 </span>--   A datatype representing the intermediate representation of a Ninja file
+<span class="lineno">   38 </span>--   after compilation.
+<span class="lineno">   39 </span>--
+<span class="lineno">   40 </span>--   @since 0.1.0
+<span class="lineno">   41 </span>module Language.Ninja.IR.Ninja
+<span class="lineno">   42 </span>  ( -- * @Ninja@
+<span class="lineno">   43 </span>    Ninja, makeNinja
+<span class="lineno">   44 </span>  , ninjaMeta, ninjaBuilds, ninjaPhonys, ninjaDefaults, ninjaPools
+<span class="lineno">   45 </span>  , NinjaConstraint
+<span class="lineno">   46 </span>  ) where
+<span class="lineno">   47 </span>
+<span class="lineno">   48 </span>import qualified Control.Lens             as Lens
+<span class="lineno">   49 </span>
+<span class="lineno">   50 </span>import           Data.Text                (Text)
+<span class="lineno">   51 </span>
+<span class="lineno">   52 </span>import           Data.HashMap.Strict      (HashMap)
+<span class="lineno">   53 </span>import qualified Data.HashMap.Strict      as HM
+<span class="lineno">   54 </span>
+<span class="lineno">   55 </span>import           Data.HashSet             (HashSet)
+<span class="lineno">   56 </span>import qualified Data.HashSet             as HS
+<span class="lineno">   57 </span>
+<span class="lineno">   58 </span>import           Data.Aeson               ((.:), (.=))
+<span class="lineno">   59 </span>import qualified Data.Aeson               as Aeson
+<span class="lineno">   60 </span>
+<span class="lineno">   61 </span>import qualified Data.Versions            as Ver
+<span class="lineno">   62 </span>
+<span class="lineno">   63 </span>import           Control.DeepSeq          (NFData)
+<span class="lineno">   64 </span>import           Data.Hashable            (Hashable)
+<span class="lineno">   65 </span>import           GHC.Generics             (Generic)
+<span class="lineno">   66 </span>import qualified Test.SmallCheck.Series   as SC
+<span class="lineno">   67 </span>
+<span class="lineno">   68 </span>import           GHC.Exts                 (Constraint)
+<span class="lineno">   69 </span>
+<span class="lineno">   70 </span>import           Language.Ninja.IR.Build  (Build)
+<span class="lineno">   71 </span>import           Language.Ninja.IR.Meta   (Meta)
+<span class="lineno">   72 </span>import qualified Language.Ninja.IR.Meta   as Ninja
+<span class="lineno">   73 </span>import           Language.Ninja.IR.Pool   (Pool)
+<span class="lineno">   74 </span>import           Language.Ninja.IR.Target (Target)
+<span class="lineno">   75 </span>
+<span class="lineno">   76 </span>import           Flow                     ((|&gt;))
+<span class="lineno">   77 </span>
+<span class="lineno">   78 </span>--------------------------------------------------------------------------------
+<span class="lineno">   79 </span>
+<span class="lineno">   80 </span>-- | A parsed and normalized Ninja file.
+<span class="lineno">   81 </span>--
+<span class="lineno">   82 </span>--   @since 0.1.0
+<span class="lineno">   83 </span>data Ninja
+<span class="lineno">   84 </span>  = MkNinja
+<span class="lineno">   85 </span>    { <span class="nottickedoff"><span class="decl"><span class="nottickedoff">_ninjaMeta</span></span></span>     :: !Meta
+<span class="lineno">   86 </span>    , <span class="nottickedoff"><span class="decl"><span class="nottickedoff">_ninjaBuilds</span></span></span>   :: !(HashSet Build)
+<span class="lineno">   87 </span>    , <span class="nottickedoff"><span class="decl"><span class="nottickedoff">_ninjaPhonys</span></span></span>   :: !(HashMap Target (HashSet Target))
+<span class="lineno">   88 </span>    , <span class="nottickedoff"><span class="decl"><span class="nottickedoff">_ninjaDefaults</span></span></span> :: !(HashSet Target)
+<span class="lineno">   89 </span>    , <span class="nottickedoff"><span class="decl"><span class="nottickedoff">_ninjaPools</span></span></span>    :: !(HashSet Pool)
+<span class="lineno">   90 </span>    }
+<span class="lineno">   91 </span>  deriving (<span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, Generic)
+<span class="lineno">   92 </span>
+<span class="lineno">   93 </span>-- | Construct a default 'Ninja' value.
+<span class="lineno">   94 </span>--
+<span class="lineno">   95 </span>--   @since 0.1.0
+<span class="lineno">   96 </span>{-# INLINE makeNinja #-}
+<span class="lineno">   97 </span>makeNinja :: Ninja
+<span class="lineno">   98 </span><span class="decl"><span class="nottickedoff">makeNinja = MkNinja</span>
+<span class="lineno">   99 </span><span class="spaces">            </span><span class="nottickedoff">{ _ninjaMeta     = Ninja.makeMeta</span>
+<span class="lineno">  100 </span><span class="spaces">            </span><span class="nottickedoff">, _ninjaBuilds   = HS.empty</span>
+<span class="lineno">  101 </span><span class="spaces">            </span><span class="nottickedoff">, _ninjaPhonys   = HM.empty</span>
+<span class="lineno">  102 </span><span class="spaces">            </span><span class="nottickedoff">, _ninjaDefaults = HS.empty</span>
+<span class="lineno">  103 </span><span class="spaces">            </span><span class="nottickedoff">, _ninjaPools    = HS.empty</span>
+<span class="lineno">  104 </span><span class="spaces">            </span><span class="nottickedoff">}</span></span>
+<span class="lineno">  105 </span>
+<span class="lineno">  106 </span>-- | Metadata, which includes top-level variables like @builddir@.
+<span class="lineno">  107 </span>--
+<span class="lineno">  108 </span>--   @since 0.1.0
+<span class="lineno">  109 </span>{-# INLINE ninjaMeta #-}
+<span class="lineno">  110 </span>ninjaMeta :: Lens.Lens' Ninja Meta
+<span class="lineno">  111 </span><span class="decl"><span class="nottickedoff">ninjaMeta = Lens.lens _ninjaMeta</span>
+<span class="lineno">  112 </span><span class="spaces">            </span><span class="nottickedoff">$ \(MkNinja {..}) x -&gt; MkNinja { _ninjaMeta = x, .. }</span></span>
+<span class="lineno">  113 </span>
+<span class="lineno">  114 </span>-- | Compiled @build@ declarations.
+<span class="lineno">  115 </span>--
+<span class="lineno">  116 </span>--   @since 0.1.0
+<span class="lineno">  117 </span>{-# INLINE ninjaBuilds #-}
+<span class="lineno">  118 </span>ninjaBuilds :: Lens.Lens' Ninja (HashSet Build)
+<span class="lineno">  119 </span><span class="decl"><span class="nottickedoff">ninjaBuilds = Lens.lens _ninjaBuilds</span>
+<span class="lineno">  120 </span><span class="spaces">              </span><span class="nottickedoff">$ \(MkNinja {..}) x -&gt; MkNinja { _ninjaBuilds = x, .. }</span></span>
+<span class="lineno">  121 </span>
+<span class="lineno">  122 </span>-- | Phony targets, as documented
+<span class="lineno">  123 </span>--   &lt;https://ninja-build.org/manual.html#_more_details here&gt;.
+<span class="lineno">  124 </span>--
+<span class="lineno">  125 </span>--   @since 0.1.0
+<span class="lineno">  126 </span>{-# INLINE ninjaPhonys #-}
+<span class="lineno">  127 </span>ninjaPhonys :: Lens.Lens' Ninja (HashMap Target (HashSet Target))
+<span class="lineno">  128 </span><span class="decl"><span class="nottickedoff">ninjaPhonys = Lens.lens _ninjaPhonys</span>
+<span class="lineno">  129 </span><span class="spaces">              </span><span class="nottickedoff">$ \(MkNinja {..}) x -&gt; MkNinja { _ninjaPhonys = x, .. }</span></span>
+<span class="lineno">  130 </span>
+<span class="lineno">  131 </span>-- | The set of default targets, as documented
+<span class="lineno">  132 </span>--   &lt;https://ninja-build.org/manual.html#_default_target_statements here&gt;.
+<span class="lineno">  133 </span>--
+<span class="lineno">  134 </span>--   @since 0.1.0
+<span class="lineno">  135 </span>{-# INLINE ninjaDefaults #-}
+<span class="lineno">  136 </span>ninjaDefaults :: Lens.Lens' Ninja (HashSet Target)
+<span class="lineno">  137 </span><span class="decl"><span class="nottickedoff">ninjaDefaults = Lens.lens _ninjaDefaults</span>
+<span class="lineno">  138 </span><span class="spaces">                </span><span class="nottickedoff">$ \(MkNinja {..}) x -&gt; MkNinja { _ninjaDefaults = x, .. }</span></span>
+<span class="lineno">  139 </span>
+<span class="lineno">  140 </span>-- | The set of pools for this Ninja file.
+<span class="lineno">  141 </span>--
+<span class="lineno">  142 </span>--   @since 0.1.0
+<span class="lineno">  143 </span>{-# INLINE ninjaPools #-}
+<span class="lineno">  144 </span>ninjaPools :: Lens.Lens' Ninja (HashSet Pool)
+<span class="lineno">  145 </span><span class="decl"><span class="nottickedoff">ninjaPools = Lens.lens _ninjaPools</span>
+<span class="lineno">  146 </span><span class="spaces">             </span><span class="nottickedoff">$ \(MkNinja {..}) x -&gt; MkNinja { _ninjaPools = x, .. }</span></span>
+<span class="lineno">  147 </span>
+<span class="lineno">  148 </span>-- | Converts to @{meta: …, builds: …, phonys: …, defaults: …, pools: …}@.
+<span class="lineno">  149 </span>--
+<span class="lineno">  150 </span>--   @since 0.1.0
+<span class="lineno">  151 </span>instance Aeson.ToJSON Ninja where
+<span class="lineno">  152 </span>  <span class="decl"><span class="nottickedoff">toJSON (MkNinja {..})</span>
+<span class="lineno">  153 </span><span class="spaces">    </span><span class="nottickedoff">= [ &quot;meta&quot;     .= _ninjaMeta</span>
+<span class="lineno">  154 </span><span class="spaces">      </span><span class="nottickedoff">, &quot;builds&quot;   .= _ninjaBuilds</span>
+<span class="lineno">  155 </span><span class="spaces">      </span><span class="nottickedoff">, &quot;phonys&quot;   .= _ninjaPhonys</span>
+<span class="lineno">  156 </span><span class="spaces">      </span><span class="nottickedoff">, &quot;defaults&quot; .= _ninjaDefaults</span>
+<span class="lineno">  157 </span><span class="spaces">      </span><span class="nottickedoff">, &quot;pools&quot;    .= _ninjaPools</span>
+<span class="lineno">  158 </span><span class="spaces">      </span><span class="nottickedoff">] |&gt; Aeson.object</span></span>
+<span class="lineno">  159 </span>
+<span class="lineno">  160 </span>-- | Inverse of the 'Aeson.ToJSON' instance.
+<span class="lineno">  161 </span>--
+<span class="lineno">  162 </span>--   @since 0.1.0
+<span class="lineno">  163 </span>instance Aeson.FromJSON Ninja where
+<span class="lineno">  164 </span>  <span class="decl"><span class="nottickedoff">parseJSON = (Aeson.withObject &quot;Ninja&quot; $ \o -&gt; do</span>
+<span class="lineno">  165 </span><span class="spaces">                  </span><span class="nottickedoff">_ninjaMeta     &lt;- (o .: &quot;meta&quot;)     &gt;&gt;= pure</span>
+<span class="lineno">  166 </span><span class="spaces">                  </span><span class="nottickedoff">_ninjaBuilds   &lt;- (o .: &quot;builds&quot;)   &gt;&gt;= pure</span>
+<span class="lineno">  167 </span><span class="spaces">                  </span><span class="nottickedoff">_ninjaPhonys   &lt;- (o .: &quot;phonys&quot;)   &gt;&gt;= pure</span>
+<span class="lineno">  168 </span><span class="spaces">                  </span><span class="nottickedoff">_ninjaDefaults &lt;- (o .: &quot;defaults&quot;) &gt;&gt;= pure</span>
+<span class="lineno">  169 </span><span class="spaces">                  </span><span class="nottickedoff">_ninjaPools    &lt;- (o .: &quot;pools&quot;)    &gt;&gt;= pure</span>
+<span class="lineno">  170 </span><span class="spaces">                  </span><span class="nottickedoff">pure (MkNinja {..}))</span></span>
+<span class="lineno">  171 </span>
+<span class="lineno">  172 </span>-- | Default 'Hashable' instance via 'Generic'.
+<span class="lineno">  173 </span>--
+<span class="lineno">  174 </span>--   @since 0.1.0
+<span class="lineno">  175 </span>instance Hashable Ninja
+<span class="lineno">  176 </span>
+<span class="lineno">  177 </span>-- | Default 'NFData' instance via 'Generic'.
+<span class="lineno">  178 </span>--
+<span class="lineno">  179 </span>--   @since 0.1.0
+<span class="lineno">  180 </span>instance NFData Ninja
+<span class="lineno">  181 </span>
+<span class="lineno">  182 </span>-- | Default 'SC.Serial' instance via 'Generic'.
+<span class="lineno">  183 </span>--
+<span class="lineno">  184 </span>--   @since 0.1.0
+<span class="lineno">  185 </span>instance (Monad m, NinjaConstraint (SC.Serial m)) =&gt; SC.Serial m Ninja
+<span class="lineno">  186 </span>
+<span class="lineno">  187 </span>-- | Default 'SC.CoSerial' instance via 'Generic'.
+<span class="lineno">  188 </span>--
+<span class="lineno">  189 </span>--   @since 0.1.0
+<span class="lineno">  190 </span>instance (Monad m, NinjaConstraint (SC.CoSerial m)) =&gt; SC.CoSerial m Ninja
+<span class="lineno">  191 </span>
+<span class="lineno">  192 </span>-- | The set of constraints required for a given constraint to be automatically
+<span class="lineno">  193 </span>--   computed for a 'Ninja'.
+<span class="lineno">  194 </span>--
+<span class="lineno">  195 </span>--   @since 0.1.0
+<span class="lineno">  196 </span>type NinjaConstraint (c :: * -&gt; Constraint)
+<span class="lineno">  197 </span>  = ( c Text
+<span class="lineno">  198 </span>    , c Ver.Version
+<span class="lineno">  199 </span>    , c (HashMap Target (HashSet Target))
+<span class="lineno">  200 </span>    , c (HashSet Build)
+<span class="lineno">  201 </span>    , c (HashSet Target)
+<span class="lineno">  202 </span>    , c (HashSet Pool)
+<span class="lineno">  203 </span>    )
+<span class="lineno">  204 </span>
+<span class="lineno">  205 </span>--------------------------------------------------------------------------------
+
+</pre>
+</body>
+</html>

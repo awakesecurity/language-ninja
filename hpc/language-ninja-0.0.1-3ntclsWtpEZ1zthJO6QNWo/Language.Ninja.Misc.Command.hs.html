@@ -1,0 +1,119 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style type="text/css">
+span.lineno { color: white; background: #aaaaaa; border-right: solid white 12px }
+span.nottickedoff { background: yellow}
+span.istickedoff { background: white }
+span.tickonlyfalse { margin: -1px; border: 1px solid #f20913; background: #f20913 }
+span.tickonlytrue  { margin: -1px; border: 1px solid #60de51; background: #60de51 }
+span.funcount { font-size: small; color: orange; z-index: 2; position: absolute; right: 20 }
+span.decl { font-weight: bold }
+span.spaces    { background: white }
+</style>
+</head>
+<body>
+<pre>
+<span class="lineno">    1 </span>-- -*- coding: utf-8; mode: haskell; -*-
+<span class="lineno">    2 </span>
+<span class="lineno">    3 </span>-- File: library/Language/Ninja/Misc/Command.hs
+<span class="lineno">    4 </span>--
+<span class="lineno">    5 </span>-- License:
+<span class="lineno">    6 </span>--     Copyright 2017 Awake Security
+<span class="lineno">    7 </span>--
+<span class="lineno">    8 </span>--     Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<span class="lineno">    9 </span>--     you may not use this file except in compliance with the License.
+<span class="lineno">   10 </span>--     You may obtain a copy of the License at
+<span class="lineno">   11 </span>--
+<span class="lineno">   12 </span>--       http://www.apache.org/licenses/LICENSE-2.0
+<span class="lineno">   13 </span>--
+<span class="lineno">   14 </span>--     Unless required by applicable law or agreed to in writing, software
+<span class="lineno">   15 </span>--     distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<span class="lineno">   16 </span>--     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<span class="lineno">   17 </span>--     See the License for the specific language governing permissions and
+<span class="lineno">   18 </span>--     limitations under the License.
+<span class="lineno">   19 </span>
+<span class="lineno">   20 </span>{-# LANGUAGE DeriveGeneric              #-}
+<span class="lineno">   21 </span>{-# LANGUAGE FlexibleContexts           #-}
+<span class="lineno">   22 </span>{-# LANGUAGE FlexibleInstances          #-}
+<span class="lineno">   23 </span>{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+<span class="lineno">   24 </span>{-# LANGUAGE MultiParamTypeClasses      #-}
+<span class="lineno">   25 </span>{-# LANGUAGE UndecidableInstances       #-}
+<span class="lineno">   26 </span>
+<span class="lineno">   27 </span>-- |
+<span class="lineno">   28 </span>--   Module      : Language.Ninja.Misc.Command
+<span class="lineno">   29 </span>--   Copyright   : Copyright 2017 Awake Security
+<span class="lineno">   30 </span>--   License     : Apache-2.0
+<span class="lineno">   31 </span>--   Maintainer  : opensource@awakesecurity.com
+<span class="lineno">   32 </span>--   Stability   : experimental
+<span class="lineno">   33 </span>--
+<span class="lineno">   34 </span>--   A datatype representing a POSIX @sh@ command line.
+<span class="lineno">   35 </span>--
+<span class="lineno">   36 </span>--   @since 0.1.0
+<span class="lineno">   37 </span>module Language.Ninja.Misc.Command
+<span class="lineno">   38 </span>  ( Command, makeCommand, commandText
+<span class="lineno">   39 </span>  ) where
+<span class="lineno">   40 </span>
+<span class="lineno">   41 </span>import           Data.Text              (Text)
+<span class="lineno">   42 </span>
+<span class="lineno">   43 </span>import qualified Data.Aeson             as Aeson
+<span class="lineno">   44 </span>
+<span class="lineno">   45 </span>import           Control.DeepSeq        (NFData)
+<span class="lineno">   46 </span>import           Data.Hashable          (Hashable)
+<span class="lineno">   47 </span>import           GHC.Generics           (Generic)
+<span class="lineno">   48 </span>
+<span class="lineno">   49 </span>import           Test.SmallCheck.Series ((&gt;&gt;-))
+<span class="lineno">   50 </span>import qualified Test.SmallCheck.Series as SC
+<span class="lineno">   51 </span>
+<span class="lineno">   52 </span>import qualified Control.Lens           as Lens
+<span class="lineno">   53 </span>
+<span class="lineno">   54 </span>import           Flow                   ((.&gt;))
+<span class="lineno">   55 </span>
+<span class="lineno">   56 </span>--------------------------------------------------------------------------------
+<span class="lineno">   57 </span>
+<span class="lineno">   58 </span>-- | This type represents a POSIX @sh@ command line.
+<span class="lineno">   59 </span>--
+<span class="lineno">   60 </span>--   @since 0.1.0
+<span class="lineno">   61 </span>newtype Command
+<span class="lineno">   62 </span>  = MkCommand
+<span class="lineno">   63 </span>    { <span class="istickedoff"><span class="decl"><span class="istickedoff">_commandText</span></span></span> :: Text
+<span class="lineno">   64 </span>    }
+<span class="lineno">   65 </span>  deriving ( <span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Eq</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Ord</span></span></span></span></span></span></span></span></span></span></span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Show</span></span></span></span>, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Read</span></span></span></span></span></span>, Generic, <span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Hashable</span></span></span></span>, <span class="decl"><span class="nottickedoff">NFData</span></span>
+<span class="lineno">   66 </span>           , <span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff"><span class="decl"><span class="nottickedoff">Aeson.ToJSON</span></span></span></span></span></span></span></span>, <span class="decl"><span class="istickedoff"><span class="decl"><span class="nottickedoff">Aeson.FromJSON</span></span></span></span> )
+<span class="lineno">   67 </span>
+<span class="lineno">   68 </span>-- | Constructor for a 'Command'.
+<span class="lineno">   69 </span>--
+<span class="lineno">   70 </span>--   @since 0.1.0
+<span class="lineno">   71 </span>{-# INLINE makeCommand #-}
+<span class="lineno">   72 </span>makeCommand :: Text -&gt; Command
+<span class="lineno">   73 </span><span class="decl"><span class="nottickedoff">makeCommand = MkCommand</span></span>
+<span class="lineno">   74 </span>
+<span class="lineno">   75 </span>-- | An isomorphism between a 'Command' and its underlying 'Text'.
+<span class="lineno">   76 </span>--
+<span class="lineno">   77 </span>--   @since 0.1.0
+<span class="lineno">   78 </span>{-# INLINE commandText #-}
+<span class="lineno">   79 </span>commandText :: Lens.Iso' Command Text
+<span class="lineno">   80 </span><span class="decl"><span class="istickedoff">commandText = Lens.iso _commandText MkCommand</span></span>
+<span class="lineno">   81 </span>
+<span class="lineno">   82 </span>-- | Uses the underlying 'Text' instance.
+<span class="lineno">   83 </span>--
+<span class="lineno">   84 </span>--   @since 0.1.0
+<span class="lineno">   85 </span>instance ( Monad m
+<span class="lineno">   86 </span>         , SC.Serial m Text
+<span class="lineno">   87 </span>         ) =&gt; SC.Serial m Command where
+<span class="lineno">   88 </span>  <span class="decl"><span class="istickedoff">series = SC.newtypeCons MkCommand</span></span>
+<span class="lineno">   89 </span>
+<span class="lineno">   90 </span>-- | Uses the underlying 'Text' instance.
+<span class="lineno">   91 </span>--
+<span class="lineno">   92 </span>--   @since 0.1.0
+<span class="lineno">   93 </span>instance ( Monad m
+<span class="lineno">   94 </span>         , SC.CoSerial m Text
+<span class="lineno">   95 </span>         ) =&gt; SC.CoSerial m Command where
+<span class="lineno">   96 </span>  <span class="decl"><span class="istickedoff">coseries rs = SC.newtypeAlts rs</span>
+<span class="lineno">   97 </span><span class="spaces">                </span><span class="istickedoff">&gt;&gt;- \f -&gt; pure (_commandText .&gt; f)</span></span>
+<span class="lineno">   98 </span>
+<span class="lineno">   99 </span>--------------------------------------------------------------------------------
+
+</pre>
+</body>
+</html>
