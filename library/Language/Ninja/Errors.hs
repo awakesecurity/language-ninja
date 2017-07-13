@@ -28,19 +28,69 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   The module re-exports the modules under @Language.Ninja.Errors.*@, all of
---   which are related to error types used in @language-ninja@.
---   It also defines the 'NinjaError' type.
+--   This module re-exports all of the modules under the "Language.Ninja.Errors"
+--   namespace for convenience.
+--
+--   It is recommended that you import it with the following style:
+--
+--   > import qualified Language.Ninja.Errors as Errors
 --
 --   @since 0.1.0
 module Language.Ninja.Errors
-  ( module Language.Ninja.Errors.Compile
-  , module Language.Ninja.Errors.Parser
-  , NinjaError (..)
+  ( -- * "Language.Ninja.Errors"
+    NinjaError (..)
   , throwNinjaError
   , throwGenericNinjaError
   , throwNinjaParseError
   , throwNinjaCompileError
+
+    -- * "Language.Ninja.Errors.Compile"
+  , CompileError (..)
+  , throwCompileError
+  , throwGenericCompileError
+
+  , CompileMetaError (..)
+  , throwCompileMetaError
+  , throwGenericCompileMetaError
+  , throwVersionParseFailure
+
+  , CompilePhonyError (..)
+  , throwCompilePhonyError
+  , throwGenericCompilePhonyError
+
+  , CompileDefaultError (..)
+  , throwCompileDefaultError
+  , throwGenericCompileDefaultError
+
+  , CompileBuildError (..)
+  , throwCompileBuildError
+  , throwGenericCompileBuildError
+  , throwBuildRuleNotFound
+
+  , CompileRuleError (..)
+  , throwCompileRuleError
+  , throwGenericCompileRuleError
+  , throwRuleLookupFailure
+  , throwUnknownDeps
+  , throwUnexpectedMSVCPrefix
+
+  , CompilePoolError (..)
+  , throwCompilePoolError
+  , throwGenericCompilePoolError
+  , throwInvalidPoolDepth
+  , throwEmptyPoolName
+
+    -- * "Language.Ninja.Errors.Parser"
+  , ParseError (..)
+  , throwParseError
+  , throwGenericParseError
+  , throwLexBindingFailure
+  , throwLexExpectedColon
+  , throwLexUnexpectedDollar
+  , throwLexUnexpectedSeparator
+  , throwLexParsecError
+  , throwParseBadDepthField
+  , throwParseUnexpectedBinding
   ) where
 
 import           Language.Ninja.Errors.Compile

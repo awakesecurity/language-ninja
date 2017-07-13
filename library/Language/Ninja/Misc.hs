@@ -24,48 +24,51 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   Utility types and functions for the rest of @language-ninja@.
+--
+--   This module re-exports all of the modules under the "Language.Ninja.Misc"
+--   namespace for convenience.
+--
+--   It is recommended that you import it with the following style:
+--
+--   > import qualified Language.Ninja.Misc as Misc
 --
 --   @since 0.1.0
 module Language.Ninja.Misc
-  ( -- * @Command@
+  ( -- * "Language.Ninja.Misc.Command"
     Misc.Command, Misc.makeCommand
   , Misc.commandText
 
-    -- * @Path@
+    -- * "Language.Ninja.Misc.Path"
   , Misc.Path, Misc.makePath
   , Misc.pathIText, Misc.pathText, Misc.pathString, Misc.pathFP
 
-    -- * @IText@
+    -- * "Language.Ninja.Misc.IText"
   , Misc.IText, Misc.uninternText, Misc.internText, Misc.itext
 
-    -- * @Positive@
+    -- * "Language.Ninja.Misc.Positive"
   , Misc.Positive, Misc.makePositive, Misc.fromPositive
 
-    -- * @Located@
+    -- * "Language.Ninja.Misc.Annotated"
+  , Misc.Annotated (..), Misc.annotation
+
+    -- * "Language.Ninja.Misc.Located"
   , Misc.Located, Misc.tokenize, Misc.tokenizeFile, Misc.tokenizeText
   , Misc.locatedPos, Misc.locatedVal
 
-    -- * @Spans@
   , Misc.Spans, Misc.makeSpans
   , Misc.spansSet
 
-    -- * @Span@
   , Misc.Span, Misc.makeSpan
   , Misc.spanPath, Misc.spanRange, Misc.spanStart, Misc.spanEnd
 
-    -- * @Position@
   , Misc.Position, Misc.makePosition
   , Misc.positionFile, Misc.positionOffset, Misc.positionLine, Misc.positionCol
   , Misc.comparePosition
 
-    -- * @Offset@
   , Misc.Offset
   , Misc.compareOffset, Misc.offsetLine, Misc.offsetColumn
   , Misc.Line, Misc.Column
-
-    -- * @Annotated@
-  , Misc.Annotated (..), Misc.annotation
   ) where
 
 import qualified Language.Ninja.Misc.Annotated as Misc

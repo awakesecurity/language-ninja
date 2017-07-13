@@ -24,11 +24,20 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   Typeclasses that allow mocking via dependency injection (i.e.: free monads
+--   or similar techniques) in @language-ninja@.
+--
+--   This module re-exports all of the modules under the "Language.Ninja.Mock"
+--   namespace for convenience.
+--
+--   It is recommended that you import it with the following style:
+--
+--   > import qualified Language.Ninja.Mock as Mock
 --
 --   @since 0.1.0
 module Language.Ninja.Mock
-  ( module Language.Ninja.Mock.ReadFile -- FIXME: specific export list
+  ( -- * "Language.Ninja.Mock.ReadFile"
+    Mock.MonadReadFile (..)
   ) where
 
-import           Language.Ninja.Mock.ReadFile
+import qualified Language.Ninja.Mock.ReadFile as Mock

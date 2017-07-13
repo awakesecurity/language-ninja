@@ -24,11 +24,18 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   The Ninja build language after parsing.
+--
+--   This module re-exports all of the modules under the "Language.Ninja.AST"
+--   namespace for convenience.
+--
+--   It is recommended that you import it with the following style:
+--
+--   > import qualified Language.Ninja.AST as AST
 --
 --   @since 0.1.0
 module Language.Ninja.AST
-  ( -- * @Ninja@
+  ( -- * "Language.Ninja.AST.Ninja"
     AST.Ninja, AST.makeNinja
   , AST.ninjaRules
   , AST.ninjaSingles
@@ -38,25 +45,25 @@ module Language.Ninja.AST
   , AST.ninjaPools
   , AST.ninjaSpecials
 
-    -- * @Build@
+    -- * "Language.Ninja.AST.Build"
   , AST.Build, AST.makeBuild
   , AST.buildRule, AST.buildEnv, AST.buildDeps, AST.buildBind
 
-    -- * @Deps@
+    -- * "Language.Ninja.AST.Deps"
   , AST.Deps, AST.makeDeps
   , AST.depsNormal, AST.depsImplicit, AST.depsOrderOnly
 
-    -- * @Rule@
+    -- * "Language.Ninja.AST.Rule"
   , AST.Rule, AST.makeRule
   , AST.ruleBind
 
-    -- * @Expr@
+    -- * "Language.Ninja.AST.Expr"
   , AST.Expr (..)
   , AST._Exprs, AST._Lit, AST._Var
   , AST.askVar, AST.askExpr, AST.addBind, AST.addBinds
   , AST.normalizeExpr
 
-    -- * @Env@
+    -- * "Language.Ninja.AST.Env"
   , AST.Env
   , AST.makeEnv, AST.fromEnv, AST.addEnv, AST.askEnv, AST.scopeEnv
 
