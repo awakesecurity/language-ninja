@@ -20,8 +20,8 @@
     - {name: TemplateHaskellQuotes,    within: []} # ditto
 
     # Exceptions to the above
-    - {name: FunctionalDependencies, within: [NinjaToNix.Misc.Supply]}
-    - {name: PatternGuards,          within: [Tests.ReferenceLexer]}
+    - {name: FunctionalDependencies,   within: [NinjaToNix.Misc.Supply]}
+    - {name: PatternGuards,            within: [Tests.ReferenceLexer]}
 
 - modules:
     - {name: [Data.Set],                    as: Set}
@@ -39,6 +39,19 @@
     - {name: [Data.Aeson],                  as: Aeson}
     - {name: [Data.Aeson.Types],            as: Aeson}
     - {name: [Control.Lens],                as: Lens}
+    - {name: [Test.SmallCheck],             as: SC}
+    - {name: [Test.SmallCheck.Drivers],     as: SC}
+    - {name: [Test.SmallCheck.Series],      as: SC}
+    - {name: [Test.QuickCheck],             as: QC}
+    - {name: [Test.QuickCheck.Arbitrary],   as: QC}
+    - {name: [Test.QuickCheck.Function],    as: QC}
+    - {name: [Test.QuickCheck.Gen],         as: QC}
+    - {name: [Test.QuickCheck.Modifiers],   as: QC}
+    - {name: [Test.QuickCheck.Monadic],     as: QC}
+    - {name: [Test.QuickCheck.Poly],        as: QC}
+    - {name: [Test.QuickCheck.Property],    as: QC}
+    - {name: [Test.QuickCheck.Test],        as: QC}
+    - {name: [Test.QuickCheck.Instances],   as: QC}
 
     - {name: [Language.Ninja.AST],          as: AST}
     - {name: [Language.Ninja.Compile],      as: Compile}
