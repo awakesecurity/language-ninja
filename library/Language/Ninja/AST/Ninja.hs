@@ -37,7 +37,8 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   This module contains a type representing a parsed Ninja file AST, along
+--   with any supporting or related types.
 --
 --   @since 0.1.0
 module Language.Ninja.AST.Ninja
@@ -128,7 +129,7 @@ ninjaRules :: Lens.Lens' (Ninja ann) (HashMap Text (AST.Rule ann))
 ninjaRules = Lens.lens _ninjaRules
              $ \(MkNinja {..}) x -> MkNinja { _ninjaRules = x, .. }
 
--- | The set of build declarations with precisely one output.
+-- | The set of @build@ declarations with precisely one output.
 --
 --   @since 0.1.0
 {-# INLINE ninjaSingles #-}
@@ -136,7 +137,7 @@ ninjaSingles :: Lens.Lens' (Ninja ann) (HashMap Text (AST.Build ann))
 ninjaSingles = Lens.lens _ninjaSingles
                $ \(MkNinja {..}) x -> MkNinja { _ninjaSingles = x, .. }
 
--- | The set of build declarations with two or more outputs.
+-- | The set of @build@ declarations with two or more outputs.
 --
 --   @since 0.1.0
 {-# INLINE ninjaMultiples #-}
@@ -144,7 +145,7 @@ ninjaMultiples :: Lens.Lens' (Ninja ann) (HashMap Outputs (AST.Build ann))
 ninjaMultiples = Lens.lens _ninjaMultiples
                  $ \(MkNinja {..}) x -> MkNinja { _ninjaMultiples = x, .. }
 
--- | The set of phony build declarations.
+-- | The set of phony @build@ declarations.
 --
 --   @since 0.1.0
 {-# INLINE ninjaPhonys #-}
@@ -294,13 +295,13 @@ type NinjaConstraint (c :: * -> Constraint) (ann :: *)
     , c ann
     )
 
--- | A type representing the set of outputs for a build declaration with
+-- | A type representing the set of outputs for a @build@ declaration with
 --   multiple outputs.
 --
 --   @since 0.1.0
 type Outputs = HashSet Output
 
--- | A type representing an output of a build declaration.
+-- | A type representing an output of a @build@ declaration.
 --
 --   @since 0.1.0
 type Output = Text

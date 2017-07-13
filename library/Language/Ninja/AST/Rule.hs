@@ -37,7 +37,8 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   This module contains a type representing a @rule@ declaration in the
+--   parsed Ninja AST, along with any supporting or related types.
 --
 --   @since 0.1.0
 module Language.Ninja.AST.Rule

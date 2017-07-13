@@ -38,6 +38,7 @@
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE UndecidableInstances  #-}
@@ -49,7 +50,8 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   A Ninja-style environment, basically a nonempty list of hash tables.
+--   This module contains a type representing a Ninja-style environment along
+--   with any supporting or related types.
 --
 --   @since 0.1.0
 module Language.Ninja.AST.Env
@@ -79,6 +81,8 @@ import qualified Test.QuickCheck           as QC
 import           Test.QuickCheck.Instances ()
 
 import qualified Test.SmallCheck.Series    as SC
+
+import           GHC.Exts                  (Constraint)
 
 import qualified Data.Aeson                as Aeson
 
@@ -197,19 +201,22 @@ instance (NFData k, NFData v) => NFData (Env k v)
 -- | Uses the underlying 'Maps' instance.
 --
 --   @since 0.1.0
-instance ( Monad m, Key k
-         , SC.Serial m (k, v)
-         , SC.Serial m (Maps k v)
+instance ( Monad m, EnvConstraint (SC.Serial m) k v
          ) => SC.Serial m (Env k v) where
   series = SC.series |> fmap MkEnv
 
 -- | Uses the underlying 'Maps' instance.
 --
 --   @since 0.1.0
-instance ( Monad m, Key k
-         , SC.CoSerial m (k, v)
-         , SC.CoSerial m (Maps k v)
+instance ( Monad m, EnvConstraint (SC.CoSerial m) k v
          ) => SC.CoSerial m (Env k v) where
   coseries = SC.coseries .> fmap (\f -> _fromEnv .> f)
+
+-- | The set of constraints required for a given constraint to be automatically
+--   computed for an 'Env'.
+--
+--   @since 0.1.0
+type EnvConstraint (c :: * -> Constraint) (k :: *) (v :: *)
+  = (Eq k, Hashable k, c k, c v, c (Maps k v))
 
 --------------------------------------------------------------------------------

@@ -38,7 +38,9 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   This module contains a type representing a string that potentially contains
+--   variable references in the parsed Ninja AST, along with any supporting or
+--   related types.
 --
 --   @since 0.1.0
 module Language.Ninja.AST.Expr
@@ -165,7 +167,17 @@ addBinds bs e = map (second (askExpr e) .> uncurry AST.addEnv .> Endo) bs
                 |> mconcat
                 |> (\endo -> appEndo endo e)
 
--- | FIXME: doc
+-- | Normalize an 'Expr' by recursively flattening any 'Exprs' nodes, removing
+--   empty 'Lit' nodes, combining adjacent 'Lit' nodes, and pulling out the
+--   interior of the top-level 'Exprs' node if it has only one subnode.
+--
+--   The number of 'Exprs' nodes in the output is guaranteed to be 0 or 1.
+--
+--   If it is 0, then there is exactly one node of any type in the output.
+--
+--   The output is thus isomorphic to @(Maybe ann, [(ann, Either Text Text)])@,
+--   where the @Maybe ann@ represents the annotation of the top-level 'Exprs'
+--   node if it exists.
 --
 --   @since 0.1.0
 normalizeExpr :: (Monoid ann) => Expr ann -> Expr ann

@@ -17,12 +17,14 @@
 --     See the License for the specific language governing permissions and
 --     limitations under the License.
 
+{-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE DeriveFoldable        #-}
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE DeriveTraversable     #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RecordWildCards       #-}
@@ -35,13 +37,16 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   This module contains a type representing the dependencies of a @build@
+--   declaration in the parsed Ninja AST, along with any supporting or
+--   related types.
 --
 --   @since 0.1.0
 module Language.Ninja.AST.Deps
   ( -- * @Deps@
     Deps, makeDeps
   , depsNormal, depsImplicit, depsOrderOnly
+  , DepsConstraint
   ) where
 
 import qualified Control.Lens              as Lens
@@ -59,6 +64,8 @@ import qualified Test.QuickCheck           as QC
 import           Test.QuickCheck.Instances ()
 
 import qualified Test.SmallCheck.Series    as SC
+
+import           GHC.Exts                  (Constraint)
 
 import           Data.Aeson                ((.:), (.=))
 import qualified Data.Aeson                as Aeson
@@ -167,13 +174,22 @@ instance (NFData ann) => NFData (Deps ann)
 -- | Default 'SC.Serial' instance via 'Generic'.
 --
 --   @since 0.1.0
-instance ( Monad m, SC.Serial m (HashSet Text), SC.Serial m ann
+instance ( Monad m, DepsConstraint (SC.Serial m) ann
          ) => SC.Serial m (Deps ann)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
 --
 --   @since 0.1.0
-instance ( Monad m, SC.CoSerial m (HashSet Text), SC.CoSerial m ann
+instance ( Monad m, DepsConstraint (SC.CoSerial m) ann
          ) => SC.CoSerial m (Deps ann)
+
+-- | The set of constraints required for a given constraint to be automatically
+--   computed for a 'Ninja'.
+--
+--   @since 0.1.0
+type DepsConstraint (c :: * -> Constraint) (ann :: *)
+  = ( c (HashSet Text)
+    , c ann
+    )
 
 --------------------------------------------------------------------------------

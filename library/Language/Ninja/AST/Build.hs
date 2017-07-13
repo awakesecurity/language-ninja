@@ -37,7 +37,8 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   FIXME: doc
+--   This module contains a type representing a @build@ declaration in the
+--   parsed Ninja AST, along with any supporting or related types.
 --
 --   @since 0.1.0
 module Language.Ninja.AST.Build
@@ -210,8 +211,8 @@ instance ( Monad m, BuildConstraint (SC.CoSerial m) ann
 --
 --   @since 0.1.0
 type BuildConstraint (c :: * -> Constraint) (ann :: *)
-  = ( c Text
-    , c (HashSet Text)
+  = ( AST.DepsConstraint c ann
+    , c Text
     , c (HashMap Text Text)
     , c (AST.Maps Text Text)
     , c ann
