@@ -147,7 +147,6 @@ executable ninja2nix
     main-is:              NinjaToNix.hs
     other-modules:        NinjaToNix.Pretty
                           NinjaToNix.Types
-                          NinjaToNix.Misc.Hash
                           NinjaToNix.Misc.Supply
     build-depends:        language-ninja
                         , base                        >= 4.8   && < 5.0
