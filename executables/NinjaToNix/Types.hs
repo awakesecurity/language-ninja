@@ -120,8 +120,7 @@ data SBuild
 --------------------------------------------------------------------------------
 
 data SimplifyError
-  = UnhandledOutputType   !IR.OutputType
-  | UnhandledDepfile      !Misc.Path
+  = UnhandledDepfile      !Misc.Path
   | UnhandledSpecialDeps  !IR.SpecialDeps
   | UnhandledGenerator
   | UnhandledRestat
@@ -132,9 +131,6 @@ instance Exception SimplifyError
 
 throwSimplifyError :: (MonadError SimplifyError m) => SimplifyError -> m a
 throwSimplifyError = throwError
-
-throwUnhandledOutputType :: (MonadError SimplifyError m) => IR.OutputType -> m a
-throwUnhandledOutputType ty = throwSimplifyError (UnhandledOutputType ty)
 
 throwUnhandledDepfile :: (MonadError SimplifyError m) => Misc.Path -> m a
 throwUnhandledDepfile path = throwSimplifyError (UnhandledDepfile path)

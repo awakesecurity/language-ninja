@@ -61,13 +61,10 @@ module Language.Ninja.IR
   , IR.Target, IR.makeTarget
   , IR.targetIText, IR.targetText
 
-  , IR.Output, IR.makeOutput, IR.outputTarget, IR.outputType
-  , IR.OutputType (..)
-  , IR._ExplicitOutput, IR._ImplicitOutput
+  , IR.Output, IR.makeOutput, IR.outputTarget
 
   , IR.Dependency, IR.makeDependency, IR.dependencyTarget, IR.dependencyType
-  , IR.DependencyType (..)
-  , IR._NormalDependency, IR._ImplicitDependency, IR._OrderOnlyDependency
+  , IR.DependencyType (..), IR._NormalDependency, IR._OrderOnlyDependency
 
     -- * "Language.Ninja.IR.Pool"
   , IR.Pool

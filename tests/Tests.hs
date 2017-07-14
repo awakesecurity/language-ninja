@@ -236,7 +236,6 @@ aesonTests
     , testModule "Language.Ninja.IR.Target"
       [ testAesonSC def (Ty.Proxy @IR.Target)
       , testAesonSC def (Ty.Proxy @IR.Output)
-      , testAesonSC def (Ty.Proxy @IR.OutputType)
       , testAesonSC def (Ty.Proxy @IR.Dependency)
       , testAesonSC def (Ty.Proxy @IR.DependencyType)
       ]
@@ -376,11 +375,6 @@ opticsTests
         ]
       , testType "Output"
         [ testLens def "outputTarget" IR.outputTarget
-        , testLens def "outputType"   IR.outputType
-        ]
-      , testType "OutputType"
-        [ testPrism def "_ExplicitOutput" IR._ExplicitOutput
-        , testPrism def "_ImplicitOutput" IR._ImplicitOutput
         ]
       , testType "Dependency"
         [ testLens def "dependencyTarget" IR.dependencyTarget
@@ -388,7 +382,6 @@ opticsTests
         ]
       , testType "DependencyType"
         [ testPrism def "_NormalDependency"    IR._NormalDependency
-        , testPrism def "_ImplicitDependency"  IR._ImplicitDependency
         , testPrism def "_OrderOnlyDependency" IR._OrderOnlyDependency
         ]
       ]

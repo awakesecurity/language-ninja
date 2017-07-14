@@ -136,10 +136,10 @@ compile ast = result
 
       outs <- HS.toList outputs |> mapM compileOutput |> fmap HS.fromList
       rule <- compileRule (outs, buildAST)
-      deps <- let compileDep = flip (curry compileDependency)
+      deps <- let compileDep ty dep = compileDependency (dep, ty)
               in (\n i o -> HS.fromList (n <> i <> o))
                  <$> mapM (compileDep IR.NormalDependency)    normalDeps
-                 <*> mapM (compileDep IR.ImplicitDependency)  implicitDeps
+                 <*> mapM (compileDep IR.NormalDependency)    implicitDeps
                  <*> mapM (compileDep IR.OrderOnlyDependency) orderOnlyDeps
 
       IR.makeBuild rule
@@ -235,7 +235,7 @@ compile ast = result
     compileOutput :: Text -> m IR.Output
     compileOutput name = do
       target <- compileTarget name
-      pure (IR.makeOutput target IR.ExplicitOutput)
+      pure (IR.makeOutput target)
 
     compileDependency :: (Text, IR.DependencyType) -> m IR.Dependency
     compileDependency (name, ty) = do
@@ -258,7 +258,9 @@ compile ast = result
     computeRuleEnv (outs, buildAST) ruleAST = do
       let depsAST = Lens.view AST.buildDeps buildAST
 
-      let isExplicitOut out = (Lens.view IR.outputType out) == IR.ExplicitOutput
+      -- FIXME: properly handle implicit/explicit outputs here
+
+      let isExplicitOut _ = True
 
       let explicitOuts = HS.toList outs
                          |> filter isExplicitOut

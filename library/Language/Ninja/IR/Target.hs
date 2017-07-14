@@ -42,14 +42,11 @@ module Language.Ninja.IR.Target
     Target, makeTarget, targetIText, targetText
 
     -- * @Output@
-  , Output, makeOutput, outputTarget, outputType
-  , OutputType (..)
-  , _ExplicitOutput, _ImplicitOutput
+  , Output, makeOutput, outputTarget
 
     -- * @Dependency@
   , Dependency, makeDependency, dependencyTarget, dependencyType
-  , DependencyType (..)
-  , _NormalDependency, _ImplicitDependency, _OrderOnlyDependency
+  , DependencyType (..), _NormalDependency, _OrderOnlyDependency
   ) where
 
 import qualified Control.Lens              as Lens
@@ -129,10 +126,9 @@ instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Target where
 --   <https://ninja-build.org/manual.html#ref_outputs here>.
 --
 --   @since 0.1.0
-data Output
+newtype Output
   = MkOutput
-    { _outputTarget :: !Target
-    , _outputType   :: !OutputType
+    { _outputTarget :: Target
     }
   deriving (Eq, Ord, Show, Read, Generic)
 
@@ -142,8 +138,6 @@ data Output
 {-# INLINE makeOutput #-}
 makeOutput :: Target
            -- ^ The underlying target.
-           -> OutputType
-           -- ^ The output type (explicit or implicit).
            -> Output
 makeOutput = MkOutput
 
@@ -155,21 +149,12 @@ outputTarget :: Lens.Lens' Output Target
 outputTarget = Lens.lens _outputTarget
                $ \(MkOutput {..}) new -> MkOutput { _outputTarget = new, .. }
 
--- | A lens for the 'OutputType' of an 'Output'.
---
---   @since 0.1.0
-{-# INLINE outputType #-}
-outputType :: Lens.Lens' Output OutputType
-outputType = Lens.lens _outputType
-             $ \(MkOutput {..}) new -> MkOutput { _outputType = new, .. }
-
 -- | Converts to @{target: …, type: …}@.
 --
 --   @since 0.1.0
 instance Aeson.ToJSON Output where
   toJSON (MkOutput {..})
     = [ "target" .= _outputTarget
-      , "type"   .= _outputType
       ] |> Aeson.object
 
 -- | Inverse of the 'Aeson.ToJSON' instance.
@@ -178,7 +163,6 @@ instance Aeson.ToJSON Output where
 instance Aeson.FromJSON Output where
   parseJSON = (Aeson.withObject "Output" $ \o -> do
                   _outputTarget <- (o .: "target") >>= pure
-                  _outputType   <- (o .: "type")   >>= pure
                   pure (MkOutput {..}))
 
 -- | Default 'Hashable' instance via 'Generic'.
@@ -200,79 +184,6 @@ instance (Monad m, SC.Serial m Text) => SC.Serial m Output
 --
 --   @since 0.1.0
 instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Output
-
---------------------------------------------------------------------------------
-
--- | The type of an 'Output': explicit or implicit.
---
---   @since 0.1.0
-data OutputType
-  = -- | Explicit outputs are listed in the @$out@ variable.
-    --
-    --   @since 0.1.0
-    ExplicitOutput
-  | -- | Implicit outputs are _not_ listed in the @$out@ variable.
-    --
-    --   @since 0.1.0
-    ImplicitOutput
-  deriving (Eq, Ord, Show, Read, Generic)
-
--- | A prism for the 'ExplicitOutput' constructor.
---
---   @since 0.1.0
-{-# INLINE _ExplicitOutput #-}
-_ExplicitOutput :: Lens.Prism' OutputType ()
-_ExplicitOutput = Lens.prism' (const ExplicitOutput)
-                  $ \case ExplicitOutput -> Just ()
-                          _              -> Nothing
-
--- | A prism for the 'ImplicitOutput' constructor.
---
---   @since 0.1.0
-{-# INLINE _ImplicitOutput #-}
-_ImplicitOutput :: Lens.Prism' OutputType ()
-_ImplicitOutput = Lens.prism' (const ImplicitOutput)
-                  $ \case ImplicitOutput -> Just ()
-                          _              -> Nothing
-
--- | Converts to @"explicit"@ and @"implicit"@ respectively.
---
---   @since 0.1.0
-instance Aeson.ToJSON OutputType where
-  toJSON ExplicitOutput = "explicit"
-  toJSON ImplicitOutput = "implicit"
-
--- | Inverse of the 'Aeson.ToJSON' instance.
---
---   @since 0.1.0
-instance Aeson.FromJSON OutputType where
-  parseJSON = (Aeson.withText "OutputType" $ \case
-                  "explicit" -> pure ExplicitOutput
-                  "implicit" -> pure ImplicitOutput
-                  owise      -> [ "Invalid output type "
-                                , "\"", owise, "\"; should be one of "
-                                , "[\"explict\", \"implicit\"]"
-                                ] |> mconcat |> Text.unpack |> fail)
-
--- | Default 'Hashable' instance via 'Generic'.
---
---   @since 0.1.0
-instance Hashable OutputType
-
--- | Default 'NFData' instance via 'Generic'.
---
---   @since 0.1.0
-instance NFData OutputType
-
--- | Default 'SC.Serial' instance via 'Generic'.
---
---   @since 0.1.0
-instance (Monad m) => SC.Serial m OutputType
-
--- | Default 'SC.CoSerial' instance via 'Generic'.
---
---   @since 0.1.0
-instance (Monad m) => SC.CoSerial m OutputType
 
 --------------------------------------------------------------------------------
 
@@ -367,14 +278,6 @@ data DependencyType
     --
     --   @since 0.1.0
     NormalDependency
-  | -- | An implicit dependency. These have the same semantics as normal
-    --   dependencies, except they do not show up in the @$in@ variable.
-    --
-    --   FIXME: maybe remove ImplicitDependency, since the distinction goes away
-    --   after compilation to IR.
-    --
-    --   @since 0.1.0
-    ImplicitDependency
   | -- | An order-only dependency. These are listed in the @$in@ variable, but
     --   are only rebuilt if there is at least one non-order-only dependency
     --   that is out of date.
@@ -394,15 +297,6 @@ _NormalDependency = Lens.prism' (const NormalDependency)
                     $ \case NormalDependency -> Just ()
                             _                -> Nothing
 
--- | A prism for the 'ImplicitDependency' constructor.
---
---   @since 0.1.0
-{-# INLINE _ImplicitDependency #-}
-_ImplicitDependency :: Lens.Prism' DependencyType ()
-_ImplicitDependency = Lens.prism' (const ImplicitDependency)
-                      $ \case ImplicitDependency -> Just ()
-                              _                  -> Nothing
-
 -- | A prism for the 'OrderOnlyDependency' constructor.
 --
 --   @since 0.1.0
@@ -417,7 +311,6 @@ _OrderOnlyDependency = Lens.prism' (const OrderOnlyDependency)
 --   @since 0.1.0
 instance Aeson.ToJSON DependencyType where
   toJSON NormalDependency    = "normal"
-  toJSON ImplicitDependency  = "implicit"
   toJSON OrderOnlyDependency = "order-only"
 
 -- | Inverse of the 'Aeson.ToJSON' instance.
@@ -426,11 +319,10 @@ instance Aeson.ToJSON DependencyType where
 instance Aeson.FromJSON DependencyType where
   parseJSON = (Aeson.withText "DependencyType" $ \case
                   "normal"     -> pure NormalDependency
-                  "implicit"   -> pure ImplicitDependency
                   "order-only" -> pure OrderOnlyDependency
                   owise        -> [ "Invalid dependency type "
                                   , "\"", owise, "\"; should be one of "
-                                  , "[\"normal\", \"implicit\", \"order-only\"]"
+                                  , "[\"normal\", \"order-only\"]"
                                   ] |> mconcat |> Text.unpack |> fail)
 
 -- | Default 'Hashable' instance via 'Generic'.
