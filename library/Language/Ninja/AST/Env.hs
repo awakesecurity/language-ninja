@@ -56,10 +56,10 @@
 --
 --   @since 0.1.0
 module Language.Ninja.AST.Env
-  ( Key, Maps
-  , Env, makeEnv, fromEnv, headEnv, tailEnv
+  ( Env, makeEnv, fromEnv, headEnv, tailEnv
   , scopeEnv, addEnv, askEnv
   , EnvConstraint
+  , Key, Maps
   ) where
 
 import           Control.Applicative       ((<|>))
@@ -89,18 +89,6 @@ import           GHC.Exts                  (Constraint)
 import qualified Data.Aeson                as Aeson
 
 import           Flow                      ((.>), (|>))
-
---------------------------------------------------------------------------------
-
--- | A constraint alias for @('Eq' k, 'Hashable' k)@.
---
---   @since 0.1.0
-type Key k = (Eq k, Hashable k)
-
--- | A 'NE.NonEmpty' list of 'HashMap's.
---
---   @since 0.1.0
-type Maps k v = NE.NonEmpty (HashMap k v)
 
 --------------------------------------------------------------------------------
 
@@ -153,14 +141,14 @@ scopeEnv e = MkEnv (NE.cons HM.empty (_fromEnv e))
 --
 --   @since 0.1.0
 {-# INLINEABLE addEnv #-}
-addEnv :: (Eq k, Hashable k) => k -> v -> Env k v -> Env k v
+addEnv :: (Key k) => k -> v -> Env k v -> Env k v
 addEnv k v (MkEnv (m :| rest)) = MkEnv (HM.insert k v m :| rest)
 
 -- | Look up the given key in the given 'Env'.
 --
 --   @since 0.1.0
 {-# INLINEABLE askEnv #-}
-askEnv :: (Eq k, Hashable k) => Env k v -> k -> Maybe v
+askEnv :: (Key k) => Env k v -> k -> Maybe v
 askEnv env k = HM.lookup k (headEnv env)
                <|> (tailEnv env >>= (`askEnv` k))
 
@@ -173,7 +161,7 @@ instance (Aeson.ToJSONKey k, Aeson.ToJSON v) => Aeson.ToJSON (Env k v) where
 -- | Inverse of the 'Aeson.ToJSON' instance.
 --
 --   @since 0.1.0
-instance ( Eq k, Hashable k, Aeson.FromJSONKey k, Aeson.FromJSON v
+instance ( Key k, Aeson.FromJSONKey k, Aeson.FromJSON v
          ) => Aeson.FromJSON (Env k v) where
   parseJSON = Aeson.parseJSON
               >=> NE.nonEmpty
@@ -183,7 +171,7 @@ instance ( Eq k, Hashable k, Aeson.FromJSONKey k, Aeson.FromJSON v
 -- | Reasonable 'QC.Arbitrary' instance for 'Env'.
 --
 --   @since 0.1.0
-instance ( Eq k, Hashable k, QC.Arbitrary k, QC.Arbitrary v
+instance ( Key k, QC.Arbitrary k, QC.Arbitrary v
          ) => QC.Arbitrary (Env k v) where
   arbitrary = QC.arbitrary
               |> fmap (map (uncurry addEnv .> Endo)
@@ -219,6 +207,18 @@ instance ( Monad m, EnvConstraint (SC.CoSerial m) k v
 --
 --   @since 0.1.0
 type EnvConstraint (c :: * -> Constraint) (k :: *) (v :: *)
-  = (Eq k, Hashable k, c k, c v, c (Maps k v))
+  = (Key k, c k, c v, c (Maps k v))
+
+--------------------------------------------------------------------------------
+
+-- | A constraint alias for @('Eq' k, 'Hashable' k)@.
+--
+--   @since 0.1.0
+type Key k = (Eq k, Hashable k)
+
+-- | A 'NE.NonEmpty' list of 'HashMap's.
+--
+--   @since 0.1.0
+type Maps k v = NE.NonEmpty (HashMap k v)
 
 --------------------------------------------------------------------------------
