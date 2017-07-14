@@ -48,15 +48,8 @@ a[href].def:hover { color: rgb(78, 98, 114); }
 
 /* @group Fonts & Sizes */
 
-/* Basic technique & IE workarounds from YUI 3
-   For reasons, see:
-      http://yui.yahooapis.com/3.1.1/build/cssfonts/fonts.css
-*/
-
 body {
-    font:13px/1.4 sans-serif;
-    *font-size:small; /* for IE */
-    *font:x-small; /* for IE in quirks mode */
+    font: 13px/1.4 sans-serif;
 }
 
 h1 { font-size: 146.5%; /* 19pt */ }
@@ -66,18 +59,18 @@ h4 { font-size: 100%;   /* 13pt */ }
 h5 { font-size: 100%;   /* 13pt */ }
 
 select, input, button, textarea {
-    font:99% sans-serif;
+    font: 99% sans-serif;
 }
 
 table {
-    font-size:inherit;
-    font:100%;
+    font-size: inherit;
+    font: 100%;
 }
 
 pre, code, kbd, samp, tt, .src {
-    font-family:monospace;
-    *font-size:108%;
+    font-family: monospace;
     line-height: 124%;
+    background-color: #F1F1F1;
 }
 
 .links, .link {
@@ -95,7 +88,6 @@ pre, code, kbd, samp, tt, .src {
 #table-of-contents, #synopsis  {
     /* font-size: 85%; /* 11pt */
 }
-
 
 /* @end */
 
@@ -142,17 +134,19 @@ ul.links li a {
     background-image: url(minus.gif);
     background-repeat: no-repeat;
 }
+
 .expander {
     background-image: url(plus.gif);
     background-repeat: no-repeat;
 }
+
 .collapser, .expander {
     padding-left: 14px;
     margin-left: -14px;
     cursor: pointer;
 }
-p.caption.collapser,
-p.caption.expander {
+
+p.caption.collapser, p.caption.expander {
     background-position: 0 0.4em;
 }
 
@@ -163,16 +157,15 @@ p.caption.expander {
     min-height: 9px;
 }
 
-
 pre {
     padding: 0.25em;
     margin: 0.8em 0;
     background: rgb(229,237,244);
     overflow: auto;
     border-bottom: 0.25em solid white;
-/* white border adds some space below the box to compensate
-     for visual extra space that paragraphs have between baseline
-     and the bounding box */
+    /* white border adds some space below the box to compensate */
+    /* for visual extra space that paragraphs have between baseline */
+    /* and the bounding box */
 }
 
 .src {
@@ -378,22 +371,21 @@ div#style-menu-holder {
 
 /* @group Main Content */
 
-#interface div.top { margin: 2em 0; }
-#interface h1 + div.top,
-#interface h2 + div.top,
-#interface h3 + div.top,
-#interface h4 + div.top,
-#interface h5 + div.top {
-    margin-top: 1em;
-}
-#interface .src .selflink,
-#interface .src .link {
+#interface div.top      { margin: 2em 0; }
+#interface h1 + div.top { margin-top: 1em; }
+#interface h2 + div.top { margin-top: 1em; }
+#interface h3 + div.top { margin-top: 1em; }
+#interface h4 + div.top { margin-top: 1em; }
+#interface h5 + div.top { margin-top: 1em; }
+
+#interface .src .selflink, #interface .src .link {
     float: right;
     color: #919191;
     background: #f0f0f0;
     padding: 0 0.5em 0.2em;
     margin: 0 -0.5em 0 0;
 }
+
 #interface .src .selflink {
     border-left: 1px solid #919191;
     margin: 0 -0.5em 0 0.5em;
@@ -425,6 +417,30 @@ div#style-menu-holder {
 }
 #interface td.doc p + p {
     margin-top: 0.8em;
+}
+
+#interface .instance-links {
+    text-align: center;
+    vertical-align: middle;
+    color: #919191;
+    background: #f0f0f0;
+    padding: 0.2em 0.4em 0.2em 0.4em;
+    margin:  0.0em 0.0em 0.0em 0.0em;
+    font-family: monospace;
+    line-height: 124%;
+}
+
+#interface .instance-links .link {
+    color: #919191;
+    border-left: 1px solid #919191;
+    padding: 0.0em 0.0em 0.0em 0.5em;
+    margin:  0.0em 0.0em 0.0em 0.0em;
+}
+
+#interface .instance-links .selflink {
+    color: #919191;
+    padding: 0.0em 0.5em 0.0em 0.0em;
+    margin:  0.0em 0.0em 0.0em 0.0em;
 }
 
 .clearfix:after {
@@ -609,15 +625,44 @@ div#style-menu-holder {
     float: right;
 }
 
-sup.version {
+.module-version {
+    font-family:      sans-serif;
+    font-size:        14px;
+    color:            #0071E6;
+    background-color: #F0EAEA;
+    margin-left:      0.25em;
+    padding-top:      0.10em;
+    padding-bottom:   0.10em;
+    padding-left:     0.25em;
+    padding-right:    0.25em;
+    border-radius:    0.20em;
+}
+
+.decl-version {
+    font-family:      sans-serif;
     font-size:        xx-small;
-    background-color: #F0F0F0;
+    color:            #0071E6;
+    background-color: #F0EAEA;
+    padding-left:     0.20em;
+    padding-right:    0.20em;
+    border-radius:    0.20em;
+}
+
+.instance-version {
+    font-family:      sans-serif;
+    font-size:        xx-small;
+    color:            #0071E6;
+    background-color: #F0EAEA;
     margin-left:      0.50em;
     padding-top:      0.10em;
     padding-bottom:   0.10em;
     padding-left:     0.25em;
     padding-right:    0.25em;
     border-radius:    0.20em;
+}
+
+tr.instance {
+    font-size: small;
 }
 
 /* @end */

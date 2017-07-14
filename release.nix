@@ -9,6 +9,18 @@ with rec {
   computeHaskellDir = hp: pkg: "${pkg.system}-${hp.ghc.name}";
 
   setHaddockStyle = hp: pkg: (
+    with rec {
+      fetchJQuery = { version, sha256 }: pkgs.fetchurl {
+        url = "https://code.jquery.com/jquery-${version}.min.js";
+        inherit sha256;
+      };
+
+      jquery = fetchJQuery {
+        version = "3.2.1";
+        sha256  = "1pl2imaca804jkq29flhbkfga5qqk39rj6j1n179h5b0rj13h247";
+      };
+    };
+
     haskell.lib.overrideCabal pkg (old: rec {
       preInstall = (''
         for haddockDir in ./dist/doc/html/*; do
@@ -17,6 +29,7 @@ with rec {
                  rm -fv "$haddockDir/haddock-util.js"
                  cp -v "./misc/haddock.css" "$haddockDir/ocean.css"
                  cp -v "./misc/haddock.js"  "$haddockDir/haddock-util.js"
+                 ln -sv ${jquery} "$haddockDir/jquery.js"
              fi
         done
       '' + (old.preInstall or ""));
