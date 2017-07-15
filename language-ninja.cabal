@@ -28,26 +28,17 @@ library
     hs-source-dirs:       library
     build-depends:        base                        >= 4.8   && < 5.0
                         , aeson                       >= 1.0   && < 1.3
-                        , aeson-pretty                >= 0.8   && < 0.9
                         , bytestring                  >= 0.10  && < 0.11
                         , containers                  >= 0.5   && < 0.6
                         , deepseq                     >= 1.4   && < 1.5
-                        , directory                   >= 1.3   && < 1.4
-                        , Earley                      >= 0.11  && < 0.12
-                        , exceptions                  >= 0.8   && < 0.9
-                        , extra                       >= 1.5   && < 1.6
                         , flow                        >= 1.0   && < 1.1
                         , hashable                    >= 1.2   && < 1.3
                         , intern                      >= 0.9   && < 0.10
-                        , makefile                    >= 1.0   && < 1.1
                         , megaparsec                  >= 5.2   && < 5.3
                         , mtl                         >= 2.2   && < 2.3
-                        , prettyprinter               >= 1.1   && < 1.2
-                        , prettyprinter-ansi-terminal >= 1.1   && < 1.2
                         , lens                        >= 4.15  && < 4.16
                         , QuickCheck                  >= 2.9   && < 2.10
                         , quickcheck-instances        >= 0.3   && < 0.4
-                        , reflection                  >= 2.1   && < 2.2
                         , smallcheck                  >= 1.1   && < 1.2
                         , system-filepath             >= 0.4   && < 0.5
                         , text                        >= 1.2   && < 1.3
