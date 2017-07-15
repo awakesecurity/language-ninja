@@ -29,6 +29,7 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
 -- |
@@ -58,7 +59,7 @@ import qualified Control.Lens              as Lens
 
 import           Data.Foldable             (asum)
 import           Data.Maybe                (fromMaybe)
-import           Data.Monoid               (Endo (..), (<>))
+import           Data.Monoid               (Endo (Endo, appEndo), (<>))
 
 import           Flow                      ((.>), (|>))
 
@@ -180,24 +181,28 @@ addBinds bs e = map (second (askExpr e) .> uncurry AST.addEnv .> Endo) bs
 --   node if it exists.
 --
 --   @since 0.1.0
-normalizeExpr :: (Monoid ann) => Expr ann -> Expr ann
+normalizeExpr :: forall ann. (Monoid ann) => Expr ann -> Expr ann
 normalizeExpr = flatten .> removeEmpty .> combineAdj .> listToExpr
   where
-    listToExpr [e] = e
-    listToExpr es  = Exprs (mconcat (map (Lens.view Misc.annotation) es)) es
-
+    flatten :: Expr ann -> [Expr ann]
     flatten (Exprs _ es) = concatMap flatten es
     flatten owise        = [owise]
 
+    removeEmpty :: [Expr ann] -> [Expr ann]
     removeEmpty []                = []
     removeEmpty (Lit _ "" : rest) = removeEmpty rest
     removeEmpty (owise    : rest) = owise : removeEmpty rest
 
+    combineAdj :: [Expr ann] -> [Expr ann]
     combineAdj = (\case
       []                               -> []
       (Lit annX x : Lit annY y : rest) -> (Lit (annX <> annY) (x <> y))
                                           |> (\e -> combineAdj (e : rest))
       (owise                   : rest) -> owise : combineAdj rest)
+
+    listToExpr :: [Expr ann] -> Expr ann
+    listToExpr [e] = e
+    listToExpr es  = Exprs (mconcat (map (Lens.view Misc.annotation) es)) es
 
 -- | The usual definition for 'Lens.Plated'.
 --
@@ -237,10 +242,10 @@ instance (Aeson.FromJSON ann) => Aeson.FromJSON (Expr ann) where
 -- | Reasonable 'QC.Arbitrary' instance for 'Expr'.
 --
 --   @since 0.1.0
-instance (QC.Arbitrary ann) => QC.Arbitrary (Expr ann) where
+instance forall ann. (QC.Arbitrary ann) => QC.Arbitrary (Expr ann) where
   arbitrary = QC.sized go
     where
-      go :: (QC.Arbitrary ann) => Int -> QC.Gen (Expr ann)
+      go :: Int -> QC.Gen (Expr ann)
       go n | n <= 0 = [ litG (QC.resize litLength QC.arbitrary)
                       , varG (QC.resize varLength QC.arbitrary)
                       ] |> QC.oneof
@@ -250,7 +255,7 @@ instance (QC.Arbitrary ann) => QC.Arbitrary (Expr ann) where
                            Exprs <$> QC.arbitrary <*> QC.vectorOf width subtree
                       ] |> QC.oneof
 
-      litG, varG :: (QC.Arbitrary ann) => QC.Gen Text -> QC.Gen (Expr ann)
+      litG, varG :: QC.Gen Text -> QC.Gen (Expr ann)
       litG g = Lit <$> QC.arbitrary <*> g
       varG g = Var <$> QC.arbitrary <*> g
 

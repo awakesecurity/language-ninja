@@ -35,6 +35,8 @@
 --     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 --     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+{-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
+
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE DeriveGeneric              #-}
@@ -86,10 +88,10 @@ module Language.Ninja.Lexer
   , PositionParsing (..)
   ) where
 
-import           Control.Applicative       (Alternative (..))
+import           Control.Applicative       (Alternative ((<|>)))
 import           Control.Arrow             (second)
 import           Control.Monad             (unless, void, when)
-import           Control.Monad.Error.Class (MonadError (..))
+import           Control.Monad.Error.Class (MonadError)
 
 import qualified Control.Lens              as Lens
 
@@ -111,10 +113,10 @@ import qualified Text.Megaparsec.Lexer     as M.Lexer
 
 import           Data.Aeson                ((.:), (.=))
 import qualified Data.Aeson                as Aeson
+import qualified Data.Aeson.Types          as Aeson
 
 import           Control.DeepSeq           (NFData)
 import           Data.Hashable             (Hashable)
-import           Data.Monoid               (Monoid (..))
 import           GHC.Generics              (Generic)
 
 import           Test.SmallCheck.Series    ((<~>))
@@ -192,7 +194,7 @@ instance Misc.Annotated Lexeme where
 -- | Converts to @{ann: …, tag: …, value: …}@.
 --
 --   @since 0.1.0
-instance (Aeson.ToJSON ann) => Aeson.ToJSON (Lexeme ann) where
+instance forall ann. (Aeson.ToJSON ann) => Aeson.ToJSON (Lexeme ann) where
   toJSON = (\case (LexDefine   ann value) -> obj ann "define"   value
                   (LexBind     ann value) -> obj ann "bind"     value
                   (LexInclude  ann value) -> obj ann "include"  value
@@ -202,8 +204,7 @@ instance (Aeson.ToJSON ann) => Aeson.ToJSON (Lexeme ann) where
                   (LexPool     ann value) -> obj ann "pool"     value
                   (LexDefault  ann value) -> obj ann "default"  value)
     where
-      obj :: (Aeson.ToJSON ann, Aeson.ToJSON x)
-          => ann -> Text -> x -> Aeson.Value
+      obj :: forall x. (Aeson.ToJSON x) => ann -> Text -> x -> Aeson.Value
       obj ann tag value = [ "ann" .= ann, "tag" .= tag, "value" .= value
                           ] |> Aeson.object
 
@@ -225,10 +226,13 @@ instance (Aeson.FromJSON ann) => Aeson.FromJSON (Lexeme ann) where
                     "default"  -> LexDefault  ann <$> (o .: "value")
                     owise      -> invalidTagError (Text.unpack owise))
     where
+      invalidTagError :: String -> Aeson.Parser a
       invalidTagError x = [ "Invalid tag: ", x, "; expected one of: "
                           , show validTags
                           ] |> mconcat |> fail
-      validTags = [ "default", "bind", "include", "subninja"
+
+      validTags :: [Text]
+      validTags = [ "define", "bind", "include", "subninja"
                   , "build", "rule", "pool", "default" ]
 
 -- | Default 'Hashable' instance via 'Generic'.
@@ -466,7 +470,8 @@ data LBuild ann
 -- | Constructor for an 'LBuild'.
 --
 --   @since 0.1.0
-makeLBuild :: ann
+makeLBuild :: forall ann.
+              ann
            -- ^ The build annotation
            -> [AST.Expr ann]
            -- ^ The build outputs
@@ -476,7 +481,8 @@ makeLBuild :: ann
            -- ^ The build dependencies
            -> LBuild ann
 makeLBuild ann outs rule deps
-  = let filterExprs = filter (\case (AST.Lit   _ "") -> False
+  = let filterExprs :: [AST.Expr ann] -> [AST.Expr ann]
+        filterExprs = filter (\case (AST.Lit   _ "") -> False
                                     (AST.Exprs _ []) -> False
                                     _                -> True)
     in MkLBuild ann (filterExprs outs) rule (filterExprs deps)
@@ -593,7 +599,7 @@ class (Monad m) => PositionParsing m where
 -- | Instance for 'M.ParsecT' from @megaparsec@.
 --
 --   @since 0.1.0
-instance (Monad m) => PositionParsing (M.ParsecT M.Dec Text m) where
+instance PositionParsing (M.ParsecT M.Dec Text m) where
   getPosition = convert <$> M.getPosition
     where
       convert :: M.SourcePos -> Misc.Position
@@ -616,24 +622,25 @@ type Parser m a = M.ParsecT M.Dec Text m a
 -- | The @megaparsec@ parser for a Ninja file.
 --
 --   @since 0.1.0
-lexemesP :: (Monad m) => Parser m [Lexeme Ann]
+lexemesP :: Parser m [Lexeme Ann]
 lexemesP = do
   maybes <- [ Nothing <$  lineCommentP
             , Nothing <$  M.separatorChar
             , Nothing <$  M.eol
             , Just    <$> (lexemeP <* lineEndP)
-            ] |> asum |> many
+            ] |> asum |> M.many
   M.eof
   pure (catMaybes maybes)
 
 --------------------------------------------------------------------------------
 
-spanned :: (Monad m, PositionParsing m) => m a -> m (Ann, a)
+spanned :: (PositionParsing m) => m a -> m (Ann, a)
 spanned p = do
   start  <- getPosition
   result <- p
   end    <- getPosition
-  let getPosFile = Lens.view Misc.positionFile
+  let getPosFile :: Misc.Position -> Maybe Misc.Path
+      getPosFile = Lens.view Misc.positionFile
   let (sfile, efile) = (getPosFile start, getPosFile end)
   when (sfile /= efile) $ fail "spanned: somehow went over multiple files!"
   let file = sfile
@@ -643,24 +650,25 @@ spanned p = do
 
 --------------------------------------------------------------------------------
 
-lexemeP :: (Monad m) => Parser m (Lexeme Ann)
+lexemeP :: Parser m (Lexeme Ann)
 lexemeP = [ includeP, subninjaP, buildP, ruleP, poolP, defaultP, bindP, defineP
           ] |> map M.try |> asum
 
-defineP :: (Monad m) => Parser m (Lexeme Ann)
+defineP :: Parser m (Lexeme Ann)
 defineP = spanned equationP
           |> fmap (uncurry LexDefine)
           |> debugP "defineP"
 
-bindP :: (Monad m) => Parser m (Lexeme Ann)
+bindP :: Parser m (Lexeme Ann)
 bindP = spanned (indented f)
         |> fmap (uncurry LexBind)
         |> debugP "bindP"
   where
+    f :: Misc.Column -> Parser m (LBind Ann)
     f x | x < 2 = fail "bindP: not indented"
     f _         = equationP
 
-includeP :: (Monad m) => Parser m (Lexeme Ann)
+includeP :: Parser m (Lexeme Ann)
 includeP = debugP "includeP" $ do
   (ann, file) <- spanned $ do
     beginningOfLine
@@ -668,7 +676,7 @@ includeP = debugP "includeP" $ do
     M.Lexer.lexeme spaceP fileP
   pure (LexInclude ann file)
 
-subninjaP :: (Monad m) => Parser m (Lexeme Ann)
+subninjaP :: Parser m (Lexeme Ann)
 subninjaP = debugP "subninjaP" $ do
   (ann, file) <- spanned $ do
     beginningOfLine
@@ -676,12 +684,15 @@ subninjaP = debugP "subninjaP" $ do
     M.Lexer.lexeme spaceP fileP
   pure (LexSubninja ann file)
 
-buildP :: (Monad m) => Parser m (Lexeme Ann)
+buildP :: Parser m (Lexeme Ann)
 buildP = debugP "buildP" $ do
-  let exprEmpty (AST.Lit   _ "") = True
-      exprEmpty (AST.Exprs _ []) = True
-      exprEmpty _                = False
-  let cleanExprs = map AST.normalizeExpr .> filter (exprEmpty .> not)
+  let isExprEmpty :: AST.Expr Ann -> Bool
+      isExprEmpty (AST.Lit   _ "") = True
+      isExprEmpty (AST.Exprs _ []) = True
+      isExprEmpty _                = False
+
+  let cleanExprs :: [AST.Expr Ann] -> [AST.Expr Ann]
+      cleanExprs = map AST.normalizeExpr .> filter (isExprEmpty .> not)
 
   (ann, (outs, rule, deps)) <- spanned $ do
     beginningOfLine
@@ -694,7 +705,7 @@ buildP = debugP "buildP" $ do
 
   pure (LexBuild ann (MkLBuild ann outs rule deps))
 
-ruleP :: (Monad m) => Parser m (Lexeme Ann)
+ruleP :: Parser m (Lexeme Ann)
 ruleP = debugP "ruleP" $ do
   (ann, ruleName) <- spanned $ do
     beginningOfLine
@@ -702,7 +713,7 @@ ruleP = debugP "ruleP" $ do
     nameP
   pure (LexRule ann ruleName)
 
-poolP :: (Monad m) => Parser m (Lexeme Ann)
+poolP :: Parser m (Lexeme Ann)
 poolP = debugP "poolP" $ do
   (ann, poolName) <- spanned $ do
     beginningOfLine
@@ -710,7 +721,7 @@ poolP = debugP "poolP" $ do
     nameP
   pure (LexPool ann poolName)
 
-defaultP :: (Monad m) => Parser m (Lexeme Ann)
+defaultP :: Parser m (Lexeme Ann)
 defaultP = debugP "defaultP" $ do
   (ann, defaults) <- spanned $ do
     beginningOfLine
@@ -718,13 +729,13 @@ defaultP = debugP "defaultP" $ do
     M.many (M.Lexer.lexeme spaceP exprP)
   pure (LexDefault ann defaults)
 
-lineEndP :: (Monad m) => Parser m ()
+lineEndP :: Parser m ()
 lineEndP = do
   M.many M.separatorChar
   lineCommentP <|> pure ()
   void M.eol
 
-equationP :: (Monad m) => Parser m (LBind Ann)
+equationP :: Parser m (LBind Ann)
 equationP = debugP "equationP" $ do
   (ann, (name, value)) <- spanned $ do
     name <- nameP
@@ -734,22 +745,23 @@ equationP = debugP "equationP" $ do
 
   pure (MkLBind ann name value)
 
-nameP :: (Monad m) => Parser m (LName Ann)
+nameP :: Parser m (LName Ann)
 nameP = spanned varDotP
         |> fmap (second (Text.pack .> Text.encodeUtf8) .> uncurry MkLName)
         |> M.Lexer.lexeme spaceP
         |> debugP "nameP"
 
-fileP :: (Monad m) => Parser m (LFile Ann)
+fileP :: Parser m (LFile Ann)
 fileP = MkLFile <$> exprP
         |> M.Lexer.lexeme spaceP
         |> debugP "fileP"
 
-outputP :: (Monad m) => Parser m (AST.Expr Ann)
+outputP :: Parser m (AST.Expr Ann)
 outputP = spanned (M.some (dollarP <|> litP))
           |> fmap (uncurry AST.Exprs .> AST.normalizeExpr)
           |> M.Lexer.lexeme spaceP
   where
+    litP :: Parser m (AST.Expr Ann)
     litP = spanned (M.some (M.satisfy isOutputChar))
            |> fmap (second Text.pack .> uncurry AST.Lit)
 
@@ -761,17 +773,19 @@ outputP = spanned (M.some (dollarP <|> litP))
     isOutputChar c   | isSpace c = False
     isOutputChar _               = True
 
-exprsP :: (Monad m) => Parser m (AST.Expr Ann)
+exprsP :: Parser m (AST.Expr Ann)
 exprsP = asum [exprP, separatorP]
          |> M.many |> spanned |> fmap (uncurry AST.Exprs .> AST.normalizeExpr)
   where
-    separatorP = spanned (some M.separatorChar)
+    separatorP :: Parser m (AST.Expr Ann)
+    separatorP = spanned (M.some M.separatorChar)
                  |> fmap (second Text.pack .> uncurry AST.Lit)
 
-exprP :: (Monad m) => Parser m (AST.Expr Ann)
+exprP :: Parser m (AST.Expr Ann)
 exprP = spanned (M.some (dollarP <|> litP))
         |> fmap (uncurry AST.Exprs .> AST.normalizeExpr)
   where
+    litP :: Parser m (AST.Expr Ann)
     litP = spanned (M.some (M.satisfy isExprChar))
            |> fmap (second Text.pack .> uncurry AST.Lit)
 
@@ -782,7 +796,7 @@ exprP = spanned (M.some (dollarP <|> litP))
     isExprChar c   | isSpace c = False
     isExprChar _               = True
 
-dollarP :: (Monad m) => Parser m (AST.Expr Ann)
+dollarP :: Parser m (AST.Expr Ann)
 dollarP = debugP "dollarP"
           (M.char '$'
            *> ([ makeLit (M.string "$")
@@ -793,41 +807,44 @@ dollarP = debugP "dollarP"
                , makeVar varP
                ] |> asum))
   where
+    makeLit, makeVar :: Parser m String -> Parser m (AST.Expr Ann)
     makeLit p = spanned p |> fmap (second Text.pack .> uncurry AST.Lit)
     makeVar p = spanned p |> fmap (second Text.pack .> uncurry AST.Var)
 
-varDotP :: (Monad m) => Parser m String
-varDotP = let char = M.alphaNumChar <|> M.oneOf ['/', '-', '_', '.']
-          in debugP "varDotP" (M.some char)
+varDotP :: Parser m String
+varDotP = M.some (M.alphaNumChar <|> M.oneOf ['/', '-', '_', '.'])
+          |> debugP "varDotP"
 
-varP :: (Monad m) => Parser m String
-varP = let char = M.alphaNumChar <|> M.oneOf ['/', '-', '_']
-       in debugP "varP" (M.some char)
+varP :: Parser m String
+varP = M.some (M.alphaNumChar <|> M.oneOf ['/', '-', '_'])
+       |> debugP "varP"
 
-symbolP :: (Monad m) => String -> Parser m String
+symbolP :: String -> Parser m String
 symbolP = M.Lexer.symbol spaceP
 
-spaceP :: (Monad m) => Parser m ()
+spaceP :: Parser m ()
 spaceP = M.Lexer.space (void M.separatorChar) lineCommentP blockCommentP
 
-lineCommentP :: (Monad m) => Parser m ()
+lineCommentP :: Parser m ()
 lineCommentP = M.Lexer.skipLineComment "#"
 
-blockCommentP :: (Monad m) => Parser m ()
+blockCommentP :: Parser m ()
 blockCommentP = fail "always"
 
-indented :: (Monad m) => (Misc.Column -> Parser m a) -> Parser m a
+indented :: (Misc.Column -> Parser m a) -> Parser m a
 indented f = do
-  let getCol = Lens.view Misc.positionCol <$> getPosition
   M.many M.separatorChar
-  getCol >>= f
+  getPosition >>= Lens.view Misc.positionCol .> f
 
-beginningOfLine :: (Monad m) => Parser m ()
+beginningOfLine :: Parser m ()
 beginningOfLine = do
   col <- Lens.view Misc.positionCol <$> getPosition
   unless (col == 1) (fail "beginningOfLine failed")
 
-debugP :: (Monad m, Show a) => String -> Parser m a -> Parser m a
-debugP = M.label -- M.dbg
+debugP :: (Show a) => String -> Parser m a -> Parser m a
+debugP str p = M.label str p -- M.dbg str p
+  where
+    -- this shuts up the compiler wrt the Show constraint
+    _ = show <$> p
 
 --------------------------------------------------------------------------------

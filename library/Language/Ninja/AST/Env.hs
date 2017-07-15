@@ -67,9 +67,9 @@ import           Control.Monad             ((>=>))
 
 import qualified Control.Lens              as Lens
 
-import           Data.Monoid               (Endo (..))
+import           Data.Monoid               (Endo (Endo, appEndo))
 
-import           Data.List.NonEmpty        (NonEmpty (..))
+import           Data.List.NonEmpty        (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty        as NE
 
 import           Data.HashMap.Strict       (HashMap)

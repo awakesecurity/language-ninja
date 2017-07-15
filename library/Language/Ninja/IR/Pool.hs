@@ -20,10 +20,12 @@
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE InstanceSigs          #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
 -- |
@@ -65,11 +67,13 @@ import qualified Data.Text                    as Text
 
 import           Control.DeepSeq              (NFData)
 import           Data.Hashable                (Hashable)
-import           Data.String                  (IsString (..))
+import           Data.String                  (IsString (fromString))
 import           GHC.Generics                 (Generic)
-import           Test.SmallCheck.Series       as SC hiding (Positive)
 
-import           Language.Ninja.Misc.Positive
+import           Test.SmallCheck.Series       ((<~>), (\/))
+import qualified Test.SmallCheck.Series       as SC
+
+import qualified Language.Ninja.Misc.Positive as Misc
 
 import           Flow                         ((.>), (|>))
 
@@ -94,12 +98,9 @@ makePool :: PoolName -> PoolDepth -> Maybe Pool
 makePool PoolNameDefault    PoolInfinite  = Just makePoolDefault
 makePool PoolNameConsole    (PoolDepth 1) = Just makePoolConsole
 makePool (PoolNameCustom t) (PoolDepth d) = if d >= 1
-                                            then fromIntegral d
-                                                 |> makePoolCustom t
-                                                 |> Just
+                                            then Just (makePoolCustom t d)
                                             else Nothing
 makePool _                  _             = Nothing
--- FIXME: use MonadThrow instead of Maybe here
 
 -- | The default pool, i.e.: the one whose name is the empty string.
 --
@@ -119,8 +120,8 @@ makePoolConsole = MkPool makePoolNameConsole (PoolDepth 1)
 --
 --   @since 0.1.0
 {-# INLINE makePoolCustom #-}
-makePoolCustom :: Text     -- ^ The pool name.
-               -> Positive -- ^ The pool depth.
+makePoolCustom :: Text          -- ^ The pool name.
+               -> Misc.Positive -- ^ The pool depth.
                -> Pool
 makePoolCustom name depth = MkPool (makePoolNameCustom name) (PoolDepth depth)
 
@@ -159,19 +160,20 @@ instance Aeson.FromJSON Pool where
 -- | Uses the underlying instances.
 --
 --   @since 0.1.0
-instance (Monad m, SC.Serial m Text) => SC.Serial m Pool where
+instance forall m. (Monad m, SC.Serial m Text) => SC.Serial m Pool where
   series = pure makePoolDefault
            \/ pure makePoolConsole
-           \/ (let nameSeries = series >>= (\case ""        -> empty
-                                                  "console" -> empty
-                                                  x         -> pure x)
-               in makePoolCustom <$> nameSeries <~> series)
+           \/ (let nameSeries :: SC.Series m Text
+                   nameSeries = SC.series >>= (\case ""        -> empty
+                                                     "console" -> empty
+                                                     x         -> pure x)
+               in makePoolCustom <$> nameSeries <~> SC.series)
 
 -- | Uses the underlying instances.
 --
 --   @since 0.1.0
 instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Pool where
-  coseries = coseries .> fmap (\f -> convert .> f)
+  coseries = SC.coseries .> fmap (\f -> convert .> f)
     where
       convert :: Pool -> (PoolName, PoolDepth)
       convert pool = (Lens.view poolName pool, Lens.view poolDepth pool)
@@ -357,7 +359,7 @@ instance NFData PoolName
 --
 --   @since 0.1.0
 data PoolDepth
-  = PoolDepth !Positive
+  = PoolDepth !Misc.Positive
   | PoolInfinite
   deriving (Eq, Ord, Show, Read, Generic)
 
@@ -366,7 +368,7 @@ data PoolDepth
 --
 --   @since 0.1.0
 {-# INLINE makePoolDepth #-}
-makePoolDepth :: Positive -> PoolDepth
+makePoolDepth :: Misc.Positive -> PoolDepth
 makePoolDepth = PoolDepth
 
 -- | Construct an infinite 'PoolDepth'. This constructor is needed for the
@@ -377,22 +379,22 @@ makePoolDepth = PoolDepth
 makePoolInfinite :: PoolDepth
 makePoolInfinite = PoolInfinite
 
--- | An isomorphism between a 'PoolDepth' and a @'Maybe' 'Positive'@;
+-- | An isomorphism between a 'PoolDepth' and a @'Maybe' 'Misc.Positive'@;
 --   the 'Nothing' case maps to 'makePoolInfinite' and the 'Just' case
 --   maps to 'makePoolDepth'.
 --
 --   @since 0.1.0
 {-# INLINE poolDepthPositive #-}
-poolDepthPositive :: Lens.Iso' PoolDepth (Maybe Positive)
+poolDepthPositive :: Lens.Iso' PoolDepth (Maybe Misc.Positive)
 poolDepthPositive = Lens.iso fromPD toPD
   where
     {-# INLINE fromPD #-}
-    fromPD :: PoolDepth -> Maybe Positive
+    fromPD :: PoolDepth -> Maybe Misc.Positive
     fromPD (PoolDepth p) = Just p
     fromPD PoolInfinite  = Nothing
 
     {-# INLINE toPD #-}
-    toPD :: Maybe Positive -> PoolDepth
+    toPD :: Maybe Misc.Positive -> PoolDepth
     toPD (Just p) = PoolDepth p
     toPD Nothing  = PoolInfinite
 
@@ -417,7 +419,7 @@ instance Aeson.FromJSON PoolDepth where
 --   @since 0.1.0
 instance (Monad m) => SC.Serial m PoolDepth where
   series = pure PoolInfinite
-           \/ (series |> fmap PoolDepth)
+           \/ (SC.series |> fmap PoolDepth)
 
 -- | Default 'SC.CoSerial' instance via 'Generic'.
 --

@@ -42,11 +42,11 @@ import           Control.Arrow             (first)
 
 import qualified Control.Lens              as Lens
 
-import           Control.Monad.Error.Class (MonadError (..))
+import           Control.Monad.Error.Class (MonadError)
 
 import           Data.Char                 (isSpace)
 import           Data.Maybe                (fromMaybe, isJust)
-import           Data.Monoid               (Endo (..), (<>))
+import           Data.Monoid               (Endo (Endo, appEndo), (<>))
 
 import           Data.Text                 (Text)
 import qualified Data.Text                 as Text
@@ -195,10 +195,10 @@ compile ast = result
                          >>= compileSpecialDeps
       generator    <- isJust <$> lookupBind "generator"
       restat       <- isJust <$> lookupBind "restat"
-      responseFile <- let (rsp, rspcontent) = ("rspfile", "rspfile_content")
-                      in ((,) <$> lookupBind rsp <*> lookupBind rspcontent)
-                         >>= (\(ma, mb) -> pure ((,) <$> ma <*> mb))
-                         >>= fmap compileResponseFile .> sequenceA
+      responseFile <- do ma <- lookupBind "rspfile"
+                         mb <- lookupBind "rspfile_content"
+                         pure ((,) <$> ma <*> mb)
+                           >>= fmap compileResponseFile .> sequenceA
 
       IR.makeRule name command
         |> Lens.set IR.ruleDescription  description
@@ -216,13 +216,13 @@ compile ast = result
                                 (Just "msvc", m) -> goMSVC m
                                 (Just d,      _) -> Errors.throwUnknownDeps d)
       where
-        goGCC  Nothing  = pure (Just IR.makeSpecialDepsGCC)
+        goGCC, goMSVC :: Maybe Text -> m (Maybe IR.SpecialDeps)
         goGCC  (Just _) = Errors.throwUnexpectedMSVCPrefix "gcc"
-
+        goGCC  Nothing  = pure (Just IR.makeSpecialDepsGCC)
         goMSVC (Just m) = pure (Just (IR.makeSpecialDepsMSVC m))
         goMSVC Nothing  = pure (Just (IR.makeSpecialDepsMSVC defaultPrefix))
 
-        defaultPrefix = "Note: including file: "
+        defaultPrefix = "Note: including file: " :: Text
 
     compileResponseFile :: (Text, Text) -> m IR.ResponseFile
     compileResponseFile (file, content) = do
@@ -260,7 +260,8 @@ compile ast = result
 
       -- FIXME: properly handle implicit/explicit outputs here
 
-      let isExplicitOut _ = True
+      let isExplicitOut :: IR.Output -> Bool
+          isExplicitOut _ = True
 
       let explicitOuts = HS.toList outs
                          |> filter isExplicitOut

@@ -70,7 +70,7 @@ module Language.Ninja.Errors.Compile
   ) where
 
 import           Control.Exception         (Exception)
-import           Control.Monad.Error.Class (MonadError (..))
+import           Control.Monad.Error.Class (MonadError (throwError))
 import           GHC.Generics              (Generic)
 
 import           Data.Text                 (Text)

@@ -59,7 +59,7 @@ import           Data.Aeson                  ((.:), (.=))
 import qualified Data.Aeson                  as Aeson
 
 import           Control.DeepSeq             (NFData)
-import           Data.Hashable               (Hashable (..))
+import           Data.Hashable               (Hashable)
 import           GHC.Generics                (Generic)
 import qualified Test.SmallCheck.Series      as SC
 
@@ -323,8 +323,7 @@ instance Aeson.ToJSON SpecialDeps where
       go SpecialDepsGCC      = Aeson.object ["deps" .= gcc]
       go (SpecialDepsMSVC p) = Aeson.object ["deps" .= msvc, "prefix" .= p]
 
-      gcc, msvc :: Aeson.Value
-      (gcc, msvc) = ("gcc", "msvc")
+      (gcc, msvc) = ("gcc", "msvc") :: (Aeson.Value, Aeson.Value)
 
 -- | Inverse of the 'Aeson.ToJSON' instance.
 --

@@ -59,13 +59,13 @@ import qualified Data.Aeson                as Aeson
 
 import           Control.DeepSeq           (NFData)
 import           Data.Hashable             (Hashable)
-import           Data.String               (IsString (..))
+import           Data.String               (IsString)
 import           GHC.Generics              (Generic)
 
 import           Test.SmallCheck.Series    ((>>-))
 import qualified Test.SmallCheck.Series    as SC
 
-import           Language.Ninja.Misc.IText
+import qualified Language.Ninja.Misc.IText as Misc
 
 import           Flow                      ((.>), (|>))
 
@@ -76,7 +76,7 @@ import           Flow                      ((.>), (|>))
 --   @since 0.1.0
 newtype Target
   = MkTarget
-    { _targetIText :: IText
+    { _targetIText :: Misc.IText
     }
   deriving ( Eq, Ord, Show, Read, IsString, Generic, Hashable, NFData
            , Aeson.ToJSON, Aeson.FromJSON, Aeson.ToJSONKey, Aeson.FromJSONKey )
@@ -86,13 +86,13 @@ newtype Target
 --   @since 0.1.0
 {-# INLINE makeTarget #-}
 makeTarget :: Text -> Target
-makeTarget = Lens.view itext .> MkTarget
+makeTarget = Lens.view Misc.itext .> MkTarget
 
 -- | An isomorphism between a 'Target' and its underlying 'IText'.
 --
 --   @since 0.1.0
 {-# INLINE targetIText #-}
-targetIText :: Lens.Iso' Target IText
+targetIText :: Lens.Iso' Target Misc.IText
 targetIText = Lens.iso _targetIText MkTarget
 
 -- | An isomorphism that gives access to a 'Text'-typed view of a 'Target',
@@ -103,7 +103,7 @@ targetIText = Lens.iso _targetIText MkTarget
 --   @since 0.1.0
 {-# INLINE targetText #-}
 targetText :: Lens.Iso' Target Text
-targetText = targetIText . Lens.from itext
+targetText = targetIText . Lens.from Misc.itext
 
 -- | Uses the underlying 'IText' instance.
 --

@@ -17,6 +17,8 @@
 --     See the License for the specific language governing permissions and
 --     limitations under the License.
 
+{-# OPTIONS_GHC -fno-warn-missing-import-lists #-}
+
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}

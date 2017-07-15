@@ -50,7 +50,7 @@ import qualified Data.Aeson                as Aeson
 
 import           Control.DeepSeq           (NFData)
 import           Data.Hashable             (Hashable)
-import           Data.String               (IsString (..))
+import           Data.String               (IsString)
 import           GHC.Generics              (Generic)
 import           Test.SmallCheck.Series    ((>>-))
 import qualified Test.SmallCheck.Series    as SC

@@ -39,6 +39,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RankNTypes            #-}
@@ -73,8 +74,6 @@ module Language.Ninja.Parser
   , parseLexemesWithEnv
   ) where
 
-import           Prelude                    hiding (readFile)
-
 import           Control.Arrow              (second)
 import           Control.Exception          (throwIO)
 import           Control.Monad              ((>=>))
@@ -84,7 +83,8 @@ import           Control.Monad.Trans.Except (runExceptT)
 
 import qualified Control.Lens               as Lens
 
-import           Data.Monoid                (Endo (..), (<>))
+import           Data.Maybe                 (Maybe (Just, Nothing))
+import           Data.Monoid                (Endo (Endo, appEndo), (<>))
 
 import qualified Data.ByteString.Char8      as BSC8
 
@@ -96,10 +96,7 @@ import qualified Data.HashMap.Strict        as HM
 import           Data.HashSet               (HashSet)
 import qualified Data.HashSet               as HS
 
--- FIXME: split Lexer types into separate module and import that
 import           Language.Ninja.Lexer       (Ann)
-import           Language.Ninja.Lexer
-                 (LBind (..), LBuild (..), LFile (..), LName (..), Lexeme (..))
 
 import qualified Language.Ninja.AST         as AST
 import qualified Language.Ninja.Errors      as Errors
@@ -132,11 +129,11 @@ parseTextIO text = forceIO (parseText text)
 parseBSIO :: BSC8.ByteString -> IO (AST.Ninja Ann)
 parseBSIO bs = forceIO (parseBS bs)
 
--- | Parse the given list of 'Lexeme's into a 'AST.Ninja'.
+-- | Parse the given list of 'Lexer.Lexeme's into a 'AST.Ninja'.
 --   This function may throw an exception if parsing fails.
 --
 --   @since 0.1.0
-parseLexemesIO :: [Lexeme Ann] -> IO (AST.Ninja Ann)
+parseLexemesIO :: [Lexer.Lexeme Ann] -> IO (AST.Ninja Ann)
 parseLexemesIO lexemes = forceIO (parseLexemes lexemes)
 
 --------------------------------------------------------------------------------
@@ -162,11 +159,11 @@ parseBS :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
           => BSC8.ByteString -> m (AST.Ninja Ann)
 parseBS bs = parseBSWithEnv bs AST.makeEnv
 
--- | Parse the given list of 'Lexeme's into a 'AST.Ninja'.
+-- | Parse the given list of 'Lexer.Lexeme's into a 'AST.Ninja'.
 --
 --   @since 0.1.0
 parseLexemes :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
-             => [Lexeme Ann] -> m (AST.Ninja Ann)
+             => [Lexer.Lexeme Ann] -> m (AST.Ninja Ann)
 parseLexemes lexemes = parseLexemesWithEnv lexemes AST.makeEnv
 
 --------------------------------------------------------------------------------
@@ -195,11 +192,12 @@ parseBSWithEnv :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
                  => BSC8.ByteString -> AST.Env Text Text -> m (AST.Ninja Ann)
 parseBSWithEnv bs env = fst <$> parseBSInternal bs (AST.makeNinja, env)
 
--- | Parse the given list of 'Lexeme's into a 'AST.Ninja'.
+-- | Parse the given list of 'Lexer.Lexeme's into a 'AST.Ninja'.
 --
 --   @since 0.1.0
 parseLexemesWithEnv :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
-                    => [Lexeme Ann] -> AST.Env Text Text -> m (AST.Ninja Ann)
+                    => [Lexer.Lexeme Ann] -> AST.Env Text Text
+                    -> m (AST.Ninja Ann)
 parseLexemesWithEnv lexemes env
   = fst <$> parseLexemesInternal lexemes (AST.makeNinja, env)
 
@@ -226,7 +224,7 @@ parseBSInternal bs (ninja, env) = do
   parseLexemesInternal lexemes (ninja, env)
 
 parseLexemesInternal :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
-                     => [Lexeme Ann] -> NinjaWithEnv -> m NinjaWithEnv
+                     => [Lexer.Lexeme Ann] -> NinjaWithEnv -> m NinjaWithEnv
 parseLexemesInternal lexemes (ninja, env) = withBinds lexemes
                                             |> map (uncurry applyStmt)
                                             |> foldr (>=>) pure
@@ -260,43 +258,44 @@ addSpecialVars (ninja, env) = (mutator ninja, env)
     mutator :: AST.Ninja Ann -> AST.Ninja Ann
     mutator = map addVar specialVars |> map Endo |> mconcat |> appEndo
 
-withBinds :: [Lexeme Ann] -> [(Lexeme Ann, [(Text, AST.Expr Ann)])]
-withBinds = go
+withBinds :: [Lexer.Lexeme Ann] -> [(Lexer.Lexeme Ann, [(Text, AST.Expr Ann)])]
+withBinds = \case []     -> []
+                  (x:xs) -> let (a, b) = f xs
+                            in (x, a) : withBinds b
   where
-    go []     = []
-    go (x:xs) = let (a, b) = f xs
-                in (x, a) : withBinds b
-
-    f (LexBind _ binding : rest) = let MkLBind _ (MkLName _ a) b = binding
-                                       (as, bs) = f rest
-                                   in ((Text.decodeUtf8 a, b) : as, bs)
-    f xs                         = ([], xs)
+    f :: [Lexer.Lexeme Ann] -> ([(Text, AST.Expr Ann)], [Lexer.Lexeme Ann])
+    f (Lexer.LexBind _ binding : rest) = let Lexer.MkLBind _ name b = binding
+                                             Lexer.MkLName _ a = name
+                                             (as, bs) = f rest
+                                         in ((Text.decodeUtf8 a, b) : as, bs)
+    f xs                               = ([], xs)
 
 --------------------------------------------------------------------------------
 
-applyStmt :: Lexeme Ann -> ApplyFun
+applyStmt :: Lexer.Lexeme Ann -> ApplyFun
 applyStmt lexeme binds (ninja, env)
   = (case lexeme of
-       (LexBuild    _ann   lbuild) -> applyBuild    lbuild
-       (LexRule     _ann    lname) -> applyRule     lname
-       (LexDefault  _ann defaults) -> applyDefault  defaults
-       (LexPool     _ann    lname) -> applyPool     lname
-       (LexInclude  _ann    lfile) -> applyInclude  lfile
-       (LexSubninja _ann    lfile) -> applySubninja lfile
-       (LexDefine   _ann    lbind) -> applyDefine   lbind
-       (LexBind     _ann    lbind) -> throwUnexpectedBinding lbind)
+       (Lexer.LexBuild    _ann   lbuild) -> applyBuild    lbuild
+       (Lexer.LexRule     _ann    lname) -> applyRule     lname
+       (Lexer.LexDefault  _ann defaults) -> applyDefault  defaults
+       (Lexer.LexPool     _ann    lname) -> applyPool     lname
+       (Lexer.LexInclude  _ann    lfile) -> applyInclude  lfile
+       (Lexer.LexSubninja _ann    lfile) -> applySubninja lfile
+       (Lexer.LexDefine   _ann    lbind) -> applyDefine   lbind
+       (Lexer.LexBind     _ann    lbind) -> throwUnexpectedBinding lbind)
     |> (\f -> f binds (ninja, env))
   where
     -- FIXME: don't discard annotation
-    throwUnexpectedBinding (MkLBind _ (MkLName _ var) _)
+    throwUnexpectedBinding :: Lexer.LBind Ann -> ApplyFun
+    throwUnexpectedBinding (Lexer.MkLBind _ (Lexer.MkLName _ var) _)
       = \_ _ -> Errors.throwParseUnexpectedBinding (Text.decodeUtf8 var)
 
-applyBuild :: LBuild Ann -> ApplyFun
-applyBuild (MkLBuild _annB lexOutputs lexRule lexDeps) lexBinds (ninja, env) = do
-  let outputs = map (AST.askExpr env) lexOutputs
-  let rule    = lexRule |> (\(MkLName _annN name) -> Text.decodeUtf8 name)
-  let deps    = HS.fromList (map (AST.askExpr env) lexDeps)
-  let binds   = HM.fromList (map (second (AST.askExpr env)) lexBinds)
+applyBuild :: Lexer.LBuild Ann -> ApplyFun
+applyBuild (Lexer.MkLBuild _annB loutputs lrule ldeps) lbinds (ninja, env) = do
+  let outputs = map (AST.askExpr env) loutputs
+  let rule    = lrule |> (\(Lexer.MkLName _annN name) -> Text.decodeUtf8 name)
+  let deps    = HS.fromList (map (AST.askExpr env) ldeps)
+  let binds   = HM.fromList (map (second (AST.askExpr env)) lbinds)
   let (normal, implicit, orderOnly) = splitDeps deps
   let build = AST.makeBuild rule env
               |> (Lens.set (AST.buildDeps . AST.depsNormal)    normal)
@@ -313,8 +312,8 @@ applyBuild (MkLBuild _annB lexOutputs lexRule lexDeps) lexBinds (ninja, env) = d
              | otherwise             = Lens.over AST.ninjaMultiples addM ninja
   pure (ninja', env)
 
-applyRule :: LName Ann -> ApplyFun
-applyRule (MkLName ann name) binds (ninja, env) = do
+applyRule :: Lexer.LName Ann -> ApplyFun
+applyRule (Lexer.MkLName ann name) binds (ninja, env) = do
   let rule = AST.makeRule
              |> Lens.set Misc.annotation ann
              |> Lens.set AST.ruleBind    (HM.fromList binds)
@@ -322,29 +321,29 @@ applyRule (MkLName ann name) binds (ninja, env) = do
   pure (ninja |> Lens.over AST.ninjaRules (HM.insert nameT rule), env)
 
 applyDefault :: [AST.Expr Ann] -> ApplyFun
-applyDefault lexDefaults _ (ninja, env) = do
-  let defaults = HS.fromList (map (AST.askExpr env) lexDefaults)
+applyDefault ldefaults _ (ninja, env) = do
+  let defaults = HS.fromList (map (AST.askExpr env) ldefaults)
   pure (ninja |> Lens.over AST.ninjaDefaults (defaults <>), env)
 
-applyPool :: LName Ann -> ApplyFun
-applyPool (MkLName _ann name) binds (ninja, env) = do
+applyPool :: Lexer.LName Ann -> ApplyFun
+applyPool (Lexer.MkLName _ann name) binds (ninja, env) = do
   depth <- getDepth env binds
   let nameT = Text.decodeUtf8 name
   pure (ninja |> Lens.over AST.ninjaPools (HM.insert nameT depth), env)
 
-applyInclude :: LFile Ann -> ApplyFun
-applyInclude (MkLFile expr) _ (ninja, env) = do
+applyInclude :: Lexer.LFile Ann -> ApplyFun
+applyInclude (Lexer.MkLFile expr) _ (ninja, env) = do
   let file = AST.askExpr env expr |> Lens.view (Lens.from Misc.pathText)
   parseFileInternal file (ninja, env)
 
-applySubninja :: LFile Ann -> ApplyFun
-applySubninja (MkLFile expr) _ (ninja, env) = do
+applySubninja :: Lexer.LFile Ann -> ApplyFun
+applySubninja (Lexer.MkLFile expr) _ (ninja, env) = do
   let file = AST.askExpr env expr |> Lens.view (Lens.from Misc.pathText)
   parseFileInternal file (ninja, AST.scopeEnv env)
 
-applyDefine :: LBind Ann -> ApplyFun
-applyDefine (MkLBind _annB (MkLName _annN var) value) _ (ninja, env) = do
-  pure (ninja, AST.addBind (Text.decodeUtf8 var) value env)
+applyDefine :: Lexer.LBind Ann -> ApplyFun
+applyDefine (Lexer.MkLBind _annB (Lexer.MkLName _annN var) value) _ (ninja, env)
+  = pure (ninja, AST.addBind (Text.decodeUtf8 var) value env)
 
 --------------------------------------------------------------------------------
 

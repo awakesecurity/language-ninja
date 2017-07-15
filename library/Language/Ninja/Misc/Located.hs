@@ -78,7 +78,7 @@ import qualified Data.STRef               as ST
 
 import           Data.Char                (isSpace)
 import qualified Data.Maybe
-import           Data.Semigroup           (Semigroup (..))
+import           Data.Semigroup           (Semigroup ((<>)))
 
 import           Data.Text                (Text)
 import qualified Data.Text                as Text
@@ -96,6 +96,7 @@ import qualified Test.SmallCheck.Series   as SC
 
 import           Data.Aeson               ((.:), (.=))
 import qualified Data.Aeson               as Aeson
+import qualified Data.Aeson.Types         as Aeson
 
 import           Flow                     ((.>), (|>))
 
@@ -327,6 +328,7 @@ instance Aeson.ToJSON Span where
       , "end"   .= offsetJ end
       ] |> Aeson.object
     where
+      offsetJ :: (Line, Column) -> Aeson.Value
       offsetJ (line, col) = Aeson.object ["line" .= line, "col" .= col]
 
 -- | Inverse of the 'Aeson.ToJSON' instance.
@@ -339,6 +341,7 @@ instance Aeson.FromJSON Span where
                   end   <- (o .: "end")   >>= offsetP
                   pure (MkSpan file start end))
     where
+      offsetP :: Aeson.Value -> Aeson.Parser Offset
       offsetP = (Aeson.withObject "Offset" $ \o -> do
                     line <- (o .: "line") >>= pure
                     col  <- (o .: "col")  >>= pure
@@ -427,6 +430,8 @@ comparePosition = go
     go (MkPosition fileX lineX colX) (MkPosition fileY lineY colY)
       = compareTriple (fileX, (lineX, colX)) (fileY, (lineY, colY))
 
+    compareTriple :: (Maybe Misc.Path, Offset) -> (Maybe Misc.Path, Offset)
+                  -> Maybe Ordering
     compareTriple (mfileX, offX) (mfileY, offY)
       | (mfileX == mfileY) = Just (compareOffset offX offY)
       | otherwise          = Nothing

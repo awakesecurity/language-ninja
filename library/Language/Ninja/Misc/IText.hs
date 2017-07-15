@@ -49,9 +49,9 @@ import qualified Data.Aeson.Types       as Aeson
 import qualified Data.Interned          as Interned
 import qualified Data.Interned.Text     as Interned (InternedText)
 
-import           Control.DeepSeq        (NFData (..))
-import           Data.Hashable          (Hashable (..))
-import           Data.String            (IsString (..))
+import           Control.DeepSeq        (NFData (rnf))
+import           Data.Hashable          (Hashable (hashWithSalt))
+import           Data.String            (IsString (fromString))
 import           GHC.Generics           (Generic)
 
 import qualified Test.SmallCheck.Series as SC

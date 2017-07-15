@@ -36,9 +36,9 @@ module Language.Ninja.Mock.ReadFile
   ( MonadReadFile (..)
   ) where
 
-import           Prelude                   hiding (readFile)
+import           Prelude                   (IO, Monad)
 
-import           Control.Monad.Trans.Class (MonadTrans (..))
+import           Control.Monad.Trans.Class (MonadTrans (lift))
 
 import qualified Control.Lens              as Lens
 
