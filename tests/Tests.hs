@@ -47,7 +47,7 @@ import           Data.Text                  (Text)
 import           Control.Exception          (displayException)
 import           Control.Monad              (forM, unless, void)
 import           Control.Monad.Identity     (Identity)
-import           Control.Monad.Trans.Except (runExceptT)
+import           Control.Monad.Trans.Except (ExceptT, runExceptT)
 
 import qualified Control.Lens               as Lens
 
@@ -55,6 +55,7 @@ import qualified Language.Ninja.AST.Env     as AST (Maps)
 
 import qualified Language.Ninja.AST         as AST
 import qualified Language.Ninja.Compile     as Compile
+import qualified Language.Ninja.Errors      as Errors
 import qualified Language.Ninja.IR          as IR
 import qualified Language.Ninja.Lexer       as Lexer
 import qualified Language.Ninja.Misc        as Misc
@@ -90,9 +91,9 @@ import qualified Data.Aeson.Types           as Aeson
 
 import qualified Turtle
 
-import           Flow
+import           Flow                       ((.>), (|>))
 
-import           Tests.Lint
+import qualified Tests.Lint                 as Lint
 import           Tests.Orphans              ()
 import qualified Tests.ReferenceLexer       as RefLex
 
@@ -160,16 +161,23 @@ lexerEquivalentTest :: String -> IO ()
 lexerEquivalentTest name = do
   let file = dataPrefix <> name <> ".ninja"
              |> Lens.view (Lens.from Misc.pathString)
-  let oldLexer = RefLex.lexerFile
-  let newLexer = Lexer.lexerFile .> fmap (map void)
+
+  let oldLexer :: Misc.Path -> ExceptT Errors.ParseError IO [Lexer.Lexeme ()]
+      oldLexer = RefLex.lexerFile
+
+  let newLexer :: Misc.Path -> ExceptT Errors.ParseError IO [Lexer.Lexeme ()]
+      newLexer = Lexer.lexerFile .> fmap (map void)
+
   expected <- runExceptT (oldLexer file)
   actual   <- runExceptT (newLexer file)
+
   unless (expected == actual) $ do
     Test.assertEqual "prefix" expected actual
 
 roundtripTest :: AST.Ninja () -> IO ()
 roundtripTest ninja = do
-  let withTempDir = Turtle.with (Turtle.mktempdir "." "test")
+  let withTempDir :: (FP.FilePath -> IO a) -> IO a
+      withTempDir = Turtle.with (Turtle.mktempdir "." "test")
 
   (expected, actual) <- withTempDir $ \tmpdir -> do
     let prettyInput = Pretty.prettyNinja ninja
@@ -503,9 +511,9 @@ testTree :: IO TestTree
 testTree = do
   ninjas <- forM testFiles parseTestNinja
 
-  haddockTests <- emptyLintHaddockOptions
-                  |> addComponentName "language-ninja"
-                  |> lintHaddock
+  haddockTests <- Lint.emptyLintHaddockOptions
+                  |> Lint.addComponentName "language-ninja"
+                  |> Lint.lintHaddock
 
   let tests = Test.testGroup "language-ninja"
               [ Test.testGroup "golden"

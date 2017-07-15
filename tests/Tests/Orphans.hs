@@ -57,26 +57,25 @@ import           Flow                      ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
-instance ( Monad m, SC.Serial m k, SC.Serial m v, Eq k, Hashable k
+instance ( Monad m, SC.Serial m k, SC.Serial m v, Hashable k
          ) => SC.Serial m (HM.HashMap k v) where
   series = pure HM.empty
            \/ (HM.singleton <$> SC.series <~> SC.series)
            -- \/ (HM.union <$> SC.series <~> SC.series)
 
-instance ( Monad m, SC.CoSerial m k, SC.CoSerial m v, Eq k, Hashable k
+instance ( Monad m, SC.CoSerial m k, SC.CoSerial m v
          ) => SC.CoSerial m (HM.HashMap k v) where
   coseries = SC.coseries .> fmap (\f -> HM.toList .> f)
 
 --------------------------------------------------------------------------------
 
-instance ( Monad m, SC.Serial m a, Eq a, Hashable a
+instance ( Monad m, SC.Serial m a, Hashable a
          ) => SC.Serial m (HS.HashSet a) where
   series = pure HS.empty
            \/ (HS.singleton <$> SC.series)
            -- \/ (HS.union <$> SC.series <~> SC.series)
 
-instance ( Monad m, SC.CoSerial m a, Eq a, Hashable a
-         ) => SC.CoSerial m (HS.HashSet a) where
+instance (Monad m, SC.CoSerial m a) => SC.CoSerial m (HS.HashSet a) where
   coseries = SC.coseries .> fmap (\f -> HS.toList .> f)
 
 --------------------------------------------------------------------------------

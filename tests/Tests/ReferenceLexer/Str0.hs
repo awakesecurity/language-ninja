@@ -55,7 +55,7 @@ import qualified Data.ByteString.Unsafe   as BS.Unsafe
 import           Data.Word                (Word8)
 import qualified Foreign.Ptr
 import qualified Foreign.Storable
-import           GHC.Exts                 (Ptr (..))
+import           GHC.Exts                 (Ptr (Ptr))
 import           System.IO.Unsafe         (unsafePerformIO)
 
 --------------------------------------------------------------------------------

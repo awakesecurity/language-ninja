@@ -56,15 +56,15 @@ module Tests.ReferenceLexer
     lexerFile, lexerText, lexerBS
 
     -- * Types
-  , Lexeme (..)
-  , LName  (..)
-  , LFile  (..)
-  , LBind  (..)
-  , LBuild (..)
+  , Lexer.Lexeme (..)
+  , Lexer.LName  (..)
+  , Lexer.LFile  (..)
+  , Lexer.LBind  (..)
+  , Lexer.LBuild (..)
   ) where
 
 import           Control.Arrow             (first)
-import           Control.Monad.Error.Class (MonadError (..))
+import           Control.Monad.Error.Class (MonadError)
 
 import qualified Data.ByteString.Char8     as BSC8
 
@@ -81,13 +81,9 @@ import qualified Language.Ninja.Errors     as Errors
 import qualified Language.Ninja.Misc       as Misc
 import qualified Language.Ninja.Mock       as Mock
 
-import           Language.Ninja.Lexer      (LBuild (..), makeLBuild)
-import           Language.Ninja.Lexer      (LFile (..))
-import           Language.Ninja.Lexer      (LName (..))
-import           Language.Ninja.Lexer      (LBind (..))
-import           Language.Ninja.Lexer      (Lexeme (..))
+import qualified Language.Ninja.Lexer      as Lexer
 
-import           Tests.ReferenceLexer.Str0 (Str0 (..))
+import           Tests.ReferenceLexer.Str0 (Str0 (MkStr0))
 import qualified Tests.ReferenceLexer.Str0 as Str0
 
 --------------------------------------------------------------------------------
@@ -96,20 +92,22 @@ type Str = BSC8.ByteString
 
 -- | Lex the given file.
 lexerFile :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
-          => Misc.Path -> m [Lexeme ()]
+          => Misc.Path -> m [Lexer.Lexeme ()]
 lexerFile file = Mock.readFile file >>= lexerText
 
 -- | Lex the given 'Text'.
-lexerText :: (MonadError Errors.ParseError m) => Text -> m [Lexeme ()]
+lexerText :: (MonadError Errors.ParseError m)
+          => Text -> m [Lexer.Lexeme ()]
 lexerText = Text.encodeUtf8 .> lexerBS
 
 -- | Lex the given 'BSC8.ByteString'.
-lexerBS :: (MonadError Errors.ParseError m) => BSC8.ByteString -> m [Lexeme ()]
+lexerBS :: (MonadError Errors.ParseError m)
+        => BSC8.ByteString -> m [Lexer.Lexeme ()]
 lexerBS x = lexerLoop (MkStr0 (BSC8.append x "\n\n\0"))
 
 --------------------------------------------------------------------------------
 
-lexerLoop :: (MonadError Errors.ParseError m) => Str0 -> m [Lexeme ()]
+lexerLoop :: (MonadError Errors.ParseError m) => Str0 -> m [Lexer.Lexeme ()]
 lexerLoop c_x
   = case c of
       '\r'                                  -> lexerLoop x0
@@ -134,61 +132,62 @@ lexerLoop c_x
                               then Just $ MkStr0 $ BSC8.drop (BSC8.length b) x
                               else Nothing
 
-lexBind :: (MonadError Errors.ParseError m) => Str0 -> m [Lexeme ()]
+lexBind :: (MonadError Errors.ParseError m) => Str0 -> m [Lexer.Lexeme ()]
 lexBind c_x | (c, x) <- Str0.list0 c_x
   = case c of
       '\r' -> lexerLoop x
       '\n' -> lexerLoop x
       '#'  -> lexerLoop $ Str0.dropWhile0 (/= '\n') x
       '\0' -> pure []
-      _    -> lexxBind (LexBind ()) c_x
+      _    -> lexxBind (Lexer.LexBind ()) c_x
 
-lexBuild :: (MonadError Errors.ParseError m) => Str0 -> m [Lexeme ()]
+lexBuild :: (MonadError Errors.ParseError m) => Str0 -> m [Lexer.Lexeme ()]
 lexBuild x0 = do
   (outputs, x1) <- lexxExprs True x0
   let (rule, x2) = Str0.span0 isVarDot $ dropSpace x1
   (deps, x3) <- lexxExprs False $ dropSpace x2
   x4 <- lexerLoop x3
-  pure (LexBuild () (makeLBuild () outputs (MkLName () rule) deps) : x4)
+  let name = Lexer.MkLName () rule
+  pure (Lexer.LexBuild () (Lexer.makeLBuild () outputs name deps) : x4)
 
-lexDefault :: (MonadError Errors.ParseError m) => Str0 -> m [Lexeme ()]
+lexDefault :: (MonadError Errors.ParseError m) => Str0 -> m [Lexer.Lexeme ()]
 lexDefault str0 = do
   (files, str1) <- lexxExprs False str0
   str2 <- lexerLoop str1
-  pure (LexDefault () files : str2)
+  pure (Lexer.LexDefault () files : str2)
 
 lexRule, lexPool, lexInclude, lexSubninja, lexDefine
-  :: (MonadError Errors.ParseError m) => Str0 -> m [Lexeme ()]
-lexRule     = lexxName (LexRule     ())
-lexPool     = lexxName (LexPool     ())
-lexInclude  = lexxFile (LexInclude  ())
-lexSubninja = lexxFile (LexSubninja ())
-lexDefine   = lexxBind (LexDefine   ())
+  :: (MonadError Errors.ParseError m) => Str0 -> m [Lexer.Lexeme ()]
+lexRule     = lexxName (Lexer.LexRule     ())
+lexPool     = lexxName (Lexer.LexPool     ())
+lexInclude  = lexxFile (Lexer.LexInclude  ())
+lexSubninja = lexxFile (Lexer.LexSubninja ())
+lexDefine   = lexxBind (Lexer.LexDefine   ())
 
 lexxBind :: (MonadError Errors.ParseError m)
-         => (LBind () -> Lexeme ()) -> Str0 -> m [Lexeme ()]
+         => (Lexer.LBind () -> Lexer.Lexeme ()) -> Str0 -> m [Lexer.Lexeme ()]
 lexxBind ctor x0 = do
   let (var,  x1) = Str0.span0 isVarDot x0
   let (eq,   x2) = Str0.list0 $ dropSpace x1
   (expr, x3) <- lexxExpr False False $ dropSpace x2
   x4         <- lexerLoop x3
   if (eq == '=')
-    then pure (ctor (MkLBind () (MkLName () var) expr) : x4)
+    then pure (ctor (Lexer.MkLBind () (Lexer.MkLName () var) expr) : x4)
     else Errors.throwLexBindingFailure (Text.pack (show (Str0.take0 100 x0)))
 
 lexxFile :: (MonadError Errors.ParseError m)
-         => (LFile () -> Lexeme ()) -> Str0 -> m [Lexeme ()]
+         => (Lexer.LFile () -> Lexer.Lexeme ()) -> Str0 -> m [Lexer.Lexeme ()]
 lexxFile ctor str0 = do
   (expr, str1) <- lexxExpr False False (dropSpace str0)
   str2         <- lexerLoop str1
-  pure (ctor (MkLFile expr) : str2)
+  pure (ctor (Lexer.MkLFile expr) : str2)
 
 lexxName :: (MonadError Errors.ParseError m)
-         => (LName () -> Lexeme ()) -> Str0 -> m [Lexeme ()]
+         => (Lexer.LName () -> Lexer.Lexeme ()) -> Str0 -> m [Lexer.Lexeme ()]
 lexxName ctor x = do
   let (name, rest) = splitLineCont x
   lexemes <- lexerLoop rest
-  pure (ctor (MkLName () name) : lexemes)
+  pure (ctor (Lexer.MkLName () name) : lexemes)
 
 lexxExprs :: (MonadError Errors.ParseError m)
           => Bool -> Str0 -> m ([AST.Expr ()], Str0)
