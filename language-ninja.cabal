@@ -12,8 +12,7 @@ license-file:             LICENSE.md
 homepage:                 https://github.com/awakesecurity/language-ninja
 bug-reports:              https://github.com/awakesecurity/language-ninja/issues
 category:                 Build, Language
-synopsis:                 A Haskell library for parsing, pretty-printing, and
-                          compiling the Ninja build language.
+synopsis:                 A library for dealing with the Ninja build language.
 description:              A Haskell library for parsing, pretty-printing, and
                           compiling the Ninja build language.
                           The best place to start reading this documentation is
@@ -97,10 +96,13 @@ library
                         , RecordWildCards
                         , ScopedTypeVariables
                         , UndecidableInstances
-    ghc-options:          -Wcompat -Weverything -g -O0
+    ghc-options:          -Wcompat -Weverything
                           -fno-warn-unsafe
                           -fno-warn-implicit-prelude
                           -fno-warn-unused-do-bind
+                          -fno-warn-missed-specialisations
+                          -fno-warn-all-missed-specialisations
+                          -g
 
 test-suite tests
     type:                 exitcode-stdio-1.0
@@ -155,18 +157,20 @@ test-suite tests
                         , TypeFamilies
                         , UndecidableInstances
                         , ViewPatterns
-    ghc-options:          -Wcompat -Weverything -g -O0
+    ghc-options:          -Wcompat -Weverything
                           -fno-warn-unsafe
                           -fno-warn-implicit-prelude
                           -fno-warn-unused-do-bind
-                          -threaded
+                          -fno-warn-missed-specialisations
+                          -fno-warn-all-missed-specialisations
+                          -g -threaded
 
 executable ninja2nix
     hs-source-dirs:       executables
     main-is:              NinjaToNix.hs
     other-modules:        NinjaToNix.Pretty
-                          NinjaToNix.Types
-                          NinjaToNix.Misc.Supply
+                        , NinjaToNix.Types
+                        , NinjaToNix.Misc.Supply
     build-depends:        language-ninja
                         , base                        >= 4.8   && < 5.0
                         , aeson                       >= 1.0   && < 1.3
@@ -200,4 +204,5 @@ executable ninja2nix
                         , ScopedTypeVariables
                         , TupleSections
                         , UndecidableInstances
-    ghc-options:          -threaded -g -Wall -O0
+    ghc-options:          -Wall
+                          -g -threaded
