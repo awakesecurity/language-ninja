@@ -107,28 +107,21 @@ test-suite tests
     build-depends:        language-ninja
                         , base                        >= 4.8   && < 5.0
                         , aeson                       >= 1.0   && < 1.3
-                        , aeson-diff                  >= 1.1   && < 1.2
-                        , aeson-pretty                >= 0.8   && < 0.9
                         , bytestring                  >= 0.10  && < 0.11
-                        , Cabal                       >= 1.24  && < 1.25
                         , containers                  >= 0.5   && < 0.6
                         , flow                        >= 1.0   && < 1.1
                         , ghc                         >= 7.4   && < 8.4
                         , haddock-api                 >= 2.17  && < 2.18
                         , haddock-library             >= 1.4   && < 1.5
                         , hashable                    >= 1.2   && < 1.3
-                        , HUnit                       >= 1.5   && < 1.6
                         , lens                        >= 4.15  && < 4.16
                         , monad-mock                  >= 0.1   && < 0.2
                         , mtl                         >= 2.2   && < 2.3
                         , QuickCheck                  >= 2.9   && < 2.10
                         , quickcheck-instances        >= 0.3   && < 0.4
-                        , reflection                  >= 2.1   && < 2.2
                         , smallcheck                  >= 1.1   && < 1.2
-                        , smallcheck-lens             >= 0.3   && < 0.4
                         , system-filepath             >= 0.4   && < 0.5
                         , tasty                       >= 0.11  && < 0.12
-                        , tasty-golden                >= 2.3   && < 2.4
                         , tasty-html                  >= 0.4   && < 0.5
                         , tasty-hunit                 >= 0.9   && < 0.10
                         , tasty-lens                  >= 0.3   && < 0.4
@@ -139,7 +132,6 @@ test-suite tests
                         , turtle                      >= 1.3   && < 1.4
                         , unordered-containers        >= 0.2   && < 0.3
                         , versions                    >= 3.1.1 && < 3.2
-                          -- FIXME: remove unneeded dependencies
     default-language:     Haskell2010
     other-extensions:     OverloadedStrings
                           -- FIXME: add the rest of the extensions used
