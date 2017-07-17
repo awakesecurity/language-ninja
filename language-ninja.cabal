@@ -1,3 +1,5 @@
+--------------------------------------------------------------------------------
+
 name:                     language-ninja
 version:                  0.0.1
 stability:                Experimental
@@ -18,10 +20,14 @@ description:              A Haskell library for parsing, pretty-printing, and
                           The best place to start reading this documentation is
                           the "Language.Ninja" module.
 
+--------------------------------------------------------------------------------
+
 source-repository head
     type:                 git
     branch:               master
     location:             https://github.com/awakesecurity/language-ninja.git
+
+--------------------------------------------------------------------------------
 
 library
     hs-source-dirs:       library
@@ -98,11 +104,14 @@ library
                         , UndecidableInstances
     ghc-options:          -Wcompat -Weverything
                           -fno-warn-unsafe
+                          -fno-warn-safe
                           -fno-warn-implicit-prelude
                           -fno-warn-unused-do-bind
                           -fno-warn-missed-specialisations
                           -fno-warn-all-missed-specialisations
                           -g
+
+--------------------------------------------------------------------------------
 
 test-suite tests
     type:                 exitcode-stdio-1.0
@@ -159,11 +168,14 @@ test-suite tests
                         , ViewPatterns
     ghc-options:          -Wcompat -Weverything
                           -fno-warn-unsafe
+                          -fno-warn-safe
                           -fno-warn-implicit-prelude
                           -fno-warn-unused-do-bind
                           -fno-warn-missed-specialisations
                           -fno-warn-all-missed-specialisations
                           -g -threaded
+
+--------------------------------------------------------------------------------
 
 executable ninja-lex
     hs-source-dirs:       executables/ninja-lex
@@ -175,6 +187,7 @@ executable ninja-lex
                         , bytestring                  >= 0.10  && < 0.11
                         , containers                  >= 0.5   && < 0.6
                         , concurrent-supply           >= 0.1   && < 0.2
+                        , docopt                      >= 0.7   && < 0.8
                         , flow                        >= 1.0   && < 1.1
                         , hashable                    >= 1.2   && < 1.3
                         , lens                        >= 4.15  && < 4.16
@@ -191,11 +204,14 @@ executable ninja-lex
                           -- FIXME: add the rest of the extensions used
     ghc-options:          -Wcompat -Weverything
                           -fno-warn-unsafe
+                          -fno-warn-safe
                           -fno-warn-implicit-prelude
                           -fno-warn-unused-do-bind
                           -fno-warn-missed-specialisations
                           -fno-warn-all-missed-specialisations
                           -g -threaded
+
+--------------------------------------------------------------------------------
 
 executable ninja-parse
     hs-source-dirs:       executables/ninja-parse
@@ -207,6 +223,7 @@ executable ninja-parse
                         , bytestring                  >= 0.10  && < 0.11
                         , containers                  >= 0.5   && < 0.6
                         , concurrent-supply           >= 0.1   && < 0.2
+                        , docopt                      >= 0.7   && < 0.8
                         , flow                        >= 1.0   && < 1.1
                         , hashable                    >= 1.2   && < 1.3
                         , lens                        >= 4.15  && < 4.16
@@ -223,11 +240,14 @@ executable ninja-parse
                           -- FIXME: add the rest of the extensions used
     ghc-options:          -Wcompat -Weverything
                           -fno-warn-unsafe
+                          -fno-warn-safe
                           -fno-warn-implicit-prelude
                           -fno-warn-unused-do-bind
                           -fno-warn-missed-specialisations
                           -fno-warn-all-missed-specialisations
                           -g -threaded
+
+--------------------------------------------------------------------------------
 
 executable ninja-compile
     hs-source-dirs:       executables/ninja-compile
@@ -239,6 +259,7 @@ executable ninja-compile
                         , bytestring                  >= 0.10  && < 0.11
                         , containers                  >= 0.5   && < 0.6
                         , concurrent-supply           >= 0.1   && < 0.2
+                        , docopt                      >= 0.7   && < 0.8
                         , flow                        >= 1.0   && < 1.1
                         , hashable                    >= 1.2   && < 1.3
                         , lens                        >= 4.15  && < 4.16
@@ -255,8 +276,11 @@ executable ninja-compile
                           -- FIXME: add the rest of the extensions used
     ghc-options:          -Wcompat -Weverything
                           -fno-warn-unsafe
+                          -fno-warn-safe
                           -fno-warn-implicit-prelude
                           -fno-warn-unused-do-bind
                           -fno-warn-missed-specialisations
                           -fno-warn-all-missed-specialisations
                           -g -threaded
+
+--------------------------------------------------------------------------------
