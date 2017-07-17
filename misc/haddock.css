@@ -661,6 +661,29 @@ div#style-menu-holder {
     border-radius:    0.20em;
 }
 
+.constructor-version {
+    font-family:      sans-serif;
+    font-size:        xx-small;
+    color:            #0071E6;
+    background-color: #F0EAEA;
+    margin-right:     0.50em;
+    padding-top:      0.10em;
+    padding-bottom:   0.10em;
+    padding-left:     0.25em;
+    padding-right:    0.25em;
+    border-radius:    0.20em;
+}
+
+.method-version {
+    font-family:      sans-serif;
+    font-size:        xx-small;
+    color:            #0071E6;
+    background-color: #F0EAEA;
+    padding-left:     0.20em;
+    padding-right:    0.20em;
+    border-radius:    0.20em;
+}
+
 tr.instance {
     font-size: small;
 }

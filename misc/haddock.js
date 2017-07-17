@@ -331,7 +331,7 @@ const addMetadata = () => {
 
 const fixSince = () => {
     // Fix @since in module documentation
-    {
+    if($("div#description em.since").is("*")) {
         let since = $("div#description > div.doc > em.since:last-child");
         const version = since.html();
         const titleText = "This module was added in version " + version;
@@ -367,6 +367,38 @@ const fixSince = () => {
         $(versionTag).attr("title", titleText);
         $(versionTag).addClass("instance-version");
         $(this).prev().append(versionTag);
+        $(this).remove();
+    });
+    
+    // Fix @since in constructor documentation
+    $("div.constructors").find("em.since").each(function() {
+        const version = $(this).html();
+        const titleText = "This constructor was added in version " + version;
+        let versionTag = document.createElement("span");
+        $(versionTag).html(version);
+        $(versionTag).attr("title", titleText);
+        $(versionTag).addClass("constructor-version");
+        $(this)
+            .parent("td.doc")
+            .prev("td.src")
+            .prepend(versionTag);
+        $(this).remove();
+    });
+
+    // Fix @since in method documentation
+    $("div.methods").find("em.since").each(function() {
+        const version = $(this).html();
+        const titleText = "This method was added in version " + version;
+        let versionTag = document.createElement("span");
+        $(versionTag).html(version);
+        $(versionTag).attr("title", titleText);
+        $(versionTag).addClass("method-version");
+        $(this)
+            .parent("div.doc")
+            .prev("p.src")
+            .children("a.selflink")
+            .prev("a.link")
+            .before(versionTag);
         $(this).remove();
     });
 };
