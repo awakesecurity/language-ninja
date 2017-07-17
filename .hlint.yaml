@@ -20,7 +20,6 @@
     - {name: TemplateHaskellQuotes,    within: []} # ditto
 
     # Exceptions to the above
-    - {name: FunctionalDependencies,   within: [NinjaToNix.Misc.Supply]}
     - {name: PatternGuards,            within: [Tests.ReferenceLexer]}
 
 - modules:

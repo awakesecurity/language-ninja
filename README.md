@@ -11,18 +11,18 @@ compiling the [Ninja build language](https://ninja-build.org).
 
 `language-ninja` was written as a part of Awake Security's efforts in creating
 incremental build infrastructure for the Nix package manager, and in particular
-for Haskell packages. This library is the basis for a tool, `ninja2nix`, that,
+for Haskell packages. This library is the basis for a tool, [ninja2nix][], that,
 given a Ninja file, will output a JSON file containing information that a Nix
 function can use to compute a derivation representing an incremental build
 using one derivation per build edge in the parsed Ninja build graph.
 
-In conjunction with an as-of-yet unwritten tool, `cabal2ninja`, that will
+In conjunction with an as-of-yet unwritten tool, [cabal2ninja][], that will
 generate a Ninja file based on information from `cabal` and `ghc -M`, we will
 have incremental builds for any Haskell package that uses a default `Setup.hs`
 file.
 
 Using Ninja as an intermediate representation has advantages here, since it
-means that `ninja2nix` could be useful for building other projects that use
+means that [ninja2nix][] could be useful for building other projects that use
 a build system that can output Ninja, like the Linux kernel (with `kninja`),
 Chromium, any CMake project, any Bazel project, or some Make-based projects
 (with `kati`).
@@ -76,3 +76,7 @@ the progress towards initial release (`v0.1.0`) on Hackage.
     https://img.shields.io/badge/License-Apache%202.0-blue.svg
 [license-link]:
     https://spdx.org/licenses/Apache-2.0.html
+[ninja2nix]:
+    https://github.com/awakesecurity/ninja2nix
+[cabal2ninja]:
+    https://github.com/awakesecurity/cabal2ninja
