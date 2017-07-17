@@ -120,6 +120,10 @@ data CompileError
 --   @since 0.1.0
 instance Exception CompileError
 
+-- FIXME: add FromJSON/ToJSON instance
+-- FIXME: add Arbitrary instance
+-- FIXME: add (Co)Serial instance
+
 -- | Throw a 'CompileError'.
 --
 --   @since 0.1.0
@@ -147,6 +151,10 @@ data CompileMetaError
     --   @since 0.1.0
     VersionParseFailure     !Ver.ParsingError
   deriving (Eq, Show, Generic)
+
+-- FIXME: add FromJSON/ToJSON instance
+-- FIXME: add Arbitrary instance
+-- FIXME: add (Co)Serial instance
 
 -- | Throw a 'CompileMetaError'.
 --
@@ -179,6 +187,10 @@ data CompilePhonyError
     GenericCompilePhonyError !Text
   deriving (Eq, Show, Generic)
 
+-- FIXME: add FromJSON/ToJSON instance
+-- FIXME: add Arbitrary instance
+-- FIXME: add (Co)Serial instance
+
 -- | Throw a 'CompilePhonyError'.
 --
 --   @since 0.1.0
@@ -204,6 +216,10 @@ data CompileDefaultError
     --   @since 0.1.0
     GenericCompileDefaultError !Text
   deriving (Eq, Show, Generic)
+
+-- FIXME: add FromJSON/ToJSON instance
+-- FIXME: add Arbitrary instance
+-- FIXME: add (Co)Serial instance
 
 -- | Throw a 'CompileDefaultError'.
 --
@@ -234,6 +250,10 @@ data CompileBuildError
     --   @since 0.1.0
     BuildRuleNotFound        !Text
   deriving (Eq, Show, Generic)
+
+-- FIXME: add FromJSON/ToJSON instance
+-- FIXME: add Arbitrary instance
+-- FIXME: add (Co)Serial instance
 
 -- | Throw a 'CompileBuildError'.
 --
@@ -278,6 +298,10 @@ data CompileRuleError
     --   @since 0.1.0
     UnexpectedMSVCPrefix    !Text
   deriving (Eq, Show, Generic)
+
+-- FIXME: add FromJSON/ToJSON instance
+-- FIXME: add Arbitrary instance
+-- FIXME: add (Co)Serial instance
 
 -- | Throw a 'CompileRuleError'.
 --
@@ -329,6 +353,10 @@ data CompilePoolError
     --   @since 0.1.0
     EmptyPoolName
   deriving (Eq, Show, Generic)
+
+-- FIXME: add FromJSON/ToJSON instance
+-- FIXME: add Arbitrary instance
+-- FIXME: add (Co)Serial instance
 
 -- | Throw a 'CompilePoolError'.
 --

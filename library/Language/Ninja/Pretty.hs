@@ -26,12 +26,15 @@
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
 --
---   A rudimentary pretty-printer for 'AST.Ninja'.
+--   Rudimentary pretty-printers for various types in @language-ninja@.
 --
 --   @since 0.1.0
 module Language.Ninja.Pretty
-  ( -- * Pretty-printers
-    prettyNinja
+  ( -- * Pretty-printer for 'Lexer.Lexeme'
+    prettyLexemes
+  , prettyLexeme
+    -- * Pretty-printer for @AST.'AST.Ninja'@
+  , prettyNinja
   , prettyExpr
   , prettyRule
   , prettySingle
@@ -42,24 +45,71 @@ module Language.Ninja.Pretty
   , prettyBind
   ) where
 
-import           Control.Arrow       (second)
+import           Control.Arrow        (second)
 
-import qualified Control.Lens        as Lens
+import qualified Control.Lens         as Lens
 
-import qualified Language.Ninja.AST  as AST
+import qualified Language.Ninja.AST   as AST
+import qualified Language.Ninja.Lexer as Lexer
 
-import qualified Data.HashMap.Strict as HM
+import qualified Data.HashMap.Strict  as HM
 
-import           Data.HashSet        (HashSet)
-import qualified Data.HashSet        as HS
+import           Data.HashSet         (HashSet)
+import qualified Data.HashSet         as HS
 
-import           Data.Text           (Text)
-import qualified Data.Text           as Text
+import           Data.Text            (Text)
+import qualified Data.Text            as Text
+import qualified Data.Text.Encoding   as Text
 
-import           Data.Char           (isSpace)
-import           Data.Monoid         ((<>))
+import           Data.Char            (isSpace)
+import           Data.Monoid          ((<>))
 
-import           Flow                ((.>), (|>))
+import           Flow                 ((.>), (|>))
+
+--------------------------------------------------------------------------------
+
+-- | Pretty-print a list of Ninja lexemes.
+--
+--   @since 0.1.0
+prettyLexemes :: [Lexer.Lexeme ()] -> Text
+prettyLexemes = map prettyLexeme .> mconcat
+
+-- | Pretty-print a Ninja lexeme.
+--
+--   @since 0.1.0
+prettyLexeme :: Lexer.Lexeme () -> Text
+prettyLexeme = go
+  where
+    go :: Lexer.Lexeme () -> Text
+    go (Lexer.LexDefine   _  bind) = ppBind bind <> "\n"
+    go (Lexer.LexBind     _  bind) = "  " <> ppBind bind <> "\n"
+    go (Lexer.LexInclude  _  file) = "include " <> ppFile file <> "\n"
+    go (Lexer.LexSubninja _  file) = "subninja " <> ppFile file <> "\n"
+    go (Lexer.LexBuild    _ build) = "build " <> ppBuild build <> "\n"
+    go (Lexer.LexRule     _  name) = "rule " <> ppName name <> "\n"
+    go (Lexer.LexPool     _  name) = "pool " <> ppName name <> "\n"
+    go (Lexer.LexDefault  _ exprs) = mconcat (map ppDefault exprs)
+
+
+    ppBind :: Lexer.LBind () -> Text
+    ppBind (Lexer.MkLBind _ name value)
+      = ppName name <> " = " <> prettyExpr value
+
+    ppFile :: Lexer.LFile () -> Text
+    ppFile (Lexer.MkLFile expr) = prettyExpr expr
+
+    ppName :: Lexer.LName () -> Text
+    ppName (Lexer.MkLName _ bs) = Text.decodeUtf8 bs
+
+    ppBuild :: Lexer.LBuild () -> Text
+    ppBuild (Lexer.MkLBuild _ outs rule deps)
+      = [ Text.intercalate " " (map prettyExpr outs)
+        , " : ", ppName rule, " "
+        , Text.intercalate " " (map prettyExpr deps)
+        ] |> mconcat
+
+    ppDefault :: AST.Expr () -> Text
+    ppDefault expr = "default " <> prettyExpr expr <> "\n"
 
 --------------------------------------------------------------------------------
 

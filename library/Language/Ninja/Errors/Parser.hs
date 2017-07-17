@@ -20,7 +20,10 @@
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE ViewPatterns          #-}
 
 -- |
 --   Module      : Language.Ninja.Errors.Parser
@@ -51,7 +54,14 @@ import           GHC.Generics              (Generic)
 
 import           Data.Text                 (Text)
 
+import           Data.Aeson                ((.=))
+import qualified Data.Aeson                as Aeson
+
 import qualified Text.Megaparsec           as M
+
+import           Data.Foldable             (toList)
+
+import           Flow                      ((|>))
 
 --------------------------------------------------------------------------------
 
@@ -94,11 +104,6 @@ data ParseError
   deriving (Eq, Show, Generic)
 
 -- FIXME: remove unused errors here
-
--- | Default instance.
---
---   @since 0.1.0
-instance Exception ParseError
 
 -- | Throw a 'ParseError'.
 --
@@ -154,5 +159,68 @@ throwParseBadDepthField t = throwParseError (ParseBadDepthField t)
 --   @since 0.1.0
 throwParseUnexpectedBinding :: (MonadError ParseError m) => Text -> m a
 throwParseUnexpectedBinding t = throwParseError (ParseUnexpectedBinding t)
+
+-- | Default instance.
+--
+--   @since 0.1.0
+instance Exception ParseError
+
+-- | Converts to @{tag: …, value: …}@.
+--
+--   @since 0.1.0
+instance Aeson.ToJSON ParseError where
+  toJSON = go
+    where
+      go (GenericParseError t)      = obj "generic-parse-error"      t
+      go (LexBindingFailure t)      = obj "lex-binding-failure"      t
+      go LexExpectedColon           = obj "lex-expected-colon"       nullJ
+      go LexUnexpectedDollar        = obj "lex-unexpected-dollar"    nullJ
+      go (LexUnexpectedSeparator c) = obj "lex-unexpected-separator" c
+      go (LexParsecError pe)        = obj "lex-parsec-error"         (peJ pe)
+      go (ParseBadDepthField t)     = obj "parse-bad-depth-field"    t
+      go (ParseUnexpectedBinding t) = obj "parse-unexpected-binding" t
+
+      peJ :: M.ParseError Char M.Dec -> Aeson.Value
+      peJ (decomposePE -> (pos, custom, unexpected, expected))
+        = [ "pos"        .= (posJ     <$> pos)
+          , "unexpected" .= (errItemJ <$> unexpected)
+          , "expected"   .= (errItemJ <$> expected)
+          , "custom"     .= (decJ     <$> custom)
+          ] |> Aeson.object
+
+      decomposePE :: M.ParseError Char M.Dec
+                  -> ( [M.SourcePos], [M.Dec]
+                     , [M.ErrorItem Char], [M.ErrorItem Char] )
+      decomposePE (M.ParseError {..})
+        = ( toList errorPos, toList errorCustom
+          , toList errorUnexpected, toList errorExpected )
+
+      posJ :: M.SourcePos -> Aeson.Value
+      posJ (M.SourcePos {..}) = [ "name"   .= sourceName
+                                , "line"   .= M.unPos sourceLine
+                                , "column" .= M.unPos sourceColumn
+                                ] |> Aeson.object
+
+      errItemJ :: M.ErrorItem Char -> Aeson.Value
+      errItemJ (M.Tokens xs) = Aeson.toJSON (toList xs)
+      errItemJ (M.Label  xs) = Aeson.toJSON (toList xs)
+      errItemJ M.EndOfInput  = "eof"
+
+      decJ :: M.Dec -> Aeson.Value
+      decJ (M.DecFail message)        = [ "message"  .= message
+                                        ] |> Aeson.object |> obj "fail"
+      decJ (M.DecIndentation ord x y) = [ "ordering" .= ord
+                                        , "start"    .= M.unPos x
+                                        , "end"      .= M.unPos y
+                                        ] |> Aeson.object |> obj "indentation"
+
+      obj :: (Aeson.ToJSON x) => Text -> x -> Aeson.Value
+      obj tag value = Aeson.object ["tag" .= tag, "value" .= value]
+
+      nullJ = Aeson.Null :: Aeson.Value
+
+-- FIXME: add a FromJSON instance
+-- FIXME: add Arbitrary instance
+-- FIXME: add (Co)Serial instance
 
 --------------------------------------------------------------------------------

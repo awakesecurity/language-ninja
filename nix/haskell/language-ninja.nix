@@ -1,7 +1,7 @@
 { mkDerivation, aeson, aeson-pretty, base, bytestring
-, concurrent-supply, containers, deepseq, docopt, flow, ghc
-, haddock-api, haddock-library, hashable, intern, lens, makefile
-, megaparsec, monad-mock, mtl, prettyprinter
+, concurrent-supply, containers, deepseq, flow, ghc, haddock-api
+, haddock-library, hashable, here, intern, lens, makefile
+, megaparsec, monad-mock, mtl, optparse-generic, prettyprinter
 , prettyprinter-ansi-terminal, QuickCheck, quickcheck-instances
 , smallcheck, stdenv, system-filepath, tasty, tasty-html
 , tasty-hunit, tasty-lens, tasty-quickcheck, tasty-smallcheck, text
@@ -20,7 +20,7 @@ mkDerivation {
   ];
   executableHaskellDepends = [
     aeson aeson-pretty base bytestring concurrent-supply containers
-    docopt flow hashable lens makefile mtl prettyprinter
+    flow hashable here lens makefile mtl optparse-generic prettyprinter
     prettyprinter-ansi-terminal text transformers unordered-containers
   ];
   testHaskellDepends = [
