@@ -26,3 +26,4 @@ guest
 *.qcow2
 TAGS
 tags
+misc/jquery-*.js
