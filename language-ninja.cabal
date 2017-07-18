@@ -8,7 +8,7 @@ cabal-version:            >= 1.10
 category:                 Language
 copyright:                Copyright 2017 Awake Security
 author:                   Awake Security
-maintainer:               Awake Security <opensource@awakesecurity.com>
+maintainer:               opensource@awakesecurity.com
 license:                  Apache-2.0
 license-file:             LICENSE.md
 homepage:                 https://github.com/awakesecurity/language-ninja
@@ -27,6 +27,11 @@ extra-source-files:       README.md
 source-repository head
     type:                 git
     branch:               master
+    location:             https://github.com/awakesecurity/language-ninja.git
+
+source-repository this
+    type:                 git
+    tag:                  release-0.1.0
     location:             https://github.com/awakesecurity/language-ninja.git
 
 --------------------------------------------------------------------------------

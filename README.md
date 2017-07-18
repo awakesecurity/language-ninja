@@ -62,8 +62,6 @@ happen on `staging` but will not happen on `master`.
 [This issue](https://github.com/awakesecurity/language-ninja/issues/2) tracks
 the progress towards initial release (`v0.1.0`) on Hackage.
 
-<!----------------------------------------------------------------------------->
-
 [hackage-badge]:
     https://img.shields.io/hackage/v/language-ninja.svg?label=Hackage
 [hackage-link]:
