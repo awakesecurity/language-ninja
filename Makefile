@@ -25,7 +25,7 @@ test: build
 
 doc: $(JQUERY)
 	-@rm -rf dist/doc
-	cabal haddock --hyperlink-source
+	cabal haddock --haddock-option="--hyperlinked-source"
 	rm -vf dist/doc/html/language-ninja/haddock-util.js
 	rm -vf dist/doc/html/language-ninja/ocean.css
 	cd dist/doc/html/language-ninja;                         \
@@ -36,7 +36,7 @@ doc: $(JQUERY)
 doc-tar: $(JQUERY)
 	-@rm -rf dist/doc dist/$(PACKAGE)-docs.tar.gz
 	-@rm -rf ./$(PACKAGE)-docs/
-	cabal haddock --for-hackage
+	cabal haddock --for-hackage --haddock-option="--hyperlinked-source"
 	tar -xzf dist/$(PACKAGE)-docs.tar.gz
 	cp -v $(JQUERY)          $(PACKAGE)-docs/jquery.js
 	cp -v ./misc/haddock.js  $(PACKAGE)-docs/haddock-util.js
@@ -49,23 +49,35 @@ doc-tar: $(JQUERY)
 
 doc-upload: doc-tar
 	cp -v dist/$(PACKAGE)-docs.tar.gz .
-	curl -X PUT                                       \
-	     -H "Content-Type: application/x-tar"         \
-	     -H "Content-Encoding: gzip"                  \
-	     -u "$(HACKAGE_USERNAME)"                     \
-	     --data-binary "@$(PACKAGE)-docs.tar.gz"      \
+	curl -X PUT                                  \
+	     -H "Content-Type: application/x-tar"    \
+	     -H "Content-Encoding: gzip"             \
+	     -u "$(HACKAGE_USERNAME)"                \
+	     --data-binary "@$(PACKAGE)-docs.tar.gz" \
 	     "https://hackage.haskell.org/package/$(PACKAGE)/docs"
 	rm -v "$(PACKAGE)-docs.tar.gz"
 
 doc-candidate-upload: doc-tar
 	cp -v dist/$(PACKAGE)-docs.tar.gz .
-	curl -X PUT                                       \
-	     -H "Content-Type: application/x-tar"         \
-	     -H "Content-Encoding: gzip"                  \
-	     -u "$(HACKAGE_USERNAME)"                     \
-	     --data-binary "@$(PACKAGE)-docs.tar.gz"      \
+	curl -X PUT                                  \
+	     -H "Content-Type: application/x-tar"    \
+	     -H "Content-Encoding: gzip"             \
+	     -u "$(HACKAGE_USERNAME)"                \
+	     --data-binary "@$(PACKAGE)-docs.tar.gz" \
 	     "https://hackage.haskell.org/package/$(PACKAGE)/candidate/docs"
 	rm -v "$(PACKAGE)-docs.tar.gz"
+
+sdist:
+	cabal sdist
+
+# candidate-upload: sdist
+#  	cp -v dist/$(PACKAGE).tar.gz .
+#  	curl -X PUT                                  \
+#  	     -H "Content-Type: application/x-tar"    \
+#  	     -u "$(HACKAGE_USERNAME)"                \
+#  	     --data-binary "@$(PACKAGE).tar.gz"      \
+#  	     "https://hackage.haskell.org/packages/candidates"
+#  	rm -v "$(PACKAGE).tar.gz"
 
 clean:
 	cabal clean

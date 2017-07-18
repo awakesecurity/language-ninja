@@ -21,6 +21,7 @@ description:              A Haskell library for parsing, pretty-printing, and
                           the "Language.Ninja" module.
 extra-source-files:       README.md
                         , CHANGELOG.md
+tested-with:              GHC == 8.0.1
                           
 --------------------------------------------------------------------------------
 
