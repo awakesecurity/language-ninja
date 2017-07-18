@@ -70,7 +70,6 @@ table {
 pre, code, kbd, samp, tt, .src {
     font-family: monospace;
     line-height: 124%;
-    background-color: #F1F1F1;
 }
 
 .links, .link {
