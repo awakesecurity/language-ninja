@@ -193,7 +193,8 @@ test-suite doctests
                         , QuickCheck                  >= 2.9   && < 2.10
                         , template-haskell            >= 2.11  && < 2.12
                         -- FIXME: this shouldn't need to be here
-                        , cabal-doctest               >= 1.0.2 && < 1.1 
+                        -- remove this once https://git.io/vQp2m is merged
+                        , cabal-doctest               >= 1.0.2 && < 1.1
     default-language:     Haskell2010
     ghc-options:          -Wall -threaded
 
@@ -215,8 +216,14 @@ executable ninja-lex
                         , text                        >= 1.2   && < 1.3
                         , transformers                >= 0.5   && < 0.6
     default-language:     Haskell2010
-    other-extensions:     OverloadedStrings
-                          -- FIXME: add the rest of the extensions used
+    other-extensions:     DataKinds
+                        , DeriveGeneric
+                        , ExplicitNamespaces
+                        , FlexibleInstances
+                        , GADTSyntax
+                        , OverloadedStrings
+                        , StandaloneDeriving
+                        , TypeOperators
     ghc-options:          -Wcompat -Weverything
                           -fno-warn-unsafe
                           -fno-warn-safe
@@ -244,8 +251,14 @@ executable ninja-parse
                         , text                        >= 1.2   && < 1.3
                         , transformers                >= 0.5   && < 0.6
     default-language:     Haskell2010
-    other-extensions:     OverloadedStrings
-                          -- FIXME: add the rest of the extensions used
+    other-extensions:     DataKinds
+                        , DeriveGeneric
+                        , ExplicitNamespaces
+                        , FlexibleInstances
+                        , GADTSyntax
+                        , OverloadedStrings
+                        , StandaloneDeriving
+                        , TypeOperators
     ghc-options:          -Wcompat -Weverything
                           -fno-warn-unsafe
                           -fno-warn-safe
@@ -273,8 +286,14 @@ executable ninja-compile
                         , text                        >= 1.2   && < 1.3
                         , transformers                >= 0.5   && < 0.6
     default-language:     Haskell2010
-    other-extensions:     OverloadedStrings
-                          -- FIXME: add the rest of the extensions used
+    other-extensions:     DataKinds
+                        , DeriveGeneric
+                        , ExplicitNamespaces
+                        , FlexibleInstances
+                        , GADTSyntax
+                        , OverloadedStrings
+                        , StandaloneDeriving
+                        , TypeOperators
     ghc-options:          -Wcompat -Weverything
                           -fno-warn-unsafe
                           -fno-warn-safe
