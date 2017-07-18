@@ -1,8 +1,7 @@
 { mkDerivation, aeson, aeson-pretty, base, bytestring, Cabal
-, cabal-doctest, concurrent-supply, containers, deepseq, doctest
-, flow, ghc, haddock-api, haddock-library, hashable, here, intern
-, lens, makefile, megaparsec, monad-mock, mtl, optparse-generic
-, prettyprinter, prettyprinter-ansi-terminal, QuickCheck
+, cabal-doctest, containers, deepseq, doctest, flow, ghc
+, haddock-api, haddock-library, hashable, intern, lens, megaparsec
+, monad-mock, mtl, optparse-generic, QuickCheck
 , quickcheck-instances, smallcheck, stdenv, system-filepath, tasty
 , tasty-html, tasty-hunit, tasty-lens, tasty-quickcheck
 , tasty-smallcheck, template-haskell, text, transformers, turtle
@@ -10,7 +9,7 @@
 }:
 mkDerivation {
   pname = "language-ninja";
-  version = "0.0.1";
+  version = "0.1.0";
   src = ../..;
   isLibrary = true;
   isExecutable = true;
@@ -21,9 +20,8 @@ mkDerivation {
     system-filepath text transformers unordered-containers versions
   ];
   executableHaskellDepends = [
-    aeson aeson-pretty base bytestring concurrent-supply containers
-    flow hashable here lens makefile mtl optparse-generic prettyprinter
-    prettyprinter-ansi-terminal text transformers unordered-containers
+    aeson aeson-pretty base flow lens mtl optparse-generic text
+    transformers
   ];
   testHaskellDepends = [
     aeson base bytestring cabal-doctest containers doctest flow ghc

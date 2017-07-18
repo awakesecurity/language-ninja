@@ -1,7 +1,7 @@
 --------------------------------------------------------------------------------
 
 name:                     language-ninja
-version:                  0.0.1
+version:                  0.1.0
 stability:                Experimental
 build-type:               Custom
 cabal-version:            >= 1.10
