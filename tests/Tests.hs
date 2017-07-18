@@ -221,40 +221,50 @@ aesonTests
       , testAesonSC 4   (Ty.Proxy @(Lexer.LFile  Bool))
       , testAesonSC 4   (Ty.Proxy @(Lexer.LBind  Bool))
       , testAesonSC 2   (Ty.Proxy @(Lexer.LBuild Bool))
+      -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.IR.Build"
       [ testAesonSC 2   (Ty.Proxy @IR.Build)
+      -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.IR.Meta"
       [ testAesonSC def (Ty.Proxy @IR.Meta)
+      -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.IR.Ninja"
       [ testAesonSC 2   (Ty.Proxy @IR.Ninja)
+      -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.IR.Pool"
       [ testAesonSC def (Ty.Proxy @IR.Pool)
       , testAesonSC def (Ty.Proxy @IR.PoolName)
       , testAesonSC def (Ty.Proxy @IR.PoolDepth)
+      -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.IR.Rule"
       [ testAesonSC 1   (Ty.Proxy @IR.Rule)
       , testAesonSC def (Ty.Proxy @IR.SpecialDeps)
       , testAesonSC def (Ty.Proxy @IR.ResponseFile)
+      -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.IR.Target"
       [ testAesonSC def (Ty.Proxy @IR.Target)
       , testAesonSC def (Ty.Proxy @IR.Output)
       , testAesonSC def (Ty.Proxy @IR.Dependency)
       , testAesonSC def (Ty.Proxy @IR.DependencyType)
+      -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.AST.Env"
       [ testAesonSC def (Ty.Proxy @(AST.Env Text Text))
+      , testAesonQC     (Ty.Proxy @(AST.Env Text Text))
       ]
     , testModule "Language.Ninja.AST.Expr"
       [ testAesonSC def (Ty.Proxy @(AST.Expr Bool))
+      , testAesonQC     (Ty.Proxy @(AST.Expr Bool))
       ]
     , testModule "Language.Ninja.AST.Rule"
       [ testAesonSC def (Ty.Proxy @(AST.Rule Bool))
+      , testAesonQC     (Ty.Proxy @(AST.Rule Bool))
       ]
     , testModule "Language.Ninja.AST.Ninja"
       [ -- TODO: combinatorial explosion
@@ -262,23 +272,30 @@ aesonTests
       -- , testAesonQC     (Ty.Proxy @(AST.Ninja Bool))
       ]
     , testModule "Language.Ninja.AST.Build"
-      [ testAesonSC 1   (Ty.Proxy @(AST.Build Bool))
+      [ -- TODO: combinatorial explosion
+        testAesonSC 1   (Ty.Proxy @(AST.Build Bool))
+      -- , testAesonQC     (Ty.Proxy @(AST.Build Bool))
       ]
     , testModule "Language.Ninja.AST.Deps"
       [ testAesonSC def (Ty.Proxy @(AST.Deps Bool))
+      , testAesonQC     (Ty.Proxy @(AST.Deps Bool))
       ]
     , testModule "Language.Ninja.Misc.Command"
       [ testAesonSC def (Ty.Proxy @Misc.Command)
+      -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.Misc.Path"
       [ testAesonSC def (Ty.Proxy @Misc.Path)
+      -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.Misc.Located"
       [ testAesonSC def (Ty.Proxy @(Misc.Located Bool))
       , testAesonSC def (Ty.Proxy @Misc.Position)
+      -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.Misc.IText"
       [ testAesonSC def (Ty.Proxy @Misc.IText)
+      -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     ]
   where

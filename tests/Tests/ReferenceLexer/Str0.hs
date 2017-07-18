@@ -44,7 +44,8 @@
 --
 --   A NUL-terminated bytestring type used in the reference lexer.
 module Tests.ReferenceLexer.Str0
-  ( module Tests.ReferenceLexer.Str0 -- FIXME: specific export list
+  ( Str0 (..)
+  , break0, break00, dropWhile0, head0, list0, span0, tail0, take0
   ) where
 
 import           Data.ByteString          (ByteString)
@@ -64,20 +65,14 @@ import           System.IO.Unsafe         (unsafePerformIO)
 newtype Str0
   = MkStr0 ByteString
 
--- | A type alias for @'Ptr' 'Word8'@.
-type S = Ptr Word8
-
 -- | Convert a pointer to a 'Word8' to a 'Char'.
 --
---   FIXME: uses unsafePerformIO
---   FIXME: probably shouldn't be exported
-char :: S -> Char
+--   TODO: uses unsafePerformIO
+char :: Ptr Word8 -> Char
 char x = BS.Internal.w2c $ unsafePerformIO $ Foreign.Storable.peek x
 
 -- | Increment a pointer by one byte.
---
---   FIXME: probably shouldn't be exported
-next :: S -> S
+next :: Ptr Word8 -> Ptr Word8
 next x = x `Foreign.Ptr.plusPtr` 1
 
 -- | Similar to 'BSC8.dropWhile', but for null-terminated bytestrings.
@@ -93,25 +88,11 @@ span0 f = break0 (not . f)
 -- | Similar to 'BSC8.break', but for null-terminated bytestrings.
 {-# INLINE break0 #-}
 break0 :: (Char -> Bool) -> Str0 -> (ByteString, Str0)
-break0 f (MkStr0 bs) = (initial, rest)
-  where
-    initial = BS.Unsafe.unsafeTake i bs
-    rest    = MkStr0 (BS.Unsafe.unsafeDrop i bs)
+break0 f = break00 (\c -> (c == '\0') || f c)
 
-    i = System.IO.Unsafe.unsafePerformIO $
-      BS.Unsafe.unsafeUseAsCString bs $ \ptr -> do
-      let start = Foreign.Ptr.castPtr ptr :: S
-      let end = go start
-      pure $! Ptr end `Foreign.Ptr.minusPtr` start
-
-    go s@(Ptr a) | ((c == '\0') || (f c)) = a
-                 | otherwise              = go (next s)
-      where
-        c = char s
-
--- | FIXME: doc
+-- | Similar to 'break0', but it assumes that the given predicate will return
+--   true for @'\0'@, allowing it to be slightly faster.
 {-# INLINE break00 #-}
--- The predicate must return true for '\0'
 break00 :: (Char -> Bool) -> Str0 -> (ByteString, Str0)
 break00 f (MkStr0 bs) = (initial, rest)
   where
@@ -120,14 +101,12 @@ break00 f (MkStr0 bs) = (initial, rest)
 
     i = System.IO.Unsafe.unsafePerformIO $
       BS.Unsafe.unsafeUseAsCString bs $ \ptr -> do
-      let start = Foreign.Ptr.castPtr ptr :: S
+      let start = Foreign.Ptr.castPtr ptr :: Ptr Word8
       let end = go start
       pure $! Ptr end `Foreign.Ptr.minusPtr` start
 
-    go s@(Ptr a) | f c       = a
-                 | otherwise = go (next s)
-      where
-        c = char s
+    go s@(Ptr a) | f (char s) = a
+                 | otherwise  = go (next s)
 
 -- | Similar to 'BSC8.head', but for null-terminated bytestrings.
 head0 :: Str0 -> Char
