@@ -78,7 +78,9 @@ class (Functor ty) => Annotated (ty :: * -> *) where
   --   When writing an instance, keep in mind that @'annotation'' id@ should
   --   just be the typical definition for a lens into the annotation field.
   --
-  --   prop> annotation' (f . g) == annotation' f . annotation' g
+  --   It should also be true that for any @f :: B -> C@ and @g :: A -> B@,
+  --
+  --   > annotation' (f . g) == annotation' f . annotation' g
   --
   --   @since 0.1.0
   annotation' :: (ann -> ann') -> Lens.Lens (ty ann) (ty ann') ann ann'

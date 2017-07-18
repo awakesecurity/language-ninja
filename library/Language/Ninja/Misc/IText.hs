@@ -42,6 +42,7 @@ module Language.Ninja.Misc.IText
 import qualified Control.Lens           as Lens
 
 import           Data.Text              (Text)
+import qualified Data.Text              as Text
 
 import qualified Data.Aeson             as Aeson
 import qualified Data.Aeson.Types       as Aeson
@@ -71,8 +72,6 @@ newtype IText
 
 -- | Get the 'Text' corresponding to the given 'IText' value.
 --
---   prop> internText (uninternText x) = x
---
 --   >>> uninternText ("foobar" :: IText)
 --   "foobar"
 --
@@ -83,7 +82,7 @@ uninternText (MkIText i) = Interned.unintern i
 
 -- | Intern a 'Text' value, resulting in an 'IText' value.
 --
---   prop> uninternText (internText x) = x
+--   prop> uninternText (internText (Text.pack x)) == Text.pack x
 --
 --   >>> internText ("foobar" :: Text)
 --   "foobar"
@@ -95,12 +94,14 @@ internText = Interned.intern .> MkIText
 
 -- | An 'Lens.Iso'' between 'Text' and 'IText'.
 --
---   prop> ((fromString x) ^. itext) = T.pack x
+--   prop> (Lens.view itext (fromString x)) == fromString x
 --
---   >>> (("foobar" :: Text) ^. itext) :: IText
+--   prop> (Lens.view (Lens.from itext) (fromString x)) == fromString x
+--
+--   >>> (Lens.view itext ("foobar" :: Text)) :: IText
 --   "foobar"
 --
---   >>> (("foobar" :: IText) ^. from itext) :: Text
+--   >>> (Lens.view (Lens.from itext) ("foobar" :: IText)) :: Text
 --   "foobar"
 --
 --   @since 0.1.0
@@ -169,7 +170,7 @@ instance Aeson.FromJSONKey IText where
 --
 --   @since 0.1.0
 instance (Monad m, SC.Serial m Text) => SC.Serial m IText where
-  series = SC.series |> fmap internText
+  series = SC.series |> fmap (Text.unpack .> Text.pack .> internText)
 
 -- | Uses the 'Text' instance.
 --

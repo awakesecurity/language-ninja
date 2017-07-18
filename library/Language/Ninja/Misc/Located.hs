@@ -149,9 +149,11 @@ tokenizeText = tokenize Nothing
 -- | This function takes the output of 'tokenize' and returns a map from paths
 --   to the contents of the associated files.
 --
---   prop> untokenize [] == Map.empty
---   prop> untokenize (xs <> ys) == untokenize xs <> untokenize ys
---   prop> untokenize (tokenize (Just path) t) == Map.singleton path t
+--   FIXME: these should be properties
+--
+--   > untokenize [] == mempty
+--   > untokenize (xs <> ys) == untokenize xs <> untokenize ys
+--   > untokenize (tokenize (Just path) t) == Map.singleton path t
 --
 --   FIXME: implement
 --

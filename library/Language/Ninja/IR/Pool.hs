@@ -263,13 +263,13 @@ poolNameText = Lens.iso printPoolName parsePoolName
 -- | Convert a 'PoolName' to the string that, if the @pool@ attribute is set to
 --   it, will cause the given 'PoolName' to be parsed.
 --
---   >>> printPoolName poolNameDefault
+--   >>> printPoolName makePoolNameDefault
 --   ""
 --
---   >>> printPoolName poolNameConsole
+--   >>> printPoolName makePoolNameConsole
 --   "console"
 --
---   >>> printPoolName (poolNameCustom "foobar")
+--   >>> printPoolName (makePoolNameCustom "foobar")
 --   "foobar"
 --
 --   @since 0.1.0

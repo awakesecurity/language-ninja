@@ -158,7 +158,8 @@ addBind k v e = AST.addEnv k (askExpr e v) e
 --
 --   For example:
 --
---   >>> let binds = [("x", Lit "5"), ("y", Var "x")]
+--   >>> :set -XOverloadedStrings
+--   >>> let binds = [("x", Lit () "5"), ("y", Var () "x")]
 --   >>> AST.headEnv (addBinds binds AST.makeEnv)
 --   fromList [("x","5"),("y","")]
 --
