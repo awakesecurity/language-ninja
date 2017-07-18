@@ -162,7 +162,7 @@ processNinja inputPath (input, output) machineReadable = do
 
 prettyNinja :: Maybe Path -> (IO.Handle, IO.Handle) -> Bool -> IO ()
 prettyNinja _inputPath (input, output) _color = do
-  -- FIXME: add color support
+  -- TODO: add color support
   inputText <- LText.hGetContents input
   let parsed :: Either String (AST.Ninja Lexer.Ann)
       parsed = Aeson.eitherDecode (LText.encodeUtf8 inputText)

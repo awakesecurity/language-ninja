@@ -120,9 +120,9 @@ data CompileError
 --   @since 0.1.0
 instance Exception CompileError
 
--- FIXME: add FromJSON/ToJSON instance
--- FIXME: add Arbitrary instance
--- FIXME: add (Co)Serial instance
+-- TODO: add FromJSON/ToJSON instance
+-- TODO: add Arbitrary instance
+-- TODO: add (Co)Serial instance
 
 -- | Throw a 'CompileError'.
 --
@@ -152,9 +152,9 @@ data CompileMetaError
     VersionParseFailure     !Ver.ParsingError
   deriving (Eq, Show, Generic)
 
--- FIXME: add FromJSON/ToJSON instance
--- FIXME: add Arbitrary instance
--- FIXME: add (Co)Serial instance
+-- TODO: add FromJSON/ToJSON instance
+-- TODO: add Arbitrary instance
+-- TODO: add (Co)Serial instance
 
 -- | Throw a 'CompileMetaError'.
 --
@@ -187,9 +187,9 @@ data CompilePhonyError
     GenericCompilePhonyError !Text
   deriving (Eq, Show, Generic)
 
--- FIXME: add FromJSON/ToJSON instance
--- FIXME: add Arbitrary instance
--- FIXME: add (Co)Serial instance
+-- TODO: add FromJSON/ToJSON instance
+-- TODO: add Arbitrary instance
+-- TODO: add (Co)Serial instance
 
 -- | Throw a 'CompilePhonyError'.
 --
@@ -217,9 +217,9 @@ data CompileDefaultError
     GenericCompileDefaultError !Text
   deriving (Eq, Show, Generic)
 
--- FIXME: add FromJSON/ToJSON instance
--- FIXME: add Arbitrary instance
--- FIXME: add (Co)Serial instance
+-- TODO: add FromJSON/ToJSON instance
+-- TODO: add Arbitrary instance
+-- TODO: add (Co)Serial instance
 
 -- | Throw a 'CompileDefaultError'.
 --
@@ -251,9 +251,9 @@ data CompileBuildError
     BuildRuleNotFound        !Text
   deriving (Eq, Show, Generic)
 
--- FIXME: add FromJSON/ToJSON instance
--- FIXME: add Arbitrary instance
--- FIXME: add (Co)Serial instance
+-- TODO: add FromJSON/ToJSON instance
+-- TODO: add Arbitrary instance
+-- TODO: add (Co)Serial instance
 
 -- | Throw a 'CompileBuildError'.
 --
@@ -299,9 +299,9 @@ data CompileRuleError
     UnexpectedMSVCPrefix    !Text
   deriving (Eq, Show, Generic)
 
--- FIXME: add FromJSON/ToJSON instance
--- FIXME: add Arbitrary instance
--- FIXME: add (Co)Serial instance
+-- TODO: add FromJSON/ToJSON instance
+-- TODO: add Arbitrary instance
+-- TODO: add (Co)Serial instance
 
 -- | Throw a 'CompileRuleError'.
 --
@@ -354,9 +354,9 @@ data CompilePoolError
     EmptyPoolName
   deriving (Eq, Show, Generic)
 
--- FIXME: add FromJSON/ToJSON instance
--- FIXME: add Arbitrary instance
--- FIXME: add (Co)Serial instance
+-- TODO: add FromJSON/ToJSON instance
+-- TODO: add Arbitrary instance
+-- TODO: add (Co)Serial instance
 
 -- | Throw a 'CompilePoolError'.
 --

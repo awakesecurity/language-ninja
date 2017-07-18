@@ -103,7 +103,7 @@ data ParseError
     ParseUnexpectedBinding !Text
   deriving (Eq, Show, Generic)
 
--- FIXME: remove unused errors here
+-- TODO: remove unused errors here
 
 -- | Throw a 'ParseError'.
 --
@@ -219,8 +219,8 @@ instance Aeson.ToJSON ParseError where
 
       nullJ = Aeson.Null :: Aeson.Value
 
--- FIXME: add a FromJSON instance
--- FIXME: add Arbitrary instance
--- FIXME: add (Co)Serial instance
+-- TODO: add a FromJSON instance
+-- TODO: add Arbitrary instance
+-- TODO: add (Co)Serial instance
 
 --------------------------------------------------------------------------------

@@ -63,7 +63,7 @@ class (Monad m) => MonadReadFile m where
 
   -- | Read the file located at the given path and decode it into 'Text'.
   --
-  --   FIXME: some notion of error handling should be encoded into the type
+  --   TODO: some notion of error handling should be encoded into the type
   --
   --   @since 0.1.0
   readFile :: Path -> m Text

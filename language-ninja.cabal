@@ -199,7 +199,7 @@ test-suite doctests
                         , doctest                     >= 0.11  && < 0.12
                         , QuickCheck                  >= 2.9   && < 2.10
                         , template-haskell            >= 2.11  && < 2.12
-                        -- FIXME: this shouldn't need to be here
+                        -- TODO: this shouldn't need to be here
                         -- remove this once https://git.io/vQp2m is merged
                         , cabal-doctest               >= 1.0.2 && < 1.1
     default-language:     Haskell2010

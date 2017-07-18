@@ -257,7 +257,7 @@ aesonTests
       [ testAesonSC def (Ty.Proxy @(AST.Rule Bool))
       ]
     , testModule "Language.Ninja.AST.Ninja"
-      [ -- FIXME: combinatorial explosion
+      [ -- TODO: combinatorial explosion
         testAesonSC 0   (Ty.Proxy @(AST.Ninja Bool))
       -- , testAesonQC     (Ty.Proxy @(AST.Ninja Bool))
       ]
@@ -323,7 +323,7 @@ opticsTests :: TestTree
 opticsTests
   = Test.testGroup "optics"
     [ testModule "Language.Ninja.IR.Build"
-      [ testType "Build" [] -- FIXME: combinatorial explosion
+      [ testType "Build" [] -- TODO: combinatorial explosion
         -- [ testLens 1 "buildRule" IR.buildRule
         -- , testLens 1 "buildOuts" IR.buildOuts
         -- , testLens 1 "buildDeps" IR.buildDeps
@@ -336,7 +336,7 @@ opticsTests
         ]
       ]
     , testModule "Language.Ninja.IR.Ninja"
-      [ testType "Ninja" [] -- FIXME: combinatorial explosion
+      [ testType "Ninja" [] -- TODO: combinatorial explosion
         -- [ testLens 1 "ninjaMeta"     IR.ninjaMeta
         -- , testLens 1 "ninjaBuilds"   IR.ninjaBuilds
         -- , testLens 1 "ninjaPhonys"   IR.ninjaPhonys
@@ -356,7 +356,7 @@ opticsTests
         ]
       ]
     , testModule "Language.Ninja.IR.Rule"
-      [ testType "Rule" [] -- FIXME: combinatorial explosion
+      [ testType "Rule" [] -- TODO: combinatorial explosion
         -- [ testLens 1 "ruleName"         IR.ruleName
         -- , testLens 1 "ruleCommand"      IR.ruleCommand
         -- , testLens 1 "ruleDescription"  IR.ruleDescription
@@ -412,7 +412,7 @@ opticsTests
         ]
       ]
     , testModule "Language.Ninja.AST.Ninja"
-      [ testType "Ninja" [] -- FIXME: combinatorial explosion
+      [ testType "Ninja" [] -- TODO: combinatorial explosion
         -- [ testLens 1 "ninjaRules"     (AST.ninjaRules     @Bool)
         -- , testLens 1 "ninjaSingles"   (AST.ninjaSingles   @Bool)
         -- , testLens 1 "ninjaMultiples" (AST.ninjaMultiples @Bool)
@@ -422,7 +422,7 @@ opticsTests
         -- ]
       ]
     , testModule "Language.Ninja.AST.Build"
-      [ testType "Build" [] -- FIXME: combinatorial explosion
+      [ testType "Build" [] -- TODO: combinatorial explosion
         -- [ testLens 1 "buildRule" (AST.buildRule @Bool)
         -- , testLens 1 "buildEnv"  (AST.buildEnv  @Bool)
         -- , testLens 1 "buildDeps" (AST.buildDeps @Bool)
