@@ -47,6 +47,16 @@ doc-tar: $(JQUERY)
 	cp -v $(PACKAGE)-docs.tar.gz dist/$(PACKAGE)-docs.tar.gz
 	-@rm -f $(PACKAGE)-docs.tar.gz
 
+doc-upload: doc-tar
+	cp -v dist/$(PACKAGE)-docs.tar.gz .
+	curl -X PUT                                       \
+	     -H "Content-Type: application/x-tar"         \
+	     -H "Content-Encoding: gzip"                  \
+	     -u "$(HACKAGE_USERNAME)"                     \
+	     --data-binary "@$(PACKAGE)-docs.tar.gz"      \
+	     "https://hackage.haskell.org/package/$(PACKAGE)/docs"
+	rm -v "$(PACKAGE)-docs.tar.gz"
+
 doc-candidate-upload: doc-tar
 	cp -v dist/$(PACKAGE)-docs.tar.gz .
 	curl -X PUT                                       \
