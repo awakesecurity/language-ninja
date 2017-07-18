@@ -19,7 +19,9 @@ description:              A Haskell library for parsing, pretty-printing, and
                           compiling the Ninja build language.
                           The best place to start reading this documentation is
                           the "Language.Ninja" module.
-
+extra-source-files:       README.md
+                        , CHANGELOG.md
+                          
 --------------------------------------------------------------------------------
 
 source-repository head
