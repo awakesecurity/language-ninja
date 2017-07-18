@@ -37,20 +37,11 @@
 
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
-{-# LANGUAGE ConstraintKinds            #-}
-{-# LANGUAGE DeriveFunctor              #-}
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE DeriveTraversable          #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures             #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE UndecidableInstances       #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 
 -- |
 --   Module      : Language.Ninja.Lexer
@@ -68,487 +59,48 @@ module Language.Ninja.Lexer
   , lexerText, lexerBS
   , lexerText', lexerBS'
   , lexemesP
-  , Parser
-  , Ann
+  , Lexer.Parser
+  , Lexer.Ann
 
     -- * @Lexeme@ and friends
-  , Lexeme (..)
-  , LName  (..)
-  , LFile  (..)
-  , LBind  (..)
-  , LBuild (..), makeLBuild
-
-  , LexemeConstraint
-  , LNameConstraint
-  , LFileConstraint
-  , LBindConstraint
-  , LBuildConstraint
+  , Lexer.Lexeme (..)
+  , Lexer.LName  (..)
+  , Lexer.LFile  (..)
+  , Lexer.LBind  (..)
+  , Lexer.LBuild (..), Lexer.makeLBuild
 
     -- * Classes
-  , PositionParsing (..)
+  , Lexer.PositionParsing (..)
   ) where
 
-import           Control.Applicative       (Alternative ((<|>)))
-import           Control.Arrow             (second)
-import           Control.Monad             (unless, void, when)
-import           Control.Monad.Error.Class (MonadError)
+import           Control.Applicative        (Alternative ((<|>)))
+import           Control.Arrow              (second)
+import           Control.Monad              (unless, void)
+import           Control.Monad.Error.Class  (MonadError)
 
-import qualified Control.Lens              as Lens
+import qualified Control.Lens               as Lens
 
-import           Data.ByteString           (ByteString)
+import           Data.ByteString            (ByteString)
 
-import           Data.Text                 (Text)
-import qualified Data.Text                 as Text
-import qualified Data.Text.Encoding        as Text
+import           Data.Text                  (Text)
+import qualified Data.Text                  as Text
+import qualified Data.Text.Encoding         as Text
 
-import           Data.Char                 (isSpace)
-import           Data.Foldable             (asum)
-import           Data.Functor              ((<$))
-import           Data.Maybe                (catMaybes, fromMaybe)
+import           Data.Char                  (isSpace)
+import           Data.Foldable              (asum)
+import           Data.Functor               ((<$))
+import           Data.Maybe                 (catMaybes, fromMaybe)
 
-import           Flow                      ((.>), (|>))
+import           Flow                       ((.>), (|>))
 
-import qualified Text.Megaparsec           as M
-import qualified Text.Megaparsec.Lexer     as M.Lexer
+import qualified Text.Megaparsec            as M
+import qualified Text.Megaparsec.Lexer      as M.Lexer
 
-import           Data.Aeson                ((.:), (.=))
-import qualified Data.Aeson                as Aeson
-import qualified Data.Aeson.Types          as Aeson
-
-import           Control.DeepSeq           (NFData)
-import           Data.Hashable             (Hashable)
-import           GHC.Generics              (Generic)
-
-import           Test.SmallCheck.Series    ((<~>))
-import qualified Test.SmallCheck.Series    as SC
-
-import           GHC.Exts                  (Constraint)
-
-import qualified Language.Ninja.AST        as AST
-import qualified Language.Ninja.Errors     as Errors
-import qualified Language.Ninja.Misc       as Misc
-import qualified Language.Ninja.Mock       as Mock
-
---------------------------------------------------------------------------------
-
--- | The type of annotations returned by the lexer.
---
---   @since 0.1.0
-type Ann = Misc.Spans
-
---------------------------------------------------------------------------------
-
--- | Lex each line separately, rather than each lexeme.
---
---   @since 0.1.0
-data Lexeme ann
-  = -- | @foo = bar@
-    --
-    --   @since 0.1.0
-    LexDefine   !ann !(LBind ann)
-  | -- | @[indent]foo = bar@
-    --
-    --   @since 0.1.0
-    LexBind     !ann !(LBind ann)
-  | -- | @include file@
-    --
-    --   @since 0.1.0
-    LexInclude  !ann !(LFile ann)
-  | -- | @subninja file@
-    --
-    --   @since 0.1.0
-    LexSubninja !ann !(LFile ann)
-  | -- | @build foo: bar | baz || qux@
-    --
-    --   @since 0.1.0
-    LexBuild    !ann !(LBuild ann)
-  | -- | @rule name@
-    --
-    --   @since 0.1.0
-    LexRule     !ann !(LName ann)
-  | -- | @pool name@
-    --
-    --   @since 0.1.0
-    LexPool     !ann !(LName ann)
-  | -- | @default foo bar@
-    --
-    --   @since 0.1.0
-    LexDefault  !ann ![AST.Expr ann]
-  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
-
--- | The usual definition for 'Misc.Annotated'.
---
---   @since 0.1.0
-instance Misc.Annotated Lexeme where
-  annotation' f = Lens.lens (helper .> fst) (helper .> snd)
-    where
-      helper (LexDefine   ann v) = (ann, \x -> LexDefine   x (f <$> v))
-      helper (LexBind     ann v) = (ann, \x -> LexBind     x (f <$> v))
-      helper (LexInclude  ann v) = (ann, \x -> LexInclude  x (f <$> v))
-      helper (LexSubninja ann v) = (ann, \x -> LexSubninja x (f <$> v))
-      helper (LexBuild    ann v) = (ann, \x -> LexBuild    x (f <$> v))
-      helper (LexRule     ann v) = (ann, \x -> LexRule     x (f <$> v))
-      helper (LexPool     ann v) = (ann, \x -> LexPool     x (f <$> v))
-      helper (LexDefault  ann v) = (ann, \x -> LexDefault  x (map (fmap f) v))
-
--- | Converts to @{ann: …, tag: …, value: …}@.
---
---   @since 0.1.0
-instance forall ann. (Aeson.ToJSON ann) => Aeson.ToJSON (Lexeme ann) where
-  toJSON = (\case (LexDefine   ann value) -> obj ann "define"   value
-                  (LexBind     ann value) -> obj ann "bind"     value
-                  (LexInclude  ann value) -> obj ann "include"  value
-                  (LexSubninja ann value) -> obj ann "subninja" value
-                  (LexBuild    ann value) -> obj ann "build"    value
-                  (LexRule     ann value) -> obj ann "rule"     value
-                  (LexPool     ann value) -> obj ann "pool"     value
-                  (LexDefault  ann value) -> obj ann "default"  value)
-    where
-      obj :: forall x. (Aeson.ToJSON x) => ann -> Text -> x -> Aeson.Value
-      obj ann tag value = [ "ann" .= ann, "tag" .= tag, "value" .= value
-                          ] |> Aeson.object
-
--- | Inverse of the 'Aeson.ToJSON' instance.
---
---   @since 0.1.0
-instance (Aeson.FromJSON ann) => Aeson.FromJSON (Lexeme ann) where
-  parseJSON = (Aeson.withObject "Lexeme" $ \o -> do
-                  ann <- o .: "ann"
-                  tag <- o .: "tag"
-                  case (tag :: Text) of
-                    "define"   -> LexDefine   ann <$> (o .: "value")
-                    "bind"     -> LexBind     ann <$> (o .: "value")
-                    "include"  -> LexInclude  ann <$> (o .: "value")
-                    "subninja" -> LexSubninja ann <$> (o .: "value")
-                    "build"    -> LexBuild    ann <$> (o .: "value")
-                    "rule"     -> LexRule     ann <$> (o .: "value")
-                    "pool"     -> LexPool     ann <$> (o .: "value")
-                    "default"  -> LexDefault  ann <$> (o .: "value")
-                    owise      -> invalidTagError (Text.unpack owise))
-    where
-      invalidTagError :: String -> Aeson.Parser a
-      invalidTagError x = [ "Invalid tag: ", x, "; expected one of: "
-                          , show validTags
-                          ] |> mconcat |> fail
-
-      validTags :: [Text]
-      validTags = [ "define", "bind", "include", "subninja"
-                  , "build", "rule", "pool", "default" ]
-
--- | Default 'Hashable' instance via 'Generic'.
---
---   @since 0.1.0
-instance (Hashable ann) => Hashable (Lexeme ann)
-
--- | Default 'NFData' instance via 'Generic'.
---
---   @since 0.1.0
-instance (NFData ann) => NFData (Lexeme ann)
-
--- | Default 'SC.Serial' instance via 'Generic'.
---
---   @since 0.1.0
-instance ( Monad m, LexemeConstraint (SC.Serial m) ann
-         ) => SC.Serial m (Lexeme ann)
-
--- | Default 'SC.CoSerial' instance via 'Generic'.
---
---   @since 0.1.0
-instance ( Monad m, LexemeConstraint (SC.CoSerial m) ann
-         ) => SC.CoSerial m (Lexeme ann)
-
--- | The set of constraints required for a given constraint to be automatically
---   computed for an 'Lexeme'.
---
---   @since 0.1.0
-type LexemeConstraint (c :: * -> Constraint) (ann :: *)
-  = ( LBindConstraint  c ann
-    , LFileConstraint  c ann
-    , LBuildConstraint c ann
-    , LNameConstraint  c ann
-    , c [AST.Expr ann]
-    , c ann
-    )
-
---------------------------------------------------------------------------------
-
--- | The name of a Ninja rule or pool.
---
---   @since 0.1.0
-data LName ann
-  = MkLName
-    { _lnameAnn :: !ann
-    , _lnameBS  :: !ByteString
-    }
-  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
-
--- | The usual definition for 'Misc.Annotated'.
---
---   @since 0.1.0
-instance Misc.Annotated LName where
-  annotation' _ = Lens.lens _lnameAnn
-                  $ \(MkLName {..}) x -> MkLName { _lnameAnn = x, .. }
-
--- | Converts to @{ann: …, name: …}@.
---
---   @since 0.1.0
-instance (Aeson.ToJSON ann) => Aeson.ToJSON (LName ann) where
-  toJSON (MkLName {..})
-    = [ "ann"  .= _lnameAnn
-      , "name" .= Text.decodeUtf8 _lnameBS
-      ] |> Aeson.object
-
--- | Inverse of the 'Aeson.ToJSON' instance.
---
---   @since 0.1.0
-instance (Aeson.FromJSON ann) => Aeson.FromJSON (LName ann) where
-  parseJSON = (Aeson.withObject "LName" $ \o -> do
-                  _lnameAnn <- (o .: "ann")  >>= pure
-                  _lnameBS  <- (o .: "name") >>= Text.encodeUtf8 .> pure
-                  pure (MkLName {..}))
-
--- | Default 'Hashable' instance via 'Generic'.
---
---   @since 0.1.0
-instance (Hashable ann) => Hashable (LName ann)
-
--- | Default 'NFData' instance via 'Generic'.
---
---   @since 0.1.0
-instance (NFData ann) => NFData (LName ann)
-
--- | Uses the underlying 'SC.Serial' instances.
---
---   @since 0.1.0
-instance ( Monad m, LNameConstraint (SC.Serial m) ann
-         ) => SC.Serial m (LName ann) where
-  series = SC.series |> fmap (second Text.encodeUtf8 .> uncurry MkLName)
-
--- | Default 'SC.CoSerial' instance via 'Generic'.
---
---   @since 0.1.0
-instance ( Monad m, LNameConstraint (SC.CoSerial m) ann
-         ) => SC.CoSerial m (LName ann) where
-  coseries = SC.coseries .> fmap (\f -> _lnameBS .> Text.decodeUtf8 .> f)
-
--- | The set of constraints required for a given constraint to be automatically
---   computed for an 'LName'.
---
---   @since 0.1.0
-type LNameConstraint (c :: * -> Constraint) (ann :: *) = (c Text, c ann)
-
---------------------------------------------------------------------------------
-
--- | A reference to a file in an @include@ or @subninja@ declaration.
---
---   @since 0.1.0
-newtype LFile ann
-  = MkLFile
-    { _lfileExpr :: AST.Expr ann
-    }
-  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
-
--- | Converts to @{file: …}@.
---
---   @since 0.1.0
-instance (Aeson.ToJSON ann) => Aeson.ToJSON (LFile ann) where
-  toJSON (MkLFile {..})
-    = [ "file" .= _lfileExpr
-      ] |> Aeson.object
-
--- | Inverse of the 'Aeson.ToJSON' instance.
---
---   @since 0.1.0
-instance (Aeson.FromJSON ann) => Aeson.FromJSON (LFile ann) where
-  parseJSON = (Aeson.withObject "LFile" $ \o -> do
-                  _lfileExpr <- (o .: "file")  >>= pure
-                  pure (MkLFile {..}))
-
--- | Default 'Hashable' instance via 'Generic'.
---
---   @since 0.1.0
-instance (Hashable ann) => Hashable (LFile ann)
-
--- | Default 'NFData' instance via 'Generic'.
---
---   @since 0.1.0
-instance (NFData ann) => NFData (LFile ann)
-
--- | Default 'SC.Serial' instance via 'Generic'.
---
---   @since 0.1.0
-instance ( Monad m, LFileConstraint (SC.Serial m) ann
-         ) => SC.Serial m (LFile ann)
-
--- | Default 'SC.CoSerial' instance via 'Generic'.
---
---   @since 0.1.0
-instance ( Monad m, LFileConstraint (SC.CoSerial m) ann
-         ) => SC.CoSerial m (LFile ann)
-
--- | The set of constraints required for a given constraint to be automatically
---   computed for an 'LFile'.
---
---   @since 0.1.0
-type LFileConstraint (c :: * -> Constraint) (ann :: *) = (c Text, c ann)
-
---------------------------------------------------------------------------------
-
--- | A Ninja variable binding, top-level or otherwise.
---
---   @since 0.1.0
-data LBind ann
-  = MkLBind
-    { _lbindAnn   :: !ann
-    , _lbindName  :: !(LName ann)
-    , _lbindValue :: !(AST.Expr ann)
-    }
-  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
-
--- | Converts to @{ann: …, name: …, value: …}@.
---
---   @since 0.1.0
-instance (Aeson.ToJSON ann) => Aeson.ToJSON (LBind ann) where
-  toJSON (MkLBind {..})
-    = [ "ann"   .= _lbindAnn
-      , "name"  .= _lbindName
-      , "value" .= _lbindValue
-      ] |> Aeson.object
-
--- | Inverse of the 'Aeson.ToJSON' instance.
---
---   @since 0.1.0
-instance (Aeson.FromJSON ann) => Aeson.FromJSON (LBind ann) where
-  parseJSON = (Aeson.withObject "LBind" $ \o -> do
-                  _lbindAnn   <- (o .: "ann")   >>= pure
-                  _lbindName  <- (o .: "name")  >>= pure
-                  _lbindValue <- (o .: "value") >>= pure
-                  pure (MkLBind {..}))
-
--- | Default 'Hashable' instance via 'Generic'.
---
---   @since 0.1.0
-instance (Hashable ann) => Hashable (LBind ann)
-
--- | Default 'NFData' instance via 'Generic'.
---
---   @since 0.1.0
-instance (NFData ann) => NFData (LBind ann)
-
--- | Default 'SC.Serial' instance via 'Generic'.
---
---   @since 0.1.0
-instance ( Monad m, LBindConstraint (SC.Serial m) ann
-         ) => SC.Serial m (LBind ann)
-
--- | Default 'SC.CoSerial' instance via 'Generic'.
---
---   @since 0.1.0
-instance ( Monad m, LBindConstraint (SC.CoSerial m) ann
-         ) => SC.CoSerial m (LBind ann)
-
--- | The set of constraints required for a given constraint to be automatically
---   computed for an 'LBind'.
---
---   @since 0.1.0
-type LBindConstraint (c :: * -> Constraint) (ann :: *) = (c Text, c ann)
-
---------------------------------------------------------------------------------
-
--- | The data contained within a Ninja @build@ declaration.
---
---   @since 0.1.0
-data LBuild ann
-  = MkLBuild
-    { _lbuildAnn  :: !ann
-    , _lbuildOuts :: ![AST.Expr ann]
-    , _lbuildRule :: !(LName ann)
-    , _lbuildDeps :: ![AST.Expr ann]
-    }
-  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
-
--- | Constructor for an 'LBuild'.
---
---   @since 0.1.0
-makeLBuild :: forall ann.
-              ann
-           -- ^ The build annotation
-           -> [AST.Expr ann]
-           -- ^ The build outputs
-           -> LName ann
-           -- ^ The rule name
-           -> [AST.Expr ann]
-           -- ^ The build dependencies
-           -> LBuild ann
-makeLBuild ann outs rule deps
-  = let filterExprs :: [AST.Expr ann] -> [AST.Expr ann]
-        filterExprs = filter (\case (AST.Lit   _ "") -> False
-                                    (AST.Exprs _ []) -> False
-                                    _                -> True)
-    in MkLBuild ann (filterExprs outs) rule (filterExprs deps)
-
--- | The usual definition for 'Misc.Annotated'.
---
---   @since 0.1.0
-instance Misc.Annotated LBuild where
-  annotation' f = Lens.lens _lbuildAnn
-                  $ \(MkLBuild {..}) x ->
-                      MkLBuild { _lbuildAnn = x
-                               , _lbuildOuts = map (fmap f) _lbuildOuts
-                               , _lbuildRule = f <$> _lbuildRule
-                               , _lbuildDeps = map (fmap f) _lbuildOuts
-                               , .. }
-
--- | Converts to @{ann: …, outs: …, rule: …, deps: …}@.
---
---   @since 0.1.0
-instance (Aeson.ToJSON ann) => Aeson.ToJSON (LBuild ann) where
-  toJSON (MkLBuild {..})
-    = [ "ann"  .= _lbuildAnn
-      , "outs" .= _lbuildOuts
-      , "rule" .= _lbuildRule
-      , "deps" .= _lbuildDeps
-      ] |> Aeson.object
-
--- | Inverse of the 'Aeson.ToJSON' instance.
---
---   @since 0.1.0
-instance (Aeson.FromJSON ann) => Aeson.FromJSON (LBuild ann) where
-  parseJSON = (Aeson.withObject "LBuild" $ \o -> do
-                  _lbuildAnn  <- (o .: "ann")  >>= pure
-                  _lbuildOuts <- (o .: "outs") >>= pure
-                  _lbuildRule <- (o .: "rule") >>= pure
-                  _lbuildDeps <- (o .: "deps") >>= pure
-                  pure (MkLBuild {..}))
-
--- | Default 'Hashable' instance via 'Generic'.
---
---   @since 0.1.0
-instance (Hashable ann) => Hashable (LBuild ann)
-
--- | Default 'NFData' instance via 'Generic'.
---
---   @since 0.1.0
-instance (NFData ann) => NFData (LBuild ann)
-
--- | Uses the underlying 'SC.Serial' instances.
---
---   @since 0.1.0
-instance ( Monad m, LBuildConstraint (SC.Serial m) ann
-         ) => SC.Serial m (LBuild ann) where
-  series = makeLBuild <$> SC.series <~> SC.series <~> SC.series <~> SC.series
-
--- | Default 'SC.CoSerial' instance via 'Generic'.
---
---   @since 0.1.0
-instance ( Monad m, LBuildConstraint (SC.CoSerial m) ann
-         ) => SC.CoSerial m (LBuild ann)
-
--- | The set of constraints required for a given constraint to be automatically
---   computed for an 'LBuild'.
---
---   @since 0.1.0
-type LBuildConstraint (c :: * -> Constraint) (ann :: *) = (c Text, c ann)
+import qualified Language.Ninja.AST         as AST
+import qualified Language.Ninja.Errors      as Errors
+import qualified Language.Ninja.Lexer.Types as Lexer
+import qualified Language.Ninja.Misc        as Misc
+import qualified Language.Ninja.Mock        as Mock
 
 --------------------------------------------------------------------------------
 
@@ -556,26 +108,28 @@ type LBuildConstraint (c :: * -> Constraint) (ann :: *) = (c Text, c ann)
 --
 --   @since 0.1.0
 lexerFile :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
-          => Misc.Path -> m [Lexeme Ann]
+          => Misc.Path -> m [Lexer.Lexeme Lexer.Ann]
 lexerFile file = Mock.readFile file >>= lexerText' (Just file)
 
 -- | Lex the given 'Text'.
 --
 --   @since 0.1.0
-lexerText :: (MonadError Errors.ParseError m) => Text -> m [Lexeme Ann]
+lexerText :: (MonadError Errors.ParseError m)
+          => Text -> m [Lexer.Lexeme Lexer.Ann]
 lexerText = lexerText' Nothing
 
 -- | Lex the given 'BSC8.ByteString'.
 --
 --   @since 0.1.0
-lexerBS :: (MonadError Errors.ParseError m) => ByteString -> m [Lexeme Ann]
+lexerBS :: (MonadError Errors.ParseError m)
+        => ByteString -> m [Lexer.Lexeme Lexer.Ann]
 lexerBS = lexerBS' Nothing
 
 -- | Lex the given 'Text' that comes from the given 'Misc.Path', if provided.
 --
 --   @since 0.1.0
 lexerText' :: (MonadError Errors.ParseError m)
-           => Maybe Misc.Path -> Text -> m [Lexeme Ann]
+           => Maybe Misc.Path -> Text -> m [Lexer.Lexeme Lexer.Ann]
 lexerText' mp x = let file = fromMaybe "" (Lens.view Misc.pathString <$> mp)
                   in M.runParserT lexemesP file x
                      >>= either Errors.throwLexParsecError pure
@@ -585,44 +139,15 @@ lexerText' mp x = let file = fromMaybe "" (Lens.view Misc.pathString <$> mp)
 --
 --   @since 0.1.0
 lexerBS' :: (MonadError Errors.ParseError m)
-         => Maybe Misc.Path -> ByteString -> m [Lexeme Ann]
+         => Maybe Misc.Path -> ByteString -> m [Lexer.Lexeme Lexer.Ann]
 lexerBS' mpath = Text.decodeUtf8 .> lexerText' mpath
 
 --------------------------------------------------------------------------------
 
--- | This class is kind of like 'DeltaParsing' from @trifecta@.
---
---   @since 0.1.0
-class (Monad m) => PositionParsing m where
-  getPosition :: m Misc.Position
-
--- | Instance for 'M.ParsecT' from @megaparsec@.
---
---   @since 0.1.0
-instance PositionParsing (M.ParsecT M.Dec Text m) where
-  getPosition = convert <$> M.getPosition
-    where
-      convert :: M.SourcePos -> Misc.Position
-      convert (M.SourcePos fp line column)
-        = let path = Lens.view (Lens.from Misc.pathString) fp
-          in Misc.makePosition (Just path) (toLine line, toColumn column)
-
-      toLine   :: M.Pos -> Misc.Line
-      toColumn :: M.Pos -> Misc.Column
-      toLine   = M.unPos .> fromIntegral
-      toColumn = M.unPos .> fromIntegral
-
---------------------------------------------------------------------------------
-
--- | A @megaparsec@ parser.
---
---   @since 0.1.0
-type Parser m a = M.ParsecT M.Dec Text m a
-
 -- | The @megaparsec@ parser for a Ninja file.
 --
 --   @since 0.1.0
-lexemesP :: Parser m [Lexeme Ann]
+lexemesP :: Lexer.Parser m [Lexer.Lexeme Lexer.Ann]
 lexemesP = do
   maybes <- [ Nothing <$  lineCommentP
             , Nothing <$  M.separatorChar
@@ -634,67 +159,51 @@ lexemesP = do
 
 --------------------------------------------------------------------------------
 
-spanned :: (PositionParsing m) => m a -> m (Ann, a)
-spanned p = do
-  start  <- getPosition
-  result <- p
-  end    <- getPosition
-  let getPosFile :: Misc.Position -> Maybe Misc.Path
-      getPosFile = Lens.view Misc.positionFile
-  let (sfile, efile) = (getPosFile start, getPosFile end)
-  when (sfile /= efile) $ fail "spanned: somehow went over multiple files!"
-  let file = sfile
-  let offS = Lens.view Misc.positionOffset start
-  let offE = Lens.view Misc.positionOffset end
-  pure (Misc.makeSpans [Misc.makeSpan file offS offE], result)
-
---------------------------------------------------------------------------------
-
-lexemeP :: Parser m (Lexeme Ann)
+lexemeP :: Lexer.Parser m (Lexer.Lexeme Lexer.Ann)
 lexemeP = [ includeP, subninjaP, buildP, ruleP, poolP, defaultP, bindP, defineP
           ] |> map M.try |> asum
 
-defineP :: Parser m (Lexeme Ann)
-defineP = spanned equationP
-          |> fmap (uncurry LexDefine)
+defineP :: Lexer.Parser m (Lexer.Lexeme Lexer.Ann)
+defineP = Lexer.spanned equationP
+          |> fmap (uncurry Lexer.LexDefine)
           |> debugP "defineP"
 
-bindP :: Parser m (Lexeme Ann)
-bindP = spanned (indented f)
-        |> fmap (uncurry LexBind)
+bindP :: Lexer.Parser m (Lexer.Lexeme Lexer.Ann)
+bindP = Lexer.spanned (indented f)
+        |> fmap (uncurry Lexer.LexBind)
         |> debugP "bindP"
   where
-    f :: Misc.Column -> Parser m (LBind Ann)
+    f :: Misc.Column -> Lexer.Parser m (Lexer.LBind Lexer.Ann)
     f x | x < 2 = fail "bindP: not indented"
     f _         = equationP
 
-includeP :: Parser m (Lexeme Ann)
+includeP :: Lexer.Parser m (Lexer.Lexeme Lexer.Ann)
 includeP = debugP "includeP" $ do
-  (ann, file) <- spanned $ do
+  (ann, file) <- Lexer.spanned $ do
     beginningOfLine
     symbolP "include"
     M.Lexer.lexeme spaceP fileP
-  pure (LexInclude ann file)
+  pure (Lexer.LexInclude ann file)
 
-subninjaP :: Parser m (Lexeme Ann)
+subninjaP :: Lexer.Parser m (Lexer.Lexeme Lexer.Ann)
 subninjaP = debugP "subninjaP" $ do
-  (ann, file) <- spanned $ do
+  (ann, file) <- Lexer.spanned $ do
     beginningOfLine
     symbolP "subninja"
     M.Lexer.lexeme spaceP fileP
-  pure (LexSubninja ann file)
+  pure (Lexer.LexSubninja ann file)
 
-buildP :: Parser m (Lexeme Ann)
+buildP :: Lexer.Parser m (Lexer.Lexeme Lexer.Ann)
 buildP = debugP "buildP" $ do
-  let isExprEmpty :: AST.Expr Ann -> Bool
+  let isExprEmpty :: AST.Expr Lexer.Ann -> Bool
       isExprEmpty (AST.Lit   _ "") = True
       isExprEmpty (AST.Exprs _ []) = True
       isExprEmpty _                = False
 
-  let cleanExprs :: [AST.Expr Ann] -> [AST.Expr Ann]
+  let cleanExprs :: [AST.Expr Lexer.Ann] -> [AST.Expr Lexer.Ann]
       cleanExprs = map AST.normalizeExpr .> filter (isExprEmpty .> not)
 
-  (ann, (outs, rule, deps)) <- spanned $ do
+  (ann, (outs, rule, deps)) <- Lexer.spanned $ do
     beginningOfLine
     symbolP "build"
     outs <- cleanExprs <$> M.some outputP
@@ -703,66 +212,67 @@ buildP = debugP "buildP" $ do
     deps <- cleanExprs <$> M.many (M.Lexer.lexeme spaceP exprP)
     pure (outs, rule, deps)
 
-  pure (LexBuild ann (MkLBuild ann outs rule deps))
+  pure (Lexer.LexBuild ann (Lexer.MkLBuild ann outs rule deps))
 
-ruleP :: Parser m (Lexeme Ann)
+ruleP :: Lexer.Parser m (Lexer.Lexeme Lexer.Ann)
 ruleP = debugP "ruleP" $ do
-  (ann, ruleName) <- spanned $ do
+  (ann, ruleName) <- Lexer.spanned $ do
     beginningOfLine
     symbolP "rule"
     nameP
-  pure (LexRule ann ruleName)
+  pure (Lexer.LexRule ann ruleName)
 
-poolP :: Parser m (Lexeme Ann)
+poolP :: Lexer.Parser m (Lexer.Lexeme Lexer.Ann)
 poolP = debugP "poolP" $ do
-  (ann, poolName) <- spanned $ do
+  (ann, poolName) <- Lexer.spanned $ do
     beginningOfLine
     symbolP "pool"
     nameP
-  pure (LexPool ann poolName)
+  pure (Lexer.LexPool ann poolName)
 
-defaultP :: Parser m (Lexeme Ann)
+defaultP :: Lexer.Parser m (Lexer.Lexeme Lexer.Ann)
 defaultP = debugP "defaultP" $ do
-  (ann, defaults) <- spanned $ do
+  (ann, defaults) <- Lexer.spanned $ do
     beginningOfLine
     symbolP "default"
     M.many (M.Lexer.lexeme spaceP exprP)
-  pure (LexDefault ann defaults)
+  pure (Lexer.LexDefault ann defaults)
 
-lineEndP :: Parser m ()
+lineEndP :: Lexer.Parser m ()
 lineEndP = do
   M.many M.separatorChar
   lineCommentP <|> pure ()
   void M.eol
 
-equationP :: Parser m (LBind Ann)
+equationP :: Lexer.Parser m (Lexer.LBind Lexer.Ann)
 equationP = debugP "equationP" $ do
-  (ann, (name, value)) <- spanned $ do
+  (ann, (name, value)) <- Lexer.spanned $ do
     name <- nameP
     symbolP "="
     value <- exprsP
     pure (name, value)
 
-  pure (MkLBind ann name value)
+  pure (Lexer.MkLBind ann name value)
 
-nameP :: Parser m (LName Ann)
-nameP = spanned varDotP
-        |> fmap (second (Text.pack .> Text.encodeUtf8) .> uncurry MkLName)
+nameP :: Lexer.Parser m (Lexer.LName Lexer.Ann)
+nameP = Lexer.spanned varDotP
+        |> fmap (second (Text.pack .> Text.encodeUtf8))
+        |> fmap (uncurry Lexer.MkLName)
         |> M.Lexer.lexeme spaceP
         |> debugP "nameP"
 
-fileP :: Parser m (LFile Ann)
-fileP = MkLFile <$> exprP
+fileP :: Lexer.Parser m (Lexer.LFile Lexer.Ann)
+fileP = Lexer.MkLFile <$> exprP
         |> M.Lexer.lexeme spaceP
         |> debugP "fileP"
 
-outputP :: Parser m (AST.Expr Ann)
-outputP = spanned (M.some (dollarP <|> litP))
+outputP :: Lexer.Parser m (AST.Expr Lexer.Ann)
+outputP = Lexer.spanned (M.some (dollarP <|> litP))
           |> fmap (uncurry AST.Exprs .> AST.normalizeExpr)
           |> M.Lexer.lexeme spaceP
   where
-    litP :: Parser m (AST.Expr Ann)
-    litP = spanned (M.some (M.satisfy isOutputChar))
+    litP :: Lexer.Parser m (AST.Expr Lexer.Ann)
+    litP = Lexer.spanned (M.some (M.satisfy isOutputChar))
            |> fmap (second Text.pack .> uncurry AST.Lit)
 
     isOutputChar :: Char -> Bool
@@ -773,20 +283,22 @@ outputP = spanned (M.some (dollarP <|> litP))
     isOutputChar c   | isSpace c = False
     isOutputChar _               = True
 
-exprsP :: Parser m (AST.Expr Ann)
+exprsP :: Lexer.Parser m (AST.Expr Lexer.Ann)
 exprsP = asum [exprP, separatorP]
-         |> M.many |> spanned |> fmap (uncurry AST.Exprs .> AST.normalizeExpr)
+         |> M.many
+         |> Lexer.spanned
+         |> fmap (uncurry AST.Exprs .> AST.normalizeExpr)
   where
-    separatorP :: Parser m (AST.Expr Ann)
-    separatorP = spanned (M.some M.separatorChar)
+    separatorP :: Lexer.Parser m (AST.Expr Lexer.Ann)
+    separatorP = Lexer.spanned (M.some M.separatorChar)
                  |> fmap (second Text.pack .> uncurry AST.Lit)
 
-exprP :: Parser m (AST.Expr Ann)
-exprP = spanned (M.some (dollarP <|> litP))
+exprP :: Lexer.Parser m (AST.Expr Lexer.Ann)
+exprP = Lexer.spanned (M.some (dollarP <|> litP))
         |> fmap (uncurry AST.Exprs .> AST.normalizeExpr)
   where
-    litP :: Parser m (AST.Expr Ann)
-    litP = spanned (M.some (M.satisfy isExprChar))
+    litP :: Lexer.Parser m (AST.Expr Lexer.Ann)
+    litP = Lexer.spanned (M.some (M.satisfy isExprChar))
            |> fmap (second Text.pack .> uncurry AST.Lit)
 
     isExprChar :: Char -> Bool
@@ -796,7 +308,7 @@ exprP = spanned (M.some (dollarP <|> litP))
     isExprChar c   | isSpace c = False
     isExprChar _               = True
 
-dollarP :: Parser m (AST.Expr Ann)
+dollarP :: Lexer.Parser m (AST.Expr Lexer.Ann)
 dollarP = debugP "dollarP"
           (M.char '$'
            *> ([ makeLit (M.string "$")
@@ -807,41 +319,43 @@ dollarP = debugP "dollarP"
                , makeVar varP
                ] |> asum))
   where
-    makeLit, makeVar :: Parser m String -> Parser m (AST.Expr Ann)
-    makeLit p = spanned p |> fmap (second Text.pack .> uncurry AST.Lit)
-    makeVar p = spanned p |> fmap (second Text.pack .> uncurry AST.Var)
+    makeLit :: Lexer.Parser m String -> Lexer.Parser m (AST.Expr Lexer.Ann)
+    makeLit p = Lexer.spanned p |> fmap (second Text.pack .> uncurry AST.Lit)
 
-varDotP :: Parser m String
+    makeVar :: Lexer.Parser m String -> Lexer.Parser m (AST.Expr Lexer.Ann)
+    makeVar p = Lexer.spanned p |> fmap (second Text.pack .> uncurry AST.Var)
+
+varDotP :: Lexer.Parser m String
 varDotP = M.some (M.alphaNumChar <|> M.oneOf ['/', '-', '_', '.'])
           |> debugP "varDotP"
 
-varP :: Parser m String
+varP :: Lexer.Parser m String
 varP = M.some (M.alphaNumChar <|> M.oneOf ['/', '-', '_'])
        |> debugP "varP"
 
-symbolP :: String -> Parser m String
+symbolP :: String -> Lexer.Parser m String
 symbolP = M.Lexer.symbol spaceP
 
-spaceP :: Parser m ()
+spaceP :: Lexer.Parser m ()
 spaceP = M.Lexer.space (void M.separatorChar) lineCommentP blockCommentP
 
-lineCommentP :: Parser m ()
+lineCommentP :: Lexer.Parser m ()
 lineCommentP = M.Lexer.skipLineComment "#"
 
-blockCommentP :: Parser m ()
+blockCommentP :: Lexer.Parser m ()
 blockCommentP = fail "always"
 
-indented :: (Misc.Column -> Parser m a) -> Parser m a
+indented :: (Misc.Column -> Lexer.Parser m a) -> Lexer.Parser m a
 indented f = do
   M.many M.separatorChar
-  getPosition >>= Lens.view Misc.positionCol .> f
+  Lexer.getPosition >>= Lens.view Misc.positionCol .> f
 
-beginningOfLine :: Parser m ()
+beginningOfLine :: Lexer.Parser m ()
 beginningOfLine = do
-  col <- Lens.view Misc.positionCol <$> getPosition
+  col <- Lens.view Misc.positionCol <$> Lexer.getPosition
   unless (col == 1) (fail "beginningOfLine failed")
 
-debugP :: (Show a) => String -> Parser m a -> Parser m a
+debugP :: (Show a) => String -> Lexer.Parser m a -> Lexer.Parser m a
 debugP str p = M.label str p -- M.dbg str p
   where
     -- this shuts up the compiler wrt the Show constraint
