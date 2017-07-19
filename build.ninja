@@ -1,0 +1,89 @@
+################################################################################
+
+ninja_required_version = 1.6
+
+################################################################################
+##  CUSTOMIZABLE VARIABLES #####################################################
+################################################################################
+
+package_name = language-ninja
+package_version = 0.1.0
+
+jquery_version = 3.2.1
+jquery_url = https://code.jquery.com/jquery-${jquery_version}.min.js
+
+hackage_username = taktoa
+
+################################################################################
+##  OTHER VARIABLES  ###########################################################
+################################################################################
+
+package = ${package_name}-${package_version}
+
+jquery = misc/jquery-${jquery_version}.js
+
+hackage_root = https://hackage.haskell.org
+
+extra_args =
+
+content_type = */*
+
+accept = */*
+
+################################################################################
+##  RULES  #####################################################################
+################################################################################
+
+rule copy
+     command = cp ${in} ${out}
+
+rule nix-shell
+     command = nix-shell shell.nix -Q -j 8 -k ${extra_args}
+     pool = console
+
+rule cabal-configure
+     command = cabal configure --enab ${extra_args}
+     pool = console
+
+rule cabal-build
+     command = cabal build -j8 ${extra_args}
+     pool = console
+
+rule hackage-curl
+     command = curl -X "${method}"                $
+               -H "Content-Type: ${content_type}" $
+               -H "Content-Encoding: gzip"        $
+               -H "Accept: ${accept}"             $
+               -u ${hackage_username}             $
+               ${extra_args}                      $
+               "${hackage_root}/${path}"
+     pool = console
+
+rule download
+     command = curl -s --output "${out}" "${source}"
+
+################################################################################
+##  BUILDS  ####################################################################
+################################################################################
+
+build nix-bash: nix-shell
+
+build nix-zsh: nix-shell
+      extra_args = --run "zsh"
+
+# build configure: cabal
+#       cmd = configure
+
+build doc-candidate-upload: hackage-curl ${package}-docs.tar.gz
+      content_type = application/x-tar
+      method = PUT
+      extra_args = --data-binary "@${package}-docs.tar.gz"
+
+build ${package}-docs.tar.gz: copy dist/${package}-docs.tar.gz
+
+build dist/${package}-docs.tar.gz: phony ${jquery}
+
+build ${jquery}: download
+      source = ${jquery_url}
+
+################################################################################

@@ -27,3 +27,5 @@ guest
 TAGS
 tags
 misc/jquery-*.js
+.ninja_deps
+.ninja_log
