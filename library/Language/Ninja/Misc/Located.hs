@@ -45,7 +45,7 @@ module Language.Ninja.Misc.Located
   ( -- * @Located@
     Located
   , tokenize, tokenizeFile, tokenizeText
-  , untokenize
+  -- , untokenize
   , locatedPos, locatedVal
 
     -- * @Spans@
@@ -146,20 +146,18 @@ tokenizeFile path = tokenize (Just path) <$> Mock.readFile path
 tokenizeText :: Text -> [Located Text]
 tokenizeText = tokenize Nothing
 
--- | This function takes the output of 'tokenize' and returns a map from paths
---   to the contents of the associated files.
+-- TODO: uncomment this and implement it
 --
---   FIXME: these should be properties
---
---   > untokenize [] == mempty
---   > untokenize (xs <> ys) == untokenize xs <> untokenize ys
---   > untokenize (tokenize (Just path) t) == Map.singleton path t
---
---   FIXME: implement
---
---   @since 0.1.0
-untokenize :: [Located Text] -> Map Misc.Path Text
-untokenize = error "Language.Ninja.Misc.Located.untokenize is not yet written"
+-- -- | This function takes the output of 'tokenize' and returns a map from
+-- --   paths to the contents of the associated files.
+-- --
+-- --   prop> untokenize [] == mempty
+-- --   prop> untokenize (xs <> ys) == untokenize xs <> untokenize ys
+-- --   prop> untokenize (tokenize (Just path) t) == Map.singleton path t
+-- --
+-- --   @since 0.1.0
+-- untokenize :: [Located Text] -> Map Misc.Path Text
+-- untokenize = error "untokenize is not yet written"
 
 -- | The position of this located value.
 --

@@ -258,7 +258,7 @@ compile ast = result
     computeRuleEnv (outs, buildAST) ruleAST = do
       let depsAST = Lens.view AST.buildDeps buildAST
 
-      -- FIXME: properly handle implicit/explicit outputs here
+      -- TODO: properly handle implicit/explicit outputs here
 
       let isExplicitOut :: IR.Output -> Bool
           isExplicitOut _ = True

@@ -273,16 +273,15 @@ instance (Monad m, SC.CoSerial m Text) => SC.CoSerial m Dependency
 --
 --   @since 0.1.0
 data DependencyType
-  = -- | A normal dependency. These are listed in the @$in@ variable and changes
-    --   in the relevant target result in a rule execution.
+  = -- | A normal dependency.
     --
     --   @since 0.1.0
     NormalDependency
-  | -- | An order-only dependency. These are listed in the @$in@ variable, but
-    --   are only rebuilt if there is at least one non-order-only dependency
-    --   that is out of date.
+  | -- | An order-only dependency. These are only rebuilt if there is at least
+    --   one non-order-only dependency that is out of date.
     --
-    --   FIXME: double check this interpretation of the Ninja manual
+    --   Section 4.3 "Types of Prerequisites" in the GNU Make manual has a good
+    --   explanation of this concept.
     --
     --   @since 0.1.0
     OrderOnlyDependency

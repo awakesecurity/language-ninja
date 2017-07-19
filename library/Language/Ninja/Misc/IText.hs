@@ -129,7 +129,7 @@ instance Read IText where
 
 -- | Uses the 'Hashable' instance for 'Text'. Not very efficient.
 --
---   FIXME: perhaps switch to hashing the identifier, since this is likely
+--   TODO: perhaps switch to hashing the identifier, since this is likely
 --   pretty hot code given all the @HashMap Target …@ types all over the place.
 --
 --   @since 0.1.0

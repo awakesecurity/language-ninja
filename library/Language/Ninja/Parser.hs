@@ -285,7 +285,7 @@ applyStmt lexeme binds (ninja, env)
        (Lexer.LexBind     _ann    lbind) -> throwUnexpectedBinding lbind)
     |> (\f -> f binds (ninja, env))
   where
-    -- FIXME: don't discard annotation
+    -- TODO: don't discard annotation
     throwUnexpectedBinding :: Lexer.LBind Ann -> ApplyFun
     throwUnexpectedBinding (Lexer.MkLBind _ (Lexer.MkLName _ var) _)
       = \_ _ -> Errors.throwParseUnexpectedBinding (Text.decodeUtf8 var)

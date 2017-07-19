@@ -117,10 +117,6 @@ tail0 :: Str0 -> Str0
 tail0 (MkStr0 x) = MkStr0 $ BS.Unsafe.unsafeTail x
 
 -- | Similar to 'BSC8.uncons', but for null-terminated bytestrings.
---
---   FIXME: badly named
---
---   FIXME: not obviously correct
 list0 :: Str0 -> (Char, Str0)
 list0 x = (head0 x, tail0 x)
 
