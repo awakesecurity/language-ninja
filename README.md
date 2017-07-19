@@ -56,11 +56,11 @@ suitable for processing than the original parsed AST.
 
 ## Miscellaneous
 
-The `staging` branch is used for active development; i.e.: forced pushes may
+The `staging` branch is used for active development; i.e.: force pushes may
 happen on `staging` but will not happen on `master`.
 
-[This issue](https://github.com/awakesecurity/language-ninja/issues/2) tracks
-the progress towards initial release (`v0.1.0`) on Hackage.
+To build this, I recommend installing the Nix package manager and running
+`nix-build release.nix -A language-ninja`.
 
 [hackage-badge]:
     https://img.shields.io/hackage/v/language-ninja.svg?label=Hackage
