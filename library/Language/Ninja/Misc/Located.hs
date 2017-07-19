@@ -86,8 +86,6 @@ import qualified Data.Text                as Text
 import           Data.HashSet             (HashSet)
 import qualified Data.HashSet             as HS
 
-import           Data.Map.Strict          (Map)
-
 import           Control.DeepSeq          (NFData)
 import           Data.Hashable            (Hashable)
 import           GHC.Generics             (Generic)
