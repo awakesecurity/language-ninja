@@ -20,7 +20,10 @@
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE ViewPatterns          #-}
 
 -- |
 --   Module      : Language.Ninja.Errors.Compile
@@ -75,9 +78,16 @@ import           GHC.Generics              (Generic)
 
 import           Data.Text                 (Text)
 
+import           Data.Aeson                ((.=))
+import qualified Data.Aeson                as Aeson
+
+import qualified Text.Megaparsec           as M
+
 import qualified Data.Versions             as Ver
 
-import           Flow                      ((.>))
+import           Data.Foldable             (toList)
+
+import           Flow                      ((.>), (|>))
 
 --------------------------------------------------------------------------------
 
@@ -115,15 +125,6 @@ data CompileError
     CompilePoolError    !CompilePoolError
   deriving (Eq, Show, Generic)
 
--- | Default instance.
---
---   @since 0.1.0
-instance Exception CompileError
-
--- TODO: add FromJSON/ToJSON instance
--- TODO: add Arbitrary instance
--- TODO: add (Co)Serial instance
-
 -- | Throw a 'CompileError'.
 --
 --   @since 0.1.0
@@ -135,6 +136,32 @@ throwCompileError = throwError
 --   @since 0.1.0
 throwGenericCompileError :: (MonadError CompileError m) => Text -> m a
 throwGenericCompileError msg = throwCompileError (GenericCompileError msg)
+
+-- | Default instance.
+--
+--   @since 0.1.0
+instance Exception CompileError
+
+-- | Converts to @{tag: …, value: …}@.
+--
+--   @since 0.1.0
+instance Aeson.ToJSON CompileError where
+  toJSON = go
+    where
+      go (GenericCompileError text) = obj "generic-compile-error" text
+      go (CompileMetaError    cme)  = obj "compile-meta-error"    cme
+      go (CompileBuildError   cbe)  = obj "compile-build-error"   cbe
+      go (CompileRuleError    cre)  = obj "compile-rule-error"    cre
+      go (CompilePhonyError   cpe)  = obj "compile-phony-error"   cpe
+      go (CompileDefaultError cde)  = obj "compile-default-error" cde
+      go (CompilePoolError    cpe)  = obj "compile-pool-error"    cpe
+
+      obj :: (Aeson.ToJSON x) => Text -> x -> Aeson.Value
+      obj tag value = Aeson.object ["tag" .= tag, "value" .= value]
+
+-- TODO: add FromJSON instance
+-- TODO: add Arbitrary instance
+-- TODO: add (Co)Serial instance
 
 --------------------------------------------------------------------------------
 
@@ -151,10 +178,6 @@ data CompileMetaError
     --   @since 0.1.0
     VersionParseFailure     !Ver.ParsingError
   deriving (Eq, Show, Generic)
-
--- TODO: add FromJSON/ToJSON instance
--- TODO: add Arbitrary instance
--- TODO: add (Co)Serial instance
 
 -- | Throw a 'CompileMetaError'.
 --
@@ -175,6 +198,58 @@ throwVersionParseFailure :: (MonadError CompileError m)
                          => Ver.ParsingError -> m a
 throwVersionParseFailure pe = throwCompileMetaError (VersionParseFailure pe)
 
+-- | Converts to @{tag: …, value: …}@.
+--
+--   @since 0.1.0
+instance Aeson.ToJSON CompileMetaError where
+  toJSON = go
+    where
+      go (GenericCompileMetaError t) = obj "generic-compile-meta-error" t
+      go (VersionParseFailure     e) = obj "version-parse-failure"      (peJ e)
+
+      -- TODO: deduplicate against the implementation in Errors.Parser
+
+      peJ :: M.ParseError Char M.Dec -> Aeson.Value
+      peJ (decomposePE -> (pos, custom, unexpected, expected))
+        = [ "pos"        .= (posJ     <$> pos)
+          , "unexpected" .= (errItemJ <$> unexpected)
+          , "expected"   .= (errItemJ <$> expected)
+          , "custom"     .= (decJ     <$> custom)
+          ] |> Aeson.object
+
+      decomposePE :: M.ParseError Char M.Dec
+                  -> ( [M.SourcePos], [M.Dec]
+                     , [M.ErrorItem Char], [M.ErrorItem Char] )
+      decomposePE (M.ParseError {..})
+        = ( toList errorPos, toList errorCustom
+          , toList errorUnexpected, toList errorExpected )
+
+      posJ :: M.SourcePos -> Aeson.Value
+      posJ (M.SourcePos {..}) = [ "name"   .= sourceName
+                                , "line"   .= M.unPos sourceLine
+                                , "column" .= M.unPos sourceColumn
+                                ] |> Aeson.object
+
+      errItemJ :: M.ErrorItem Char -> Aeson.Value
+      errItemJ (M.Tokens xs) = Aeson.toJSON (toList xs)
+      errItemJ (M.Label  xs) = Aeson.toJSON (toList xs)
+      errItemJ M.EndOfInput  = "eof"
+
+      decJ :: M.Dec -> Aeson.Value
+      decJ (M.DecFail message)        = [ "message"  .= message
+                                        ] |> Aeson.object |> obj "fail"
+      decJ (M.DecIndentation ord x y) = [ "ordering" .= ord
+                                        , "start"    .= M.unPos x
+                                        , "end"      .= M.unPos y
+                                        ] |> Aeson.object |> obj "indentation"
+
+      obj :: (Aeson.ToJSON x) => Text -> x -> Aeson.Value
+      obj tag value = Aeson.object ["tag" .= tag, "value" .= value]
+
+-- TODO: add FromJSON instance
+-- TODO: add Arbitrary instance
+-- TODO: add (Co)Serial instance
+
 --------------------------------------------------------------------------------
 
 -- | The type of errors encountered while compiling a Ninja phony @build@.
@@ -186,10 +261,6 @@ data CompilePhonyError
     --   @since 0.1.0
     GenericCompilePhonyError !Text
   deriving (Eq, Show, Generic)
-
--- TODO: add FromJSON/ToJSON instance
--- TODO: add Arbitrary instance
--- TODO: add (Co)Serial instance
 
 -- | Throw a 'CompilePhonyError'.
 --
@@ -205,6 +276,21 @@ throwGenericCompilePhonyError :: (MonadError CompileError m) => Text -> m a
 throwGenericCompilePhonyError = GenericCompilePhonyError
                                 .> throwCompilePhonyError
 
+-- | Converts to @{tag: …, value: …}@.
+--
+--   @since 0.1.0
+instance Aeson.ToJSON CompilePhonyError where
+  toJSON = go
+    where
+      go (GenericCompilePhonyError t) = obj "generic-compile-phony-error" t
+
+      obj :: (Aeson.ToJSON x) => Text -> x -> Aeson.Value
+      obj tag value = Aeson.object ["tag" .= tag, "value" .= value]
+
+-- TODO: add FromJSON instance
+-- TODO: add Arbitrary instance
+-- TODO: add (Co)Serial instance
+
 --------------------------------------------------------------------------------
 
 -- | The type of errors encountered while compiling a Ninja @default@ statement.
@@ -216,10 +302,6 @@ data CompileDefaultError
     --   @since 0.1.0
     GenericCompileDefaultError !Text
   deriving (Eq, Show, Generic)
-
--- TODO: add FromJSON/ToJSON instance
--- TODO: add Arbitrary instance
--- TODO: add (Co)Serial instance
 
 -- | Throw a 'CompileDefaultError'.
 --
@@ -234,6 +316,21 @@ throwCompileDefaultError = CompileDefaultError .> throwCompileError
 throwGenericCompileDefaultError :: (MonadError CompileError m) => Text -> m a
 throwGenericCompileDefaultError = GenericCompileDefaultError
                                   .> throwCompileDefaultError
+
+-- | Converts to @{tag: …, value: …}@.
+--
+--   @since 0.1.0
+instance Aeson.ToJSON CompileDefaultError where
+  toJSON = go
+    where
+      go (GenericCompileDefaultError t) = obj "generic-compile-default-error" t
+
+      obj :: (Aeson.ToJSON x) => Text -> x -> Aeson.Value
+      obj tag value = Aeson.object ["tag" .= tag, "value" .= value]
+
+-- TODO: add FromJSON instance
+-- TODO: add Arbitrary instance
+-- TODO: add (Co)Serial instance
 
 --------------------------------------------------------------------------------
 
@@ -250,10 +347,6 @@ data CompileBuildError
     --   @since 0.1.0
     BuildRuleNotFound        !Text
   deriving (Eq, Show, Generic)
-
--- TODO: add FromJSON/ToJSON instance
--- TODO: add Arbitrary instance
--- TODO: add (Co)Serial instance
 
 -- | Throw a 'CompileBuildError'.
 --
@@ -274,6 +367,22 @@ throwGenericCompileBuildError = GenericCompileBuildError
 --   @since 0.1.0
 throwBuildRuleNotFound :: (MonadError CompileError m) => Text -> m a
 throwBuildRuleNotFound name = throwCompileBuildError (BuildRuleNotFound name)
+
+-- | Converts to @{tag: …, value: …}@.
+--
+--   @since 0.1.0
+instance Aeson.ToJSON CompileBuildError where
+  toJSON = go
+    where
+      go (GenericCompileBuildError t) = obj "generic-compile-build-error" t
+      go (BuildRuleNotFound        n) = obj "build-rule-not-found"        n
+
+      obj :: (Aeson.ToJSON x) => Text -> x -> Aeson.Value
+      obj tag value = Aeson.object ["tag" .= tag, "value" .= value]
+
+-- TODO: add FromJSON instance
+-- TODO: add Arbitrary instance
+-- TODO: add (Co)Serial instance
 
 --------------------------------------------------------------------------------
 
@@ -298,10 +407,6 @@ data CompileRuleError
     --   @since 0.1.0
     UnexpectedMSVCPrefix    !Text
   deriving (Eq, Show, Generic)
-
--- TODO: add FromJSON/ToJSON instance
--- TODO: add Arbitrary instance
--- TODO: add (Co)Serial instance
 
 -- | Throw a 'CompileRuleError'.
 --
@@ -334,6 +439,24 @@ throwUnexpectedMSVCPrefix :: (MonadError CompileError m) => Text -> m a
 throwUnexpectedMSVCPrefix deps = throwCompileRuleError
                                  (UnexpectedMSVCPrefix deps)
 
+-- | Converts to @{tag: …, value: …}@.
+--
+--   @since 0.1.0
+instance Aeson.ToJSON CompileRuleError where
+  toJSON = go
+    where
+      go (GenericCompileRuleError t) = obj "generic-compile-build-error" t
+      go (RuleLookupFailure       n) = obj "rule-lookup-failure"         n
+      go (UnknownDepsValue        d) = obj "unknown-deps-value"          d
+      go (UnexpectedMSVCPrefix    d) = obj "unexpected-msvc-prefix"      d
+
+      obj :: (Aeson.ToJSON x) => Text -> x -> Aeson.Value
+      obj tag value = Aeson.object ["tag" .= tag, "value" .= value]
+
+-- TODO: add FromJSON instance
+-- TODO: add Arbitrary instance
+-- TODO: add (Co)Serial instance
+
 --------------------------------------------------------------------------------
 
 -- | The type of errors encountered while compiling a Ninja @pool@ statement.
@@ -353,10 +476,6 @@ data CompilePoolError
     --   @since 0.1.0
     EmptyPoolName
   deriving (Eq, Show, Generic)
-
--- TODO: add FromJSON/ToJSON instance
--- TODO: add Arbitrary instance
--- TODO: add (Co)Serial instance
 
 -- | Throw a 'CompilePoolError'.
 --
@@ -381,5 +500,24 @@ throwInvalidPoolDepth d = throwCompilePoolError (InvalidPoolDepth d)
 --   @since 0.1.0
 throwEmptyPoolName :: (MonadError CompileError m) => m a
 throwEmptyPoolName = throwCompilePoolError EmptyPoolName
+
+-- | Converts to @{tag: …, value: …}@.
+--
+--   @since 0.1.0
+instance Aeson.ToJSON CompilePoolError where
+  toJSON = go
+    where
+      go (GenericCompilePoolError t) = obj "generic-compile-pool-error" t
+      go (InvalidPoolDepth        d) = obj "invalid-pool-depth"         d
+      go EmptyPoolName               = obj "empty-pool-name"            nullJ
+
+      obj :: (Aeson.ToJSON x) => Text -> x -> Aeson.Value
+      obj tag value = Aeson.object ["tag" .= tag, "value" .= value]
+
+      nullJ = Aeson.Null :: Aeson.Value
+
+-- TODO: add FromJSON instance
+-- TODO: add Arbitrary instance
+-- TODO: add (Co)Serial instance
 
 --------------------------------------------------------------------------------

@@ -136,7 +136,7 @@ processNinja inputPath (input, output) machineReadable = do
       throwMRPE = Aeson.toJSON .> encodeJ .> Text.hPutStrLn output
 
   let throwMRCE :: Errors.CompileError -> IO ()
-      throwMRCE = undefined -- FIXME: implement
+      throwMRCE = Aeson.toJSON .> encodeJ .> Text.hPutStrLn output
 
   inputText <- Text.hGetContents input
 
