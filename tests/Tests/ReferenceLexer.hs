@@ -53,7 +53,7 @@
 --   Lexing is a slow point, the code below is optimised.
 module Tests.ReferenceLexer
   ( -- * Lexing
-    lexerFile, lexerText, lexerBS
+    lexFile, lexText, lexBS
 
     -- * Types
   , Lexer.Lexeme (..)
@@ -91,19 +91,19 @@ import qualified Tests.ReferenceLexer.Str0 as Str0
 type Str = BSC8.ByteString
 
 -- | Lex the given file.
-lexerFile :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
+lexFile :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
           => Misc.Path -> m [Lexer.Lexeme ()]
-lexerFile file = Mock.readFile file >>= lexerText
+lexFile file = Mock.readFile file >>= lexText
 
 -- | Lex the given 'Text'.
-lexerText :: (MonadError Errors.ParseError m)
+lexText :: (MonadError Errors.ParseError m)
           => Text -> m [Lexer.Lexeme ()]
-lexerText = Text.encodeUtf8 .> lexerBS
+lexText = Text.encodeUtf8 .> lexBS
 
 -- | Lex the given 'BSC8.ByteString'.
-lexerBS :: (MonadError Errors.ParseError m)
+lexBS :: (MonadError Errors.ParseError m)
         => BSC8.ByteString -> m [Lexer.Lexeme ()]
-lexerBS x = lexerLoop (MkStr0 (BSC8.append x "\n\n\0"))
+lexBS x = lexerLoop (MkStr0 (BSC8.append x "\n\n\0"))
 
 --------------------------------------------------------------------------------
 

@@ -25,11 +25,12 @@
 --   License     : Apache-2.0
 --   Maintainer  : opensource@awakesecurity.com
 --   Stability   : experimental
---
---   FIXME: doc
 module Language.Ninja.Tutorial
   ( -- * Introduction
     -- $introduction
+
+    -- * Lexing
+    -- $lexing
 
     -- * Parsing
     -- $parsing
@@ -46,11 +47,11 @@ module Language.Ninja.Tutorial
     -- * Printing
     -- $printing
 
+    -- * Executables
+    -- $executables
+
     -- * Conclusion
     -- $conclusion
-
-    -- * FAQ
-    -- $faq
   ) where
 
 import qualified Language.Ninja.AST        as AST
@@ -126,7 +127,14 @@ import           Data.Versions             (Version)
 
 --------------------------------------------------------------------------------
 
--- FIXME: add lexer section once that makes sense
+-- $lexing
+--
+-- To lex a Ninja file, we use the "Language.Ninja.Lexer" module.
+-- This results in a list of _annotated_ lexemes:
+--
+-- @lexFileIO "./build.ninja" :: IO (Lexer.'Lexer.Lexeme' Lexer.'Lexer.Ann')@
+--
+-- For more specialized use cases, consult the module documentation.
 
 --------------------------------------------------------------------------------
 
@@ -138,8 +146,6 @@ import           Data.Versions             (Version)
 -- @ast <- (Parser.'Parser.parseFileIO' "./build.ninja") :: IO AST.'AST.Ninja'@
 --
 -- For more specialized use cases, consult the module documentation.
---
--- FIXME: update once we switch parsers
 
 --------------------------------------------------------------------------------
 
@@ -335,27 +341,119 @@ import           Data.Versions             (Version)
 
 -- $printing
 --
--- Currently there is a rudimentary pretty-printer for the AST in the
--- "Language.Ninja.Pretty" module. It simply returns 'Text' such that if
+-- Currently there is a rudimentary pretty-printer for the lexemes and the AST
+-- in the "Language.Ninja.Pretty" module. It simply returns 'Text' such that if
 --
 -- @
--- let pretty = Pretty.'Pretty.prettyNinja'
+-- let pretty = 'pure' . Pretty.'Pretty.prettyNinja'
 -- let parse  = Parser.'Parser.parseTextIO'
 -- @
 --
 -- then @pretty >=> parse >=> pretty >=> parse@ should be the same as @pure@,
--- modulo read-only side effects.
+-- modulo read-only side effects and annotations.
+--
+-- There are plans to write a pretty-printer for the IR. This would be very
+-- useful for generating Ninja.
+
+--------------------------------------------------------------------------------
+
+-- $executables
+--
+-- In addition to the library described above, this package also ships with
+-- three executables: @ninja-lex@, @ninja-parse@, and @ninja-compile@.
+-- These expose the corresponding module by using the Aeson instances to render
+-- the lexed\/parsed\/compiled source.
+--
+-- == @ninja-lex@
+--
+-- The command-line interface for @ninja-lex@ looks like this:
+--
+-- > $ ninja-lex --help
+-- > ninja-lex version 0.1.0
+-- >
+-- > Usage: ninja-lex (process | pretty)
+-- >
+-- > Available options:
+-- >   -h,--help                Show this help text
+-- >
+-- > Available commands:
+-- >   process
+-- >   pretty
+--
+-- > $ ninja-lex process --help
+-- > Usage: ninja-lex process [--input FILEPATH] [--output FILEPATH]
+-- >                          [--machine-readable]
+-- >
+-- > Available options:
+-- >   -h,--help                Show this help text
+-- >   --input FILEPATH         Read the given FILEPATH as a Ninja file.
+-- >   --output FILEPATH        Output to the given FILEPATH instead of /dev/stdout.
+-- >   --machine-readable       Should the output be fully machine-readable?
+--
+-- > $ ninja-lex pretty --help
+-- > Usage: ninja-lex pretty [--input FILEPATH] [--output FILEPATH] [--color]
+-- >
+-- > Available options:
+-- >   -h,--help                Show this help text
+-- >   --input FILEPATH         Read the given FILEPATH as a Ninja file.
+-- >   --output FILEPATH        Output to the given FILEPATH instead of /dev/stdout.
+-- >   --color                  Should the output use ANSI color?
+--
+-- == @ninja-parse@
+--
+-- The command-line interface for @ninja-parse@ looks like this:
+--
+-- > $ ninja-parse --help
+-- > ninja-parse version 0.1.0
+-- >
+-- > Usage: ninja-parse (process | pretty)
+-- >
+-- > Available options:
+-- >   -h,--help                Show this help text
+-- >
+-- > Available commands:
+-- >   process
+-- >   pretty
+--
+-- > $ ninja-parse process --help
+-- > Usage: ninja-parse process [--input FILEPATH] [--output FILEPATH]
+-- >                            [--machine-readable]
+-- >
+-- > Available options:
+-- >   -h,--help                Show this help text
+-- >   --input FILEPATH         Read the given FILEPATH as a Ninja file.
+-- >   --output FILEPATH        Output to the given FILEPATH instead of /dev/stdout.
+-- >   --machine-readable       Should the output be fully machine-readable?
+--
+-- > $ ninja-parse pretty --help
+-- > Usage: ninja-parse pretty [--input FILEPATH] [--output FILEPATH] [--color]
+-- >
+-- > Available options:
+-- >   -h,--help                Show this help text
+-- >   --input FILEPATH         Read the given FILEPATH as a Ninja file.
+-- >   --output FILEPATH        Output to the given FILEPATH instead of /dev/stdout.
+-- >   --color                  Should the output use ANSI color?
+--
+-- == @ninja-compile@
+--
+-- The command-line interface for @ninja-compile@ looks like this:
+--
+-- > $ ninja-compile --help
+-- > ninja-compile version 0.1.0
+-- >
+-- > Usage: ninja-compile [--input FILEPATH] [--output FILEPATH] [--machine-readable]
+-- >
+-- > Available options:
+-- >   -h,--help                Show this help text
+-- >   --input FILEPATH         Read the given FILEPATH as a Ninja file.
+-- >   --output FILEPATH        Output to the given FILEPATH instead of /dev/stdout.
+-- >   --machine-readable       Should the output be fully machine-readable?
 
 --------------------------------------------------------------------------------
 
 -- $conclusion
 --
--- FIXME: doc
-
---------------------------------------------------------------------------------
-
--- $faq
---
--- FIXME: doc
+-- I hope these tools will be useful to you for whatever task you want to do
+-- with the Ninja language. Happy hacking!
 
 --------------------------------------------------------------------------------

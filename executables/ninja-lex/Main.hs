@@ -148,7 +148,7 @@ processNinja inputPath (input, output) machineReadable = do
 
   inputText <- Text.hGetContents input
 
-  case runExcept (Lexer.lexerText' inputPath inputText) of
+  case runExcept (Lexer.lexTextWithPath inputPath inputText) of
     Left  e -> if machineReadable
                then throwMR e
                else throwIO e

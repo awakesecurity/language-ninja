@@ -220,7 +220,7 @@ parseTextInternal text = parseBSInternal (Text.encodeUtf8 text)
 parseBSInternal :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
                   => BSC8.ByteString -> NinjaWithEnv -> m NinjaWithEnv
 parseBSInternal bs (ninja, env) = do
-  lexemes <- Lexer.lexerBS bs
+  lexemes <- Lexer.lexBS bs
   parseLexemesInternal lexemes (ninja, env)
 
 parseLexemesInternal :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)

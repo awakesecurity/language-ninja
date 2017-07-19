@@ -163,10 +163,10 @@ lexerEquivalentTest name = do
              |> Lens.view (Lens.from Misc.pathString)
 
   let oldLexer :: Misc.Path -> ExceptT Errors.ParseError IO [Lexer.Lexeme ()]
-      oldLexer = RefLex.lexerFile
+      oldLexer = RefLex.lexFile
 
   let newLexer :: Misc.Path -> ExceptT Errors.ParseError IO [Lexer.Lexeme ()]
-      newLexer = Lexer.lexerFile .> fmap (map void)
+      newLexer = Lexer.lexFile .> fmap (map void)
 
   expected <- runExceptT (oldLexer file)
   actual   <- runExceptT (newLexer file)

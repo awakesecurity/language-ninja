@@ -54,11 +54,24 @@
 --
 --   @since 0.1.0
 module Language.Ninja.Lexer
-  ( -- * Lexing
-    lexerFile
-  , lexerText, lexerBS
-  , lexerText', lexerBS'
+  ( -- * @lex*IO@
+    lexFileIO
+  , lexTextIO
+  , lexBSIO
+
+    -- * @lex*@
+  , lexFile
+  , lexText
+  , lexBS
+
+    -- * @lex*WithPath@
+  , lexTextWithPath
+  , lexBSWithPath
+
+    -- * Other ways of running the lexer
   , lexemesP
+
+    -- * Type aliases
   , Lexer.Parser
   , Lexer.Ann
 
@@ -75,8 +88,10 @@ module Language.Ninja.Lexer
 
 import           Control.Applicative        (Alternative ((<|>)))
 import           Control.Arrow              (second)
-import           Control.Monad              (unless, void)
+import           Control.Exception          (throwIO)
+import           Control.Monad              (unless, void, (>=>))
 import           Control.Monad.Error.Class  (MonadError)
+import           Control.Monad.Trans.Except (runExceptT)
 
 import qualified Control.Lens               as Lens
 
@@ -104,43 +119,69 @@ import qualified Language.Ninja.Mock        as Mock
 
 --------------------------------------------------------------------------------
 
+-- | Lex the file at the given path.
+--   This function may throw an exception if parsing fails.
+--
+--   @since 0.1.0
+lexFileIO :: Misc.Path -> IO [Lexer.Lexeme Lexer.Ann]
+lexFileIO = (lexFile .> runExceptT) >=> either throwIO pure
+
+-- | Lex the given 'Text'.
+--   This function may throw an exception if parsing fails.
+--
+--   @since 0.1.0
+lexTextIO :: Text -> IO [Lexer.Lexeme Lexer.Ann]
+lexTextIO = (lexText .> runExceptT) >=> either throwIO pure
+
+-- | Lex the given 'ByteString'.
+--   This function may throw an exception if parsing fails.
+--
+--   @since 0.1.0
+lexBSIO :: ByteString -> IO [Lexer.Lexeme Lexer.Ann]
+lexBSIO = (lexBS .> runExceptT) >=> either throwIO pure
+
+--------------------------------------------------------------------------------
+
 -- | Lex the given file.
 --
 --   @since 0.1.0
-lexerFile :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
-          => Misc.Path -> m [Lexer.Lexeme Lexer.Ann]
-lexerFile file = Mock.readFile file >>= lexerText' (Just file)
+lexFile :: (MonadError Errors.ParseError m, Mock.MonadReadFile m)
+        => Misc.Path -> m [Lexer.Lexeme Lexer.Ann]
+lexFile file = Mock.readFile file >>= lexTextWithPath (Just file)
 
 -- | Lex the given 'Text'.
 --
 --   @since 0.1.0
-lexerText :: (MonadError Errors.ParseError m)
-          => Text -> m [Lexer.Lexeme Lexer.Ann]
-lexerText = lexerText' Nothing
+lexText :: (MonadError Errors.ParseError m)
+        => Text -> m [Lexer.Lexeme Lexer.Ann]
+lexText = lexTextWithPath Nothing
 
 -- | Lex the given 'BSC8.ByteString'.
 --
 --   @since 0.1.0
-lexerBS :: (MonadError Errors.ParseError m)
-        => ByteString -> m [Lexer.Lexeme Lexer.Ann]
-lexerBS = lexerBS' Nothing
+lexBS :: (MonadError Errors.ParseError m)
+      => ByteString -> m [Lexer.Lexeme Lexer.Ann]
+lexBS = lexBSWithPath Nothing
+
+--------------------------------------------------------------------------------
 
 -- | Lex the given 'Text' that comes from the given 'Misc.Path', if provided.
 --
 --   @since 0.1.0
-lexerText' :: (MonadError Errors.ParseError m)
-           => Maybe Misc.Path -> Text -> m [Lexer.Lexeme Lexer.Ann]
-lexerText' mp x = let file = fromMaybe "" (Lens.view Misc.pathString <$> mp)
-                  in M.runParserT lexemesP file x
-                     >>= either Errors.throwLexParsecError pure
+lexTextWithPath :: (MonadError Errors.ParseError m)
+                => Maybe Misc.Path -> Text -> m [Lexer.Lexeme Lexer.Ann]
+lexTextWithPath mp x = M.runParserT lexemesP file x
+                       >>= either Errors.throwLexParsecError pure
+  where
+    file = fromMaybe "" (Lens.view Misc.pathString <$> mp)
 
 -- | Lex the given 'ByteString' that comes from the given 'Misc.Path', if it is
 --   provided. The 'Misc.Path' is only used for error messages.
 --
 --   @since 0.1.0
-lexerBS' :: (MonadError Errors.ParseError m)
-         => Maybe Misc.Path -> ByteString -> m [Lexer.Lexeme Lexer.Ann]
-lexerBS' mpath = Text.decodeUtf8 .> lexerText' mpath
+lexBSWithPath :: (MonadError Errors.ParseError m)
+              => Maybe Misc.Path -> ByteString -> m [Lexer.Lexeme Lexer.Ann]
+lexBSWithPath mpath = Text.decodeUtf8 .> lexTextWithPath mpath
 
 --------------------------------------------------------------------------------
 
