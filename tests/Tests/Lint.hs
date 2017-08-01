@@ -17,6 +17,7 @@
 --     See the License for the specific language governing permissions and
 --     limitations under the License.
 
+{-# LANGUAGE CPP                   #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
@@ -45,6 +46,7 @@ module Tests.Lint
   , ComponentName, SinceException
   ) where
 
+#if __GLASGOW_HASKELL__ >= 800
 import           Control.Applicative         (empty)
 import           Control.Arrow               ((&&&))
 import           Control.Monad               (forM)
@@ -58,10 +60,6 @@ import           Flow                        ((.>), (|>))
 import qualified GHC
 import qualified Outputable                  as GHC
 
-import qualified Data.Map.Lazy               as LMap
-
-import qualified Data.Text                   as Text
-
 import qualified Documentation.Haddock       as H
 import qualified Documentation.Haddock.Types as H
 
@@ -69,20 +67,30 @@ import qualified Documentation.Haddock.Types as H
 -- import qualified Documentation.Haddock.Parser       as H.Parser
 -- import qualified Documentation.Haddock.Parser.Monad as H.Parser
 
-import qualified Test.Tasty                  as Test
+import qualified Data.Map.Lazy               as LMap
+
+import qualified Data.Text                   as Text
+
 import qualified Test.Tasty.HUnit            as Test
 
 import qualified Turtle
+#endif
+
+import qualified Test.Tasty                  as Test
 
 --------------------------------------------------------------------------------
 
 -- | Generate and lint the Haddock documentation for this project.
 lintHaddock :: LintHaddockOptions -> IO Test.TestTree
+#if __GLASGOW_HASKELL__ < 800
+lintHaddock _ = pure (Test.testGroup "Haddock linting [skipped]" [])
+#else
 lintHaddock options = do
   _ <- H.withGhc [] GHC.getSessionDynFlags
   buildHaddock
   mapM (lintInterfaceFile options) (componentNames options)
     |> fmap (Test.testGroup "Haddock linting")
+#endif
 
 --------------------------------------------------------------------------------
 
@@ -145,6 +153,8 @@ type SinceException = String
 
 --------------------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ >= 800
+
 lintInterfaceFile :: LintHaddockOptions -> ComponentName -> IO Test.TestTree
 lintInterfaceFile options cn
   = readInterface ifaceFP
@@ -202,7 +212,11 @@ deconstruct iface
     docmap  = H.instDocMap iface
     toIdent = MkIdent (H.instMod iface)
 
+#endif
+
 --------------------------------------------------------------------------------
+
+#if __GLASGOW_HASKELL__ >= 800
 
 data Ident
   = MkIdent
@@ -226,7 +240,11 @@ printIdent ident = printIdentModule ident <> "." <> printIdentName ident
 instance Show Ident where
   show = printIdent
 
+#endif
+
 --------------------------------------------------------------------------------
+
+#if __GLASGOW_HASKELL__ >= 800
 
 class HasSince t where
   hasSince :: t -> Bool
@@ -236,5 +254,7 @@ instance HasSince (H.MDoc name) where
 
 instance HasSince (H.Documentation name) where
   hasSince = H.documentationDoc .> maybe False hasSince
+
+#endif
 
 --------------------------------------------------------------------------------

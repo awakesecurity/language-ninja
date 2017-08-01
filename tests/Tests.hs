@@ -23,7 +23,6 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
@@ -42,6 +41,8 @@ import           Data.Monoid                ((<>))
 
 import qualified Data.Typeable              as Ty
 
+import           Data.HashMap.Strict        (HashMap)
+import           Data.HashSet               (HashSet)
 import           Data.Text                  (Text)
 
 import           Control.Exception          (displayException)
@@ -120,25 +121,28 @@ testFiles = [ "buildseparate"
             ]
 
 aesonSC' :: (Eq x, Show x)
-         => SC.Series IO x
+         => Ty.Proxy x
+         -> SC.Series IO x
          -> (x -> Aeson.Value)
          -> (Aeson.Value -> Aeson.Parser x)
          -> TestTree
-aesonSC' s toJ fromJ
+aesonSC' _ s toJ fromJ
   = Test.SC.testProperty "parseJSON . toJSON ≡ₛ pure"
     (Test.SC.over s (\x -> Aeson.parseEither fromJ (toJ x) == Right x))
 
 aesonSC :: forall x.
            ( Eq x, Show x, SC.Serial IO x, Aeson.ToJSON x, Aeson.FromJSON x
            ) => Ty.Proxy x -> TestTree
-aesonSC _ = aesonSC' @x SC.series Aeson.toJSON Aeson.parseJSON
+aesonSC _ = aesonSC' (Ty.Proxy :: Ty.Proxy x)
+            SC.series Aeson.toJSON Aeson.parseJSON
 
 aesonQC' :: (Eq x, Show x)
-         => (QC.Gen x, x -> [x])
+         => Ty.Proxy x
+         -> (QC.Gen x, x -> [x])
          -> (x -> Aeson.Value)
          -> (Aeson.Value -> Aeson.Parser x)
          -> TestTree
-aesonQC' (gen, shrink) toJ fromJ
+aesonQC' _ (gen, shrink) toJ fromJ
   = Test.QC.testProperty "parseJSON . toJSON ≡ₐ pure"
     (Test.QC.forAllShrink gen shrink
      (\x -> Aeson.parseEither fromJ (toJ x) === Right x))
@@ -146,7 +150,8 @@ aesonQC' (gen, shrink) toJ fromJ
 aesonQC :: forall x.
            ( Eq x, Show x, QC.Arbitrary x, Aeson.ToJSON x, Aeson.FromJSON x
            ) => Ty.Proxy x -> TestTree
-aesonQC _ = aesonQC' @x (QC.arbitrary, QC.shrink) Aeson.toJSON Aeson.parseJSON
+aesonQC _ = aesonQC' (Ty.Proxy :: Ty.Proxy x)
+            (QC.arbitrary, QC.shrink) Aeson.toJSON Aeson.parseJSON
 
 parseTestNinja :: String -> IO (AST.Ninja ())
 parseTestNinja name = do
@@ -216,85 +221,85 @@ aesonTests :: TestTree
 aesonTests
   = Test.testGroup "aeson"
     [ testModule "Language.Ninja.Lexer"
-      [ testAesonSC 2   (Ty.Proxy @(Lexer.Lexeme Bool))
-      , testAesonSC 4   (Ty.Proxy @(Lexer.LName  Bool))
-      , testAesonSC 4   (Ty.Proxy @(Lexer.LFile  Bool))
-      , testAesonSC 4   (Ty.Proxy @(Lexer.LBind  Bool))
-      , testAesonSC 2   (Ty.Proxy @(Lexer.LBuild Bool))
+      [ testAesonSC 2   (Ty.Proxy :: Ty.Proxy (Lexer.Lexeme Bool))
+      , testAesonSC 4   (Ty.Proxy :: Ty.Proxy (Lexer.LName  Bool))
+      , testAesonSC 4   (Ty.Proxy :: Ty.Proxy (Lexer.LFile  Bool))
+      , testAesonSC 4   (Ty.Proxy :: Ty.Proxy (Lexer.LBind  Bool))
+      , testAesonSC 2   (Ty.Proxy :: Ty.Proxy (Lexer.LBuild Bool))
       -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.IR.Build"
-      [ testAesonSC 2   (Ty.Proxy @IR.Build)
+      [ testAesonSC 2   (Ty.Proxy :: Ty.Proxy IR.Build)
       -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.IR.Meta"
-      [ testAesonSC def (Ty.Proxy @IR.Meta)
+      [ testAesonSC def (Ty.Proxy :: Ty.Proxy IR.Meta)
       -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.IR.Ninja"
-      [ testAesonSC 2   (Ty.Proxy @IR.Ninja)
+      [ testAesonSC 2   (Ty.Proxy :: Ty.Proxy IR.Ninja)
       -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.IR.Pool"
-      [ testAesonSC def (Ty.Proxy @IR.Pool)
-      , testAesonSC def (Ty.Proxy @IR.PoolName)
-      , testAesonSC def (Ty.Proxy @IR.PoolDepth)
+      [ testAesonSC def (Ty.Proxy :: Ty.Proxy IR.Pool)
+      , testAesonSC def (Ty.Proxy :: Ty.Proxy IR.PoolName)
+      , testAesonSC def (Ty.Proxy :: Ty.Proxy IR.PoolDepth)
       -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.IR.Rule"
-      [ testAesonSC 1   (Ty.Proxy @IR.Rule)
-      , testAesonSC def (Ty.Proxy @IR.SpecialDeps)
-      , testAesonSC def (Ty.Proxy @IR.ResponseFile)
+      [ testAesonSC 1   (Ty.Proxy :: Ty.Proxy IR.Rule)
+      , testAesonSC def (Ty.Proxy :: Ty.Proxy IR.SpecialDeps)
+      , testAesonSC def (Ty.Proxy :: Ty.Proxy IR.ResponseFile)
       -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.IR.Target"
-      [ testAesonSC def (Ty.Proxy @IR.Target)
-      , testAesonSC def (Ty.Proxy @IR.Output)
-      , testAesonSC def (Ty.Proxy @IR.Dependency)
-      , testAesonSC def (Ty.Proxy @IR.DependencyType)
+      [ testAesonSC def (Ty.Proxy :: Ty.Proxy IR.Target)
+      , testAesonSC def (Ty.Proxy :: Ty.Proxy IR.Output)
+      , testAesonSC def (Ty.Proxy :: Ty.Proxy IR.Dependency)
+      , testAesonSC def (Ty.Proxy :: Ty.Proxy IR.DependencyType)
       -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.AST.Env"
-      [ testAesonSC def (Ty.Proxy @(AST.Env Text Text))
-      , testAesonQC     (Ty.Proxy @(AST.Env Text Text))
+      [ testAesonSC def (Ty.Proxy :: Ty.Proxy (AST.Env Text Text))
+      , testAesonQC     (Ty.Proxy :: Ty.Proxy (AST.Env Text Text))
       ]
     , testModule "Language.Ninja.AST.Expr"
-      [ testAesonSC def (Ty.Proxy @(AST.Expr Bool))
-      , testAesonQC     (Ty.Proxy @(AST.Expr Bool))
+      [ testAesonSC def (Ty.Proxy :: Ty.Proxy (AST.Expr Bool))
+      , testAesonQC     (Ty.Proxy :: Ty.Proxy (AST.Expr Bool))
       ]
     , testModule "Language.Ninja.AST.Rule"
-      [ testAesonSC def (Ty.Proxy @(AST.Rule Bool))
-      , testAesonQC     (Ty.Proxy @(AST.Rule Bool))
+      [ testAesonSC def (Ty.Proxy :: Ty.Proxy (AST.Rule Bool))
+      , testAesonQC     (Ty.Proxy :: Ty.Proxy (AST.Rule Bool))
       ]
     , testModule "Language.Ninja.AST.Ninja"
       [ -- TODO: combinatorial explosion
-        testAesonSC 0   (Ty.Proxy @(AST.Ninja Bool))
-      -- , testAesonQC     (Ty.Proxy @(AST.Ninja Bool))
+        testAesonSC 0   (Ty.Proxy :: Ty.Proxy (AST.Ninja Bool))
+      -- , testAesonQC     (Ty.Proxy :: Ty.Proxy (AST.Ninja Bool))
       ]
     , testModule "Language.Ninja.AST.Build"
       [ -- TODO: combinatorial explosion
-        testAesonSC 1   (Ty.Proxy @(AST.Build Bool))
-      -- , testAesonQC     (Ty.Proxy @(AST.Build Bool))
+        testAesonSC 1   (Ty.Proxy :: Ty.Proxy (AST.Build Bool))
+      -- , testAesonQC     (Ty.Proxy :: Ty.Proxy (AST.Build Bool))
       ]
     , testModule "Language.Ninja.AST.Deps"
-      [ testAesonSC def (Ty.Proxy @(AST.Deps Bool))
-      , testAesonQC     (Ty.Proxy @(AST.Deps Bool))
+      [ testAesonSC def (Ty.Proxy :: Ty.Proxy (AST.Deps Bool))
+      , testAesonQC     (Ty.Proxy :: Ty.Proxy (AST.Deps Bool))
       ]
     , testModule "Language.Ninja.Misc.Command"
-      [ testAesonSC def (Ty.Proxy @Misc.Command)
+      [ testAesonSC def (Ty.Proxy :: Ty.Proxy Misc.Command)
       -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.Misc.Path"
-      [ testAesonSC def (Ty.Proxy @Misc.Path)
+      [ testAesonSC def (Ty.Proxy :: Ty.Proxy Misc.Path)
       -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.Misc.Located"
-      [ testAesonSC def (Ty.Proxy @(Misc.Located Bool))
-      , testAesonSC def (Ty.Proxy @Misc.Position)
+      [ testAesonSC def (Ty.Proxy :: Ty.Proxy (Misc.Located Bool))
+      , testAesonSC def (Ty.Proxy :: Ty.Proxy Misc.Position)
       -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     , testModule "Language.Ninja.Misc.IText"
-      [ testAesonSC def (Ty.Proxy @Misc.IText)
+      [ testAesonSC def (Ty.Proxy :: Ty.Proxy Misc.IText)
       -- TODO: add Arbitrary instances so we can testAesonQC
       ]
     ]
@@ -418,39 +423,56 @@ opticsTests
       ]
     , testModule "Language.Ninja.AST.Expr"
       [ testType "Expr"
-        [ testPrism 4 "_Exprs" (AST._Exprs @Bool)
-        , testPrism 4 "_Lit"   (AST._Lit   @Bool)
-        , testPrism 4 "_Var"   (AST._Var   @Bool)
+        [ testPrism 4 "_Exprs"
+          (AST._Exprs :: Lens.Prism' (AST.Expr Bool) (Bool, [AST.Expr Bool]))
+        , testPrism 4 "_Lit"
+          (AST._Lit   :: Lens.Prism' (AST.Expr Bool) (Bool, Text))
+        , testPrism 4 "_Var"
+          (AST._Var   :: Lens.Prism' (AST.Expr Bool) (Bool, Text))
         ]
       ]
     , testModule "Language.Ninja.AST.Rule"
       [ testType "Rule"
-        [ testLens 4 "ruleBind" (AST.ruleBind @Bool)
+        [ testLens 4 "ruleBind"
+          (AST.ruleBind :: Lens.Lens' (AST.Rule Bool) (HashMap Text (AST.Expr Bool)))
         ]
       ]
     , testModule "Language.Ninja.AST.Ninja"
       [ testType "Ninja" [] -- TODO: combinatorial explosion
-        -- [ testLens 1 "ninjaRules"     (AST.ninjaRules     @Bool)
-        -- , testLens 1 "ninjaSingles"   (AST.ninjaSingles   @Bool)
-        -- , testLens 1 "ninjaMultiples" (AST.ninjaMultiples @Bool)
-        -- , testLens 1 "ninjaPhonys"    (AST.ninjaPhonys    @Bool)
-        -- , testLens 1 "ninjaDefaults"  (AST.ninjaDefaults  @Bool)
-        -- , testLens 1 "ninjaSpecials"  (AST.ninjaSpecials  @Bool)
+        -- [ testLens 1 "ninjaRules"
+        --   (AST.ninjaRules     :: Lens.Lens' (AST.Ninja Bool) (HashMap Text (AST.Rule Bool)))
+        -- , testLens 1 "ninjaSingles"
+        --   (AST.ninjaSingles   :: Lens.Lens' (AST.Ninja Bool) (HashMap Text (AST.Build Bool)))
+        -- , testLens 1 "ninjaMultiples"
+        --   (AST.ninjaMultiples :: Lens.Lens' (AST.Ninja Bool) (HashMap (HashSet Text) (AST.Build Bool)))
+        -- , testLens 1 "ninjaPhonys"
+        --   (AST.ninjaPhonys    :: Lens.Lens' (AST.Ninja Bool) (HashMap Text (HashSet Text)))
+        -- , testLens 1 "ninjaDefaults"
+        --   (AST.ninjaDefaults  :: Lens.Lens' (AST.Ninja Bool) (HashSet Text))
+        -- , testLens 1 "ninjaSpecials"
+        --   (AST.ninjaSpecials  :: Lens.Lens' (AST.Ninja Bool) (HashMap Text Text))
         -- ]
       ]
     , testModule "Language.Ninja.AST.Build"
       [ testType "Build" [] -- TODO: combinatorial explosion
-        -- [ testLens 1 "buildRule" (AST.buildRule @Bool)
-        -- , testLens 1 "buildEnv"  (AST.buildEnv  @Bool)
-        -- , testLens 1 "buildDeps" (AST.buildDeps @Bool)
-        -- , testLens 1 "buildBind" (AST.buildBind @Bool)
+        -- [ testLens 1 "buildRule"
+        --   (AST.buildRule :: Lens.Lens' (AST.Build Bool) Text)
+        -- , testLens 1 "buildEnv"
+        --   (AST.buildEnv  :: Lens.Lens' (AST.Build Bool) (AST.Env Text Text))
+        -- , testLens 1 "buildDeps"
+        --   (AST.buildDeps :: Lens.Lens' (AST.Build Bool) (AST.Deps Bool))
+        -- , testLens 1 "buildBind"
+        --   (AST.buildBind :: Lens.Lens' (AST.Build Bool) (HashMap Text Text))
         -- ]
       ]
     , testModule "Language.Ninja.AST.Deps"
       [ testType "Deps"
-        [ testLens def "depsNormal"    (AST.depsNormal    @Bool)
-        , testLens def "depsImplicit"  (AST.depsImplicit  @Bool)
-        , testLens def "depsOrderOnly" (AST.depsOrderOnly @Bool)
+        [ testLens def "depsNormal"
+          (AST.depsNormal    :: Lens.Lens' (AST.Deps Bool) (HashSet Text))
+        , testLens def "depsImplicit"
+          (AST.depsImplicit  :: Lens.Lens' (AST.Deps Bool) (HashSet Text))
+        , testLens def "depsOrderOnly"
+          (AST.depsOrderOnly :: Lens.Lens' (AST.Deps Bool) (HashSet Text))
         ]
       ]
     , testModule "Language.Ninja.Misc.Command"

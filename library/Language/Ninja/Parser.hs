@@ -35,6 +35,7 @@
 --     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 --     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+{-# LANGUAGE CPP                   #-}
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -83,7 +84,9 @@ import           Control.Monad.Trans.Except (runExceptT)
 
 import qualified Control.Lens               as Lens
 
+#if __GLASGOW_HASKELL__ >= 800
 import           Data.Maybe                 (Maybe (Just, Nothing))
+#endif
 import           Data.Monoid                (Endo (Endo, appEndo), (<>))
 
 import qualified Data.ByteString.Char8      as BSC8

@@ -4,8 +4,8 @@
 }:
 mkDerivation {
   pname = "monad-mock";
-  version = "0.1.1.1";
-  sha256 = "1ja9s1z4y1vrk01bgav83cj95hzp8mrwil74b7lmc4fmdmr7a5y3";
+  version = "0.1.1.2";
+  sha256 = "029c8jcw7y3hd1llvfnm85fwxvfh7mlhr7dxnfsx6x8zq1qda12f";
   libraryHaskellDepends = [
     base constraints exceptions haskell-src-exts haskell-src-meta
     monad-control mtl template-haskell th-orphans transformers-base

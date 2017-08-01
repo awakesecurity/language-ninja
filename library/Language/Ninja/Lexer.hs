@@ -37,6 +37,7 @@
 
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
+{-# LANGUAGE CPP                   #-}
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -103,7 +104,9 @@ import qualified Data.Text.Encoding         as Text
 
 import           Data.Char                  (isSpace)
 import           Data.Foldable              (asum)
+#if __GLASGOW_HASKELL__ >= 800
 import           Data.Functor               ((<$))
+#endif
 import           Data.Maybe                 (catMaybes, fromMaybe)
 
 import           Flow                       ((.>), (|>))

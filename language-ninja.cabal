@@ -21,7 +21,9 @@ description:              A Haskell library for parsing, pretty-printing, and
                           the "Language.Ninja" module.
 extra-source-files:       README.md
                         , CHANGELOG.md
-tested-with:              GHC == 8.0.1
+tested-with:              GHC == 7.10.3
+                        , GHC == 8.0.2
+                        , GHC == 8.2.1
                           
 --------------------------------------------------------------------------------
 
@@ -59,10 +61,11 @@ library
                         , lens                        >= 4.15  && < 4.16
                         , QuickCheck                  >= 2.9   && < 2.10
                         , quickcheck-instances        >= 0.3   && < 0.4
+                        , semigroups                  >= 0.18  && < 0.19
                         , smallcheck                  >= 1.1   && < 1.2
                         , system-filepath             >= 0.4   && < 0.5
                         , text                        >= 1.2   && < 1.3
-                        , transformers                >= 0.5   && < 0.6
+                        , transformers                >= 0.4   && < 0.6
                         , unordered-containers        >= 0.2   && < 0.3
                         , versions                    >= 3.1.1 && < 3.2
     exposed-modules:      Language.Ninja
@@ -99,7 +102,8 @@ library
                         , Language.Ninja.Misc.Path
                         , Language.Ninja.Misc.Positive
     default-language:     Haskell2010
-    other-extensions:     ConstraintKinds
+    other-extensions:     CPP
+                        , ConstraintKinds
                         , DeriveDataTypeable
                         , DeriveFoldable
                         , DeriveFunctor
@@ -118,7 +122,8 @@ library
                         , RecordWildCards
                         , ScopedTypeVariables
                         , UndecidableInstances
-    ghc-options:          -Wcompat -Weverything
+    if impl(ghc == 8.*)
+       ghc-options:       -Wcompat -Weverything
                           -fno-warn-unsafe
                           -fno-warn-safe
                           -fno-warn-implicit-prelude
@@ -126,6 +131,8 @@ library
                           -fno-warn-missed-specialisations
                           -fno-warn-all-missed-specialisations
                           -g
+    else
+       ghc-options:       -Wall -g
 
 --------------------------------------------------------------------------------
 
@@ -144,15 +151,13 @@ test-suite tests
                         , bytestring                  >= 0.10  && < 0.11
                         , containers                  >= 0.5   && < 0.6
                         , flow                        >= 1.0   && < 1.1
-                        , ghc                         >= 7.4   && < 8.4
-                        , haddock-api                 >= 2.17  && < 2.18
-                        , haddock-library             >= 1.4   && < 1.5
                         , hashable                    >= 1.2   && < 1.3
                         , lens                        >= 4.15  && < 4.16
                         , monad-mock                  >= 0.1   && < 0.2
                         , mtl                         >= 2.2   && < 2.3
                         , QuickCheck                  >= 2.9   && < 2.10
                         , quickcheck-instances        >= 0.3   && < 0.4
+                        , semigroups                  >= 0.18  && < 0.19
                         , smallcheck                  >= 1.1   && < 1.2
                         , system-filepath             >= 0.4   && < 0.5
                         , tasty                       >= 0.11  && < 0.12
@@ -162,12 +167,17 @@ test-suite tests
                         , tasty-quickcheck            >= 0.8   && < 0.9
                         , tasty-smallcheck            >= 0.8   && < 0.9
                         , text                        >= 1.2   && < 1.3
-                        , transformers                >= 0.5   && < 0.6
+                        , transformers                >= 0.4   && < 0.6
                         , turtle                      >= 1.3   && < 1.4
                         , unordered-containers        >= 0.2   && < 0.3
                         , versions                    >= 3.1.1 && < 3.2
+    if impl(ghc >= 8.0)
+       build-depends:     ghc                         >= 7.4   && < 8.4
+                        , haddock-api                 >= 2.17  && < 2.18
+                        , haddock-library             >= 1.4   && < 1.5
     default-language:     Haskell2010
-    other-extensions:     FlexibleContexts
+    other-extensions:     CPP
+                        , FlexibleContexts
                         , FlexibleInstances
                         , GADTs
                         , LambdaCase
@@ -178,11 +188,11 @@ test-suite tests
                         , RecordWildCards
                         , ScopedTypeVariables
                         , StandaloneDeriving
-                        , TypeApplications
                         , TypeFamilies
                         , UndecidableInstances
                         , ViewPatterns
-    ghc-options:          -Wcompat -Weverything
+    if impl(ghc == 8.*)
+       ghc-options:       -Wcompat -Weverything
                           -fno-warn-unsafe
                           -fno-warn-safe
                           -fno-warn-implicit-prelude
@@ -190,17 +200,22 @@ test-suite tests
                           -fno-warn-missed-specialisations
                           -fno-warn-all-missed-specialisations
                           -g -threaded
+    else
+       ghc-options:       -Wall
+                          -g -threaded
 
 --------------------------------------------------------------------------------
 
 test-suite doctests
+    if impl(ghc < 8.0)
+       buildable:         False
     type:                 exitcode-stdio-1.0
     hs-source-dirs:       tests
     main-is:              DocTests.hs
     build-depends:        base                        >= 4.8   && < 5.0
                         , doctest                     >= 0.11  && < 0.12
                         , QuickCheck                  >= 2.9   && < 2.10
-                        , template-haskell            >= 2.11  && < 2.12
+                        , template-haskell            >= 2.10  && < 2.12
                         -- TODO: this shouldn't need to be here
                         -- remove this once https://git.io/vQp2m is merged
                         , cabal-doctest               >= 1.0.2 && < 1.1
@@ -223,7 +238,7 @@ executable ninja-lex
                         -- , prettyprinter               >= 1.1   && < 1.2
                         -- , prettyprinter-ansi-terminal >= 1.1   && < 1.2
                         , text                        >= 1.2   && < 1.3
-                        , transformers                >= 0.5   && < 0.6
+                        , transformers                >= 0.4   && < 0.6
     default-language:     Haskell2010
     other-extensions:     DataKinds
                         , DeriveGeneric
@@ -233,13 +248,17 @@ executable ninja-lex
                         , OverloadedStrings
                         , StandaloneDeriving
                         , TypeOperators
-    ghc-options:          -Wcompat -Weverything
+    if impl(ghc == 8.*)
+       ghc-options:       -Wcompat -Weverything
                           -fno-warn-unsafe
                           -fno-warn-safe
                           -fno-warn-implicit-prelude
                           -fno-warn-unused-do-bind
                           -fno-warn-missed-specialisations
                           -fno-warn-all-missed-specialisations
+                          -g -threaded
+    else
+       ghc-options:       -Wall
                           -g -threaded
 
 --------------------------------------------------------------------------------
@@ -258,7 +277,7 @@ executable ninja-parse
                         -- , prettyprinter               >= 1.1   && < 1.2
                         -- , prettyprinter-ansi-terminal >= 1.1   && < 1.2
                         , text                        >= 1.2   && < 1.3
-                        , transformers                >= 0.5   && < 0.6
+                        , transformers                >= 0.4   && < 0.6
     default-language:     Haskell2010
     other-extensions:     DataKinds
                         , DeriveGeneric
@@ -268,13 +287,17 @@ executable ninja-parse
                         , OverloadedStrings
                         , StandaloneDeriving
                         , TypeOperators
-    ghc-options:          -Wcompat -Weverything
+    if impl(ghc == 8.*)
+       ghc-options:       -Wcompat -Weverything
                           -fno-warn-unsafe
                           -fno-warn-safe
                           -fno-warn-implicit-prelude
                           -fno-warn-unused-do-bind
                           -fno-warn-missed-specialisations
                           -fno-warn-all-missed-specialisations
+                          -g -threaded
+    else
+       ghc-options:       -Wall
                           -g -threaded
 
 --------------------------------------------------------------------------------
@@ -293,7 +316,7 @@ executable ninja-compile
                         -- , prettyprinter               >= 1.1   && < 1.2
                         -- , prettyprinter-ansi-terminal >= 1.1   && < 1.2
                         , text                        >= 1.2   && < 1.3
-                        , transformers                >= 0.5   && < 0.6
+                        , transformers                >= 0.4   && < 0.6
     default-language:     Haskell2010
     other-extensions:     DataKinds
                         , DeriveGeneric
@@ -303,13 +326,17 @@ executable ninja-compile
                         , OverloadedStrings
                         , StandaloneDeriving
                         , TypeOperators
-    ghc-options:          -Wcompat -Weverything
+    if impl(ghc == 8.*)
+       ghc-options:       -Wcompat -Weverything
                           -fno-warn-unsafe
                           -fno-warn-safe
                           -fno-warn-implicit-prelude
                           -fno-warn-unused-do-bind
                           -fno-warn-missed-specialisations
                           -fno-warn-all-missed-specialisations
+                          -g -threaded
+    else
+       ghc-options:       -Wall
                           -g -threaded
 
 --------------------------------------------------------------------------------
