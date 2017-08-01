@@ -2,8 +2,7 @@
 
 with rec {
   pkgs = (import nixpkgs) nixpkgsArgs;
-  release = import ./release.nix { inherit nixpkgs nixpkgsArgs compiler; };
-  drv = release.language-ninja;
+  drv = import ./default.nix { inherit nixpkgs nixpkgsArgs compiler; };
 };
 
 if pkgs.lib.inNixShell then drv.env else drv
