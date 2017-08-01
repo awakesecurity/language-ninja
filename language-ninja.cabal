@@ -60,7 +60,6 @@ library
                         , mtl                         >= 2.2   && < 2.3
                         , lens                        >= 4.15  && < 4.16
                         , QuickCheck                  >= 2.9   && < 2.10
-                        , quickcheck-instances        >= 0.3   && < 0.4
                         , semigroups                  >= 0.18  && < 0.19
                         , smallcheck                  >= 1.1   && < 1.2
                         , system-filepath             >= 0.4   && < 0.5

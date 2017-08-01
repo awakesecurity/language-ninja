@@ -48,30 +48,29 @@ module Language.Ninja.AST.Build
   , BuildConstraint
   ) where
 
-import qualified Control.Lens              as Lens
+import qualified Control.Lens            as Lens
 
-import           Flow                      ((.>), (|>))
+import           Flow                    ((.>), (|>))
 
-import           Data.HashMap.Strict       (HashMap)
-import           Data.Text                 (Text)
+import           Data.HashMap.Strict     (HashMap)
+import           Data.Text               (Text)
 
-import           Control.DeepSeq           (NFData)
-import           Data.Hashable             (Hashable)
-import           GHC.Generics              (Generic)
+import           Control.DeepSeq         (NFData)
+import           Data.Hashable           (Hashable)
+import           GHC.Generics            (Generic)
 
-import qualified Test.QuickCheck           as QC
-import           Test.QuickCheck.Instances ()
+import qualified Test.QuickCheck         as QC
 
-import qualified Test.SmallCheck.Series    as SC
+import qualified Test.SmallCheck.Series  as SC
 
-import           GHC.Exts                  (Constraint)
+import           GHC.Exts                (Constraint)
 
-import           Data.Aeson                ((.:), (.=))
-import qualified Data.Aeson                as Aeson
+import           Data.Aeson              ((.:), (.=))
+import qualified Data.Aeson              as Aeson
 
-import qualified Language.Ninja.AST.Deps   as AST
-import qualified Language.Ninja.AST.Env    as AST
-import qualified Language.Ninja.Misc       as Misc
+import qualified Language.Ninja.AST.Deps as AST
+import qualified Language.Ninja.AST.Env  as AST
+import qualified Language.Ninja.Misc     as Misc
 
 --------------------------------------------------------------------------------
 
@@ -175,7 +174,8 @@ instance (Aeson.FromJSON ann) => Aeson.FromJSON (Build ann) where
 -- | Reasonable 'QC.Arbitrary' instance for 'Build'.
 --
 --   @since 0.1.0
-instance (QC.Arbitrary ann) => QC.Arbitrary (Build ann) where
+instance ( QC.Arbitrary ann, BuildConstraint QC.Arbitrary ann
+         ) => QC.Arbitrary (Build ann) where
   arbitrary = MkBuild
               <$> QC.arbitrary
               <*> QC.arbitrary

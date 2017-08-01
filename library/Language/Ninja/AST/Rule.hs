@@ -47,31 +47,30 @@ module Language.Ninja.AST.Rule
   , RuleConstraint
   ) where
 
-import qualified Control.Lens              as Lens
+import qualified Control.Lens            as Lens
 
-import           Flow                      ((|>))
+import           Flow                    ((|>))
 
-import           Data.HashMap.Strict       (HashMap)
-import qualified Data.HashMap.Strict       as HM
+import           Data.HashMap.Strict     (HashMap)
+import qualified Data.HashMap.Strict     as HM
 
-import           Data.Text                 (Text)
+import           Data.Text               (Text)
 
-import           Control.DeepSeq           (NFData)
-import           Data.Hashable             (Hashable)
-import           GHC.Generics              (Generic)
+import           Control.DeepSeq         (NFData)
+import           Data.Hashable           (Hashable)
+import           GHC.Generics            (Generic)
 
-import qualified Test.QuickCheck           as QC
-import           Test.QuickCheck.Instances ()
+import qualified Test.QuickCheck         as QC
 
-import qualified Test.SmallCheck.Series    as SC
+import qualified Test.SmallCheck.Series  as SC
 
-import           GHC.Exts                  (Constraint)
+import           GHC.Exts                (Constraint)
 
-import           Data.Aeson                ((.:), (.=))
-import qualified Data.Aeson                as Aeson
+import           Data.Aeson              ((.:), (.=))
+import qualified Data.Aeson              as Aeson
 
-import qualified Language.Ninja.AST.Expr   as AST
-import qualified Language.Ninja.Misc       as Misc
+import qualified Language.Ninja.AST.Expr as AST
+import qualified Language.Ninja.Misc     as Misc
 
 --------------------------------------------------------------------------------
 
@@ -134,7 +133,8 @@ instance (Aeson.FromJSON ann) => Aeson.FromJSON (Rule ann) where
 -- | Reasonable 'QC.Arbitrary' instance for 'Rule'.
 --
 --   @since 0.1.0
-instance (QC.Arbitrary ann) => QC.Arbitrary (Rule ann) where
+instance ( QC.Arbitrary ann, RuleConstraint QC.Arbitrary ann
+         ) => QC.Arbitrary (Rule ann) where
   arbitrary = MkRule <$> QC.arbitrary <*> QC.arbitrary
 
 -- | Default 'Hashable' instance via 'Generic'.

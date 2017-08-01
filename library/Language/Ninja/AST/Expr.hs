@@ -53,36 +53,35 @@ module Language.Ninja.AST.Expr
   , ExprConstraint
   ) where
 
-import           Control.Arrow             (second)
+import           Control.Arrow          (second)
 
-import qualified Control.Lens              as Lens
+import qualified Control.Lens           as Lens
 
-import           Data.Foldable             (asum)
-import           Data.Maybe                (fromMaybe)
-import           Data.Monoid               (Endo (Endo, appEndo), (<>))
+import           Data.Foldable          (asum)
+import           Data.Maybe             (fromMaybe)
+import           Data.Monoid            (Endo (Endo, appEndo), (<>))
 
-import           Flow                      ((.>), (|>))
+import           Flow                   ((.>), (|>))
 
-import           Data.Text                 (Text)
-import qualified Data.Text                 as Text
+import           Data.Text              (Text)
+import qualified Data.Text              as Text
 
-import           Control.DeepSeq           (NFData)
-import           Data.Data                 (Data)
-import           Data.Hashable             (Hashable)
-import           GHC.Generics              (Generic)
+import           Control.DeepSeq        (NFData)
+import           Data.Data              (Data)
+import           Data.Hashable          (Hashable)
+import           GHC.Generics           (Generic)
 
-import qualified Test.QuickCheck           as QC
-import           Test.QuickCheck.Instances ()
+import qualified Test.QuickCheck        as QC
 
-import qualified Test.SmallCheck.Series    as SC
+import qualified Test.SmallCheck.Series as SC
 
-import           GHC.Exts                  (Constraint)
+import           GHC.Exts               (Constraint)
 
-import           Data.Aeson                ((.:), (.=))
-import qualified Data.Aeson                as Aeson
+import           Data.Aeson             ((.:), (.=))
+import qualified Data.Aeson             as Aeson
 
-import qualified Language.Ninja.AST.Env    as AST
-import qualified Language.Ninja.Misc       as Misc
+import qualified Language.Ninja.AST.Env as AST
+import qualified Language.Ninja.Misc    as Misc
 
 --------------------------------------------------------------------------------
 
@@ -243,7 +242,9 @@ instance (Aeson.FromJSON ann) => Aeson.FromJSON (Expr ann) where
 -- | Reasonable 'QC.Arbitrary' instance for 'Expr'.
 --
 --   @since 0.1.0
-instance forall ann. (QC.Arbitrary ann) => QC.Arbitrary (Expr ann) where
+instance forall ann.
+         ( QC.Arbitrary ann, ExprConstraint QC.Arbitrary ann
+         ) => QC.Arbitrary (Expr ann) where
   arbitrary = QC.sized go
     where
       go :: Int -> QC.Gen (Expr ann)

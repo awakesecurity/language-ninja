@@ -62,33 +62,32 @@ module Language.Ninja.AST.Env
   , Key, Maps
   ) where
 
-import           Control.Applicative       ((<|>))
-import           Control.Monad             ((>=>))
+import           Control.Applicative    ((<|>))
+import           Control.Monad          ((>=>))
 
-import qualified Control.Lens              as Lens
+import qualified Control.Lens           as Lens
 
-import           Data.Monoid               (Endo (Endo, appEndo))
+import           Data.Monoid            (Endo (Endo, appEndo))
 
-import           Data.List.NonEmpty        (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty        as NE
+import           Data.List.NonEmpty     (NonEmpty ((:|)))
+import qualified Data.List.NonEmpty     as NE
 
-import           Data.HashMap.Strict       (HashMap)
-import qualified Data.HashMap.Strict       as HM
+import           Data.HashMap.Strict    (HashMap)
+import qualified Data.HashMap.Strict    as HM
 
-import           Control.DeepSeq           (NFData)
-import           Data.Hashable             (Hashable)
-import           GHC.Generics              (Generic)
+import           Control.DeepSeq        (NFData)
+import           Data.Hashable          (Hashable)
+import           GHC.Generics           (Generic)
 
-import qualified Test.QuickCheck           as QC
-import           Test.QuickCheck.Instances ()
+import qualified Test.QuickCheck        as QC
 
-import qualified Test.SmallCheck.Series    as SC
+import qualified Test.SmallCheck.Series as SC
 
-import           GHC.Exts                  (Constraint)
+import           GHC.Exts               (Constraint)
 
-import qualified Data.Aeson                as Aeson
+import qualified Data.Aeson             as Aeson
 
-import           Flow                      ((.>), (|>))
+import           Flow                   ((.>), (|>))
 
 --------------------------------------------------------------------------------
 

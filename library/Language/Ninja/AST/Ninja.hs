@@ -55,37 +55,36 @@ module Language.Ninja.AST.Ninja
   , Outputs, Output
   ) where
 
-import           Control.Monad             ((>=>))
+import           Control.Monad            ((>=>))
 
-import qualified Control.Lens              as Lens
+import qualified Control.Lens             as Lens
 
-import           Flow                      ((.>), (|>))
+import           Flow                     ((.>), (|>))
 
-import           Data.HashMap.Strict       (HashMap)
-import qualified Data.HashMap.Strict       as HM
+import           Data.HashMap.Strict      (HashMap)
+import qualified Data.HashMap.Strict      as HM
 
-import           Data.HashSet              (HashSet)
+import           Data.HashSet             (HashSet)
 
-import           Data.Text                 (Text)
+import           Data.Text                (Text)
 
-import           Control.DeepSeq           (NFData)
-import           Data.Hashable             (Hashable)
-import           GHC.Generics              (Generic)
+import           Control.DeepSeq          (NFData)
+import           Data.Hashable            (Hashable)
+import           GHC.Generics             (Generic)
 
-import qualified Test.QuickCheck           as QC
-import           Test.QuickCheck.Instances ()
+import qualified Test.QuickCheck          as QC
 
-import qualified Test.SmallCheck.Series    as SC
+import qualified Test.SmallCheck.Series   as SC
 
-import           GHC.Exts                  (Constraint)
+import           GHC.Exts                 (Constraint)
 
-import           Data.Aeson                ((.:), (.=))
-import qualified Data.Aeson                as Aeson
-import qualified Data.Aeson.Types          as Aeson
+import           Data.Aeson               ((.:), (.=))
+import qualified Data.Aeson               as Aeson
+import qualified Data.Aeson.Types         as Aeson
 
-import qualified Language.Ninja.AST.Build  as AST
-import qualified Language.Ninja.AST.Rule   as AST
-import qualified Language.Ninja.Misc       as Misc
+import qualified Language.Ninja.AST.Build as AST
+import qualified Language.Ninja.AST.Rule  as AST
+import qualified Language.Ninja.Misc      as Misc
 
 --------------------------------------------------------------------------------
 
@@ -248,7 +247,8 @@ instance (Aeson.FromJSON ann) => Aeson.FromJSON (Ninja ann) where
 -- | Reasonable 'QC.Arbitrary' instance for 'Ninja'.
 --
 --   @since 0.1.0
-instance (QC.Arbitrary ann) => QC.Arbitrary (Ninja ann) where
+instance ( QC.Arbitrary ann, NinjaConstraint QC.Arbitrary ann
+         ) => QC.Arbitrary (Ninja ann) where
   arbitrary = MkNinja
               <$> QC.arbitrary
               <*> QC.arbitrary
