@@ -152,7 +152,7 @@ instance (Aeson.FromJSON ann) => Aeson.FromJSON (Deps ann) where
 
 -- | Reasonable 'QC.Arbitrary' instance for 'Deps'.
 --
---   @since 0.1.0
+--   @since 0.2.0
 instance ( QC.Arbitrary ann, DepsConstraint QC.Arbitrary ann
          ) => QC.Arbitrary (Deps ann) where
   arbitrary = MkDeps

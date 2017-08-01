@@ -369,7 +369,7 @@ import           Data.Versions             (Version)
 -- The command-line interface for @ninja-lex@ looks like this:
 --
 -- > $ ninja-lex --help
--- > ninja-lex version 0.1.0
+-- > ninja-lex version 0.2.0
 -- >
 -- > Usage: ninja-lex (process | pretty)
 -- >
@@ -404,7 +404,7 @@ import           Data.Versions             (Version)
 -- The command-line interface for @ninja-parse@ looks like this:
 --
 -- > $ ninja-parse --help
--- > ninja-parse version 0.1.0
+-- > ninja-parse version 0.2.0
 -- >
 -- > Usage: ninja-parse (process | pretty)
 -- >
@@ -439,7 +439,7 @@ import           Data.Versions             (Version)
 -- The command-line interface for @ninja-compile@ looks like this:
 --
 -- > $ ninja-compile --help
--- > ninja-compile version 0.1.0
+-- > ninja-compile version 0.2.0
 -- >
 -- > Usage: ninja-compile [--input FILEPATH] [--output FILEPATH] [--machine-readable]
 -- >

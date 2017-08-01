@@ -246,7 +246,7 @@ instance (Aeson.FromJSON ann) => Aeson.FromJSON (Ninja ann) where
 
 -- | Reasonable 'QC.Arbitrary' instance for 'Ninja'.
 --
---   @since 0.1.0
+--   @since 0.2.0
 instance ( QC.Arbitrary ann, NinjaConstraint QC.Arbitrary ann
          ) => QC.Arbitrary (Ninja ann) where
   arbitrary = MkNinja

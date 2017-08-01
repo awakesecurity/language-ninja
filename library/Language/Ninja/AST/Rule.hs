@@ -132,7 +132,7 @@ instance (Aeson.FromJSON ann) => Aeson.FromJSON (Rule ann) where
 
 -- | Reasonable 'QC.Arbitrary' instance for 'Rule'.
 --
---   @since 0.1.0
+--   @since 0.2.0
 instance ( QC.Arbitrary ann, RuleConstraint QC.Arbitrary ann
          ) => QC.Arbitrary (Rule ann) where
   arbitrary = MkRule <$> QC.arbitrary <*> QC.arbitrary

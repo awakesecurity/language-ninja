@@ -241,7 +241,7 @@ instance (Aeson.FromJSON ann) => Aeson.FromJSON (Expr ann) where
 
 -- | Reasonable 'QC.Arbitrary' instance for 'Expr'.
 --
---   @since 0.1.0
+--   @since 0.2.0
 instance forall ann.
          ( QC.Arbitrary ann, ExprConstraint QC.Arbitrary ann
          ) => QC.Arbitrary (Expr ann) where
