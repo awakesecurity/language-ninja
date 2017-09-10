@@ -1,4 +1,4 @@
-{ nixpkgs ? <nixpkgs>, nixpkgsArgs ? {}, compiler ? "ghc802" }:
+{ nixpkgs ? import ./nix/nixpkgs.nix, nixpkgsArgs ? {}, compiler ? "ghc802" }:
 
 with rec {
   pkgs = (import nixpkgs) nixpkgsArgs;

@@ -12,7 +12,11 @@ JQUERY = misc/jquery-$(JQUERY_VERSION).js
 
 HACKAGE_USERNAME = taktoa
 
-all:
+NIXPKGS_REVISION = 788ce6e3df12bb0cf19fb9ccf8ffa75558b551ba
+
+all: help
+
+help:
 > -@printf "Available targets:\n"
 > -@printf "    \e[1m%s\e[0m\t- %s\n" "nix-shell" "enter a nix-shell"
 > -@printf "    \e[1m%s\e[0m\t- %s\n" "configure" "cabal configure"
@@ -22,6 +26,7 @@ all:
 > -@printf "    \e[1m%s\e[0m\t- %s\n" "candidate" "upload a package candidate"
 > -@printf "    \e[1m%s\e[0m\t- %s\n" "upload"    "upload this package"
 > -@printf "    \e[1m%s\e[0m\t- %s\n" "clean"     "clean the working directory"
+> -@printf "    \e[1m%s\e[0m\t- %s\n" "bump-nix"  "update nixpkgs revision"
 
 nix-shell: nix/haskell/language-ninja.nix
 > nix-shell shell.nix -Q -j 8 -k --run $$SHELL
@@ -125,6 +130,10 @@ pre-push:
 clean:
 > cabal clean
 > @{ git clean -n; git clean -dn; git clean -Xn; git clean -Xdn; } | sort -u
+
+bump-nix:
+> nix-prefetch-git "https://github.com/NixOS/nixpkgs.git" \
+>     "$(NIXPKGS_REVISION)" > nix/nixpkgs.json
 
 shell.nix: release.nix
 
