@@ -1,11 +1,11 @@
 { mkDerivation, aeson, aeson-pretty, base, bytestring, Cabal
-, cabal-doctest, containers, deepseq, doctest, flow, ghc
-, haddock-api, haddock-library, hashable, intern, lens, megaparsec
-, monad-mock, mtl, optparse-generic, QuickCheck
-, quickcheck-instances, semigroups, smallcheck, stdenv
-, system-filepath, tasty, tasty-html, tasty-hunit, tasty-lens
-, tasty-quickcheck, tasty-smallcheck, template-haskell, text
-, transformers, turtle, unordered-containers, versions
+, containers, deepseq, doctest, flow, ghc, haddock-api
+, haddock-library, hashable, intern, lens, megaparsec, monad-mock
+, mtl, optparse-generic, QuickCheck, quickcheck-instances
+, semigroups, smallcheck, stdenv, system-filepath, tasty
+, tasty-html, tasty-hunit, tasty-lens, tasty-quickcheck
+, tasty-smallcheck, template-haskell, text, transformers, turtle
+, unordered-containers, versions
 }:
 mkDerivation {
   pname = "language-ninja";
@@ -13,7 +13,7 @@ mkDerivation {
   src = ../..;
   isLibrary = true;
   isExecutable = true;
-  setupHaskellDepends = [ base Cabal cabal-doctest ];
+  setupHaskellDepends = [ base Cabal ];
   libraryHaskellDepends = [
     aeson base bytestring containers deepseq flow hashable intern lens
     megaparsec mtl QuickCheck semigroups smallcheck system-filepath
@@ -24,8 +24,8 @@ mkDerivation {
     transformers
   ];
   testHaskellDepends = [
-    aeson base bytestring cabal-doctest containers doctest flow ghc
-    haddock-api haddock-library hashable lens monad-mock mtl QuickCheck
+    aeson base bytestring containers doctest flow ghc haddock-api
+    haddock-library hashable lens monad-mock mtl QuickCheck
     quickcheck-instances semigroups smallcheck system-filepath tasty
     tasty-html tasty-hunit tasty-lens tasty-quickcheck tasty-smallcheck
     template-haskell text transformers turtle unordered-containers
