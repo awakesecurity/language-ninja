@@ -14,8 +14,7 @@ HACKAGE_USERNAME = taktoa
 
 all:
 > -@printf "Available targets:\n"
-> -@printf "    \e[1m%s\e[0m\t- %s\n" "nix-bash"  "enter a bash nix-shell"
-> -@printf "    \e[1m%s\e[0m\t- %s\n" "nix-zsh"   "enter a zsh nix-shell"
+> -@printf "    \e[1m%s\e[0m\t- %s\n" "nix-shell" "enter a nix-shell"
 > -@printf "    \e[1m%s\e[0m\t- %s\n" "configure" "cabal configure"
 > -@printf "    \e[1m%s\e[0m\t- %s\n" "build"     "cabal build"
 > -@printf "    \e[1m%s\e[0m\t- %s\n" "test"      "cabal test"
@@ -24,11 +23,8 @@ all:
 > -@printf "    \e[1m%s\e[0m\t- %s\n" "upload"    "upload this package"
 > -@printf "    \e[1m%s\e[0m\t- %s\n" "clean"     "clean the working directory"
 
-nix-bash: nix/haskell/language-ninja.nix
-> nix-shell shell.nix -Q -j 8 -k
-
-nix-zsh: nix/haskell/language-ninja.nix
-> nix-shell shell.nix -Q -j 8 -k --run "zsh"
+nix-shell: nix/haskell/language-ninja.nix
+> nix-shell shell.nix -Q -j 8 -k --run $$SHELL
 
 configure:
 > cabal configure --enable-tests
