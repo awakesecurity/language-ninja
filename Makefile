@@ -12,7 +12,7 @@ JQUERY = misc/jquery-$(JQUERY_VERSION).js
 
 HACKAGE_USERNAME = taktoa
 
-NIXPKGS_REVISION = 788ce6e3df12bb0cf19fb9ccf8ffa75558b551ba
+NIXPKGS_REVISION = 694529e45d92fe3ca28c7aa78f57ee4b11d4bb73
 
 all: help
 
