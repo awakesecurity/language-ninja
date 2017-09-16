@@ -5,7 +5,7 @@ version:                  0.2.0
 stability:                Experimental
 build-type:               Custom
 cabal-version:            >= 1.10
-category:                 Language
+category:                 Build, Language
 copyright:                Copyright 2017 Awake Security
 author:                   Awake Security
 maintainer:               opensource@awakesecurity.com
@@ -13,7 +13,6 @@ license:                  Apache-2.0
 license-file:             LICENSE.md
 homepage:                 https://github.com/awakesecurity/language-ninja
 bug-reports:              https://github.com/awakesecurity/language-ninja/issues
-category:                 Build, Language
 synopsis:                 A library for dealing with the Ninja build language.
 description:              A Haskell library for parsing, pretty-printing, and
                           compiling the Ninja build language.
