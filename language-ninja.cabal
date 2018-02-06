@@ -119,7 +119,7 @@ library
                         , ScopedTypeVariables
                         , UndecidableInstances
     if impl(ghc >= 8.0)
-       ghc-options:       -Wcompat -Weverything
+        ghc-options:      -Wcompat -Weverything
                           -fno-warn-unsafe
                           -fno-warn-safe
                           -fno-warn-implicit-prelude
@@ -128,7 +128,7 @@ library
                           -fno-warn-all-missed-specialisations
                           -g
     else
-       ghc-options:       -Wall -g
+        ghc-options:      -Wall -g
 
 --------------------------------------------------------------------------------
 
@@ -168,7 +168,7 @@ test-suite tests
                         , unordered-containers        >= 0.2   && < 0.3
                         , versions                    >= 3.1.1 && < 3.2
     if impl(ghc >= 8.0)
-       build-depends:     ghc                         >= 7.4   && < 8.4
+        build-depends:    ghc                         >= 7.4   && < 8.4
                         , haddock-api                 >= 2.17  && < 2.18
                         , haddock-library             >= 1.4   && < 1.5
     default-language:     Haskell2010
@@ -188,7 +188,7 @@ test-suite tests
                         , UndecidableInstances
                         , ViewPatterns
     if impl(ghc >= 8.0)
-       ghc-options:       -Wcompat -Weverything
+        ghc-options:      -Wcompat -Weverything
                           -fno-warn-unsafe
                           -fno-warn-safe
                           -fno-warn-implicit-prelude
@@ -197,14 +197,14 @@ test-suite tests
                           -fno-warn-all-missed-specialisations
                           -g -threaded
     else
-       ghc-options:       -Wall
+        ghc-options:      -Wall
                           -g -threaded
 
 --------------------------------------------------------------------------------
 
 test-suite doctests
     if impl(ghc < 8.0)
-       buildable:         False
+        buildable:        False
     type:                 exitcode-stdio-1.0
     hs-source-dirs:       tests
     main-is:              DocTests.hs
@@ -242,7 +242,7 @@ executable ninja-lex
                         , StandaloneDeriving
                         , TypeOperators
     if impl(ghc >= 8.0)
-       ghc-options:       -Wcompat -Weverything
+        ghc-options:      -Wcompat -Weverything
                           -fno-warn-unsafe
                           -fno-warn-safe
                           -fno-warn-implicit-prelude
@@ -251,7 +251,7 @@ executable ninja-lex
                           -fno-warn-all-missed-specialisations
                           -g -threaded
     else
-       ghc-options:       -Wall
+        ghc-options:      -Wall
                           -g -threaded
 
 --------------------------------------------------------------------------------
@@ -281,7 +281,7 @@ executable ninja-parse
                         , StandaloneDeriving
                         , TypeOperators
     if impl(ghc >= 8.0)
-       ghc-options:       -Wcompat -Weverything
+        ghc-options:      -Wcompat -Weverything
                           -fno-warn-unsafe
                           -fno-warn-safe
                           -fno-warn-implicit-prelude
@@ -290,7 +290,7 @@ executable ninja-parse
                           -fno-warn-all-missed-specialisations
                           -g -threaded
     else
-       ghc-options:       -Wall
+        ghc-options:      -Wall
                           -g -threaded
 
 --------------------------------------------------------------------------------
@@ -320,7 +320,7 @@ executable ninja-compile
                         , StandaloneDeriving
                         , TypeOperators
     if impl(ghc >= 8.0)
-       ghc-options:       -Wcompat -Weverything
+        ghc-options:      -Wcompat -Weverything
                           -fno-warn-unsafe
                           -fno-warn-safe
                           -fno-warn-implicit-prelude
@@ -329,7 +329,7 @@ executable ninja-compile
                           -fno-warn-all-missed-specialisations
                           -g -threaded
     else
-       ghc-options:       -Wall
+        ghc-options:      -Wall
                           -g -threaded
 
 --------------------------------------------------------------------------------
